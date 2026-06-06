@@ -82,7 +82,7 @@ async function* fakeChunkStream(input: LLMInput, _state: FakeState): AsyncGenera
             parameters: {
               tool_calls: [
                 { tool: "grep", parameters: { pattern: "task" } },
-                { tool: "read", parameters: { filePath: "src/core/tool/task.ts" } },
+                { tool: "read", parameters: { filePath: "packages/harness/src/tool/task.ts" } },
               ],
             },
           },

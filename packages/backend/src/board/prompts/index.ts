@@ -1,5 +1,5 @@
 import { resolve } from "node:path"
-import { loadText } from "@harness/lib/load-text"
+import { loadText } from "@harness"
 
 const here = (file: string) => resolve(import.meta.dir, file)
 

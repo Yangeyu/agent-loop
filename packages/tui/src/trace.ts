@@ -1,5 +1,4 @@
-import type { RuntimeContext } from "@harness/runtime/context"
-import type { RuntimeEvent } from "@harness/runtime/events"
+import type { RuntimeContext, RuntimeEvent } from "@harness"
 import type { Setter } from "solid-js"
 import type { TraceEntry } from "@tui/types"
 import { COLORS, asRecord, preview, safeJson, shouldCollapse } from "@tui/theme"

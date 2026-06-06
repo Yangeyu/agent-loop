@@ -1,6 +1,6 @@
 import { readBoardAnalysisAssets } from "@backend/board/shared/store"
 import { BoardAnalysisAssetReadParameters } from "@backend/board/tools/types"
-import { defineTool } from "@harness/tool/tool"
+import { defineTool } from "@harness"
 
 export const BoardAnalysisAssetReadTool = defineTool({
   id: "board_analysis_asset_read",

@@ -8,7 +8,7 @@ import {
   BoardReportWriteTool,
   BoardSnapshotTool,
 } from "@backend/board/tools"
-import type { RuntimePlugin } from "@harness/plugin/types"
+import type { RuntimePlugin } from "@harness"
 
 export const boardPlugin: RuntimePlugin = {
   name: "board",

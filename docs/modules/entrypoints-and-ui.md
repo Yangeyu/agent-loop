@@ -6,21 +6,21 @@
 
 ## 相关文件
 
-- `src/index.ts`
-- `src/server.ts`
-- `src/http/`
+- `apps/cli/src/index.ts`
+- `packages/backend/src/server.ts`
+- `packages/backend/src/http/`
 - `frontend/`
-- `src/tui/app.tsx`
-- `src/tui/components/`
-- `src/tui/trace.ts`
-- `src/tui/theme.ts`
-- `src/tui/types.ts`
-- `src/core/runtime/logger.ts`
-- `src/core/runtime/events.ts`
+- `packages/tui/src/app.tsx`
+- `packages/tui/src/components/`
+- `packages/tui/src/trace.ts`
+- `packages/tui/src/theme.ts`
+- `packages/tui/src/types.ts`
+- `packages/harness/src/runtime/logger.ts`
+- `packages/harness/src/runtime/events.ts`
 
 ## CLI 入口
 
-`src/index.ts` 负责：
+`apps/cli/src/index.ts` 负责：
 
 - 解析 `--agent`、`--session`、`--json`、`--trace`、`--replay-step`、`--replay-turn`、`--tui`、`--output`。
 - 在启动时调用 `createRuntime()` 创建并装配新的 runtime 实例。
@@ -36,15 +36,15 @@
 - `--replay-step <n>` 或 `--replay-turn <id>` 打印对应 turn 的 replay 输入快照。
 - replay 依赖当前 runtime 内存里的 trace，因此不能只靠磁盘 session 文件离线恢复旧 trace。
 - `--trace` / `--replay-*` 仅支持 CLI 模式，不支持 `--tui`。
-- 根脚本 `bun run dev` 会先选一个固定可用后端端口，再用 `bun --watch src/server.ts` 启动后端，并把同一个地址注入 `frontend/` 开发服务器。
+- 根脚本 `bun run dev` 会先选一个固定可用后端端口，再用 `bun --watch packages/backend/src/server.ts` 启动后端，并把同一个地址注入 `frontend/` 开发服务器。
 
 ## SSE 入口
 
-`src/server.ts` 负责：
+`packages/backend/src/server.ts` 负责：
 
-- 作为轻量启动入口，启动 `src/http/` 模块里的 HTTP 服务。
+- 作为轻量启动入口，启动 `packages/backend/src/http/` 模块里的 HTTP 服务。
 
-`src/http/` 负责：
+`packages/backend/src/http/` 负责：
 
 - 用 `Bun.serve()` 暴露最小 HTTP 服务。
 - 提供 `POST /api/chat` SSE 接口，接收 `text`、可选 `agent`、可选 `sessionID`。
@@ -66,7 +66,7 @@
 
 ## TUI 结构
 
-`src/tui/` 基于 `@opentui/solid` 实现，当前拆分为：
+`packages/tui/src/` 基于 `@opentui/solid` 实现，当前拆分为：
 
 - `app.tsx`：TUI 启动、状态编排、runtime 事件订阅、快捷键协调。
 - `components/`：sidebar、transcript item、composer、crash view 等视图组件。
@@ -82,7 +82,7 @@
 
 ## 事件驱动渲染
 
-`src/core/runtime/events.ts` 提供 runtime-scoped 事件总线工厂，CLI logger 与 TUI 都通过 `runtime.events` 订阅状态变化。
+`packages/harness/src/runtime/events.ts` 提供 runtime-scoped 事件总线工厂，CLI logger 与 TUI 都通过 `runtime.events` 订阅状态变化。
 
 典型事件包括：
 
@@ -94,7 +94,7 @@
 
 ## CLI 输出模式
 
-`src/core/runtime/logger.ts` 提供两种模式：
+`packages/harness/src/runtime/logger.ts` 提供两种模式：
 
 - `stream`: 边收边打印 reasoning 与 answer。
 - `buffered`: turn 完成后再成块输出。
@@ -103,6 +103,6 @@ logger 只关心展示，不负责 session 状态本身，状态仍由 `SessionS
 
 ## 修改建议
 
-- 想改交互参数，优先看 `src/index.ts`。
-- 想改终端布局、trace 折叠或快捷键，优先看 `src/tui/app.tsx`。
+- 想改交互参数，优先看 `apps/cli/src/index.ts`。
+- 想改终端布局、trace 折叠或快捷键，优先看 `packages/tui/src/app.tsx`。
 - 想新增可视化事件，先扩展 `RuntimeEvent`，再同步更新 logger 与 TUI。

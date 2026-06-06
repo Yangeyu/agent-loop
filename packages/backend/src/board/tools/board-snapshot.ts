@@ -1,5 +1,5 @@
 import { loadBoardSnapshot } from "@backend/board/shared/snapshot"
-import { defineTool } from "@harness/tool/tool"
+import { defineTool } from "@harness"
 import { z } from "zod"
 
 export const BoardSnapshotParameters = z.object({

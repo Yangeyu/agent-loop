@@ -6,8 +6,7 @@ import type {
   BoardAnalysisContext,
   BoardAnalysisDatasetSummary,
 } from "@backend/board/types"
-import type { ISessionStore } from "@harness/session/store/types"
-import { createID } from "@harness/types"
+import { createID, type ISessionStore } from "@harness"
 
 export const BOARD_ANALYSIS_STORE_DIR = resolve(process.cwd(), "data", "board-analysis-store")
 

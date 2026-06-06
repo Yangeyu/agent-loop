@@ -1,5 +1,5 @@
 import { BOARD_ANALYSIS_PREPARE_PROMPT } from "@backend/board/prompts"
-import type { AgentInfo } from "@harness/types"
+import type { AgentInfo } from "@harness"
 
 export const boardAnalysisPrepareAgent: AgentInfo = {
   name: "board_analysis_prepare",

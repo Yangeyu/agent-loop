@@ -32,6 +32,14 @@ const rules: Rule[] = [
     forbid: /from\s+["'](@harness|@backend|@tui|@agent-loop\/(harness|backend|tui))(\/|["'])/,
     why: "frontend runs in the browser: it may only import @agent-loop/contracts, never engine/server code",
   },
+  // Consume the harness only through its public barrel ("@harness"), never deep
+  // internal paths ("@harness/..."), so the engine keeps a curated public contract.
+  ...["packages/backend/src", "packages/tui/src", "apps/cli/src"].map((dir) => ({
+    pkg: dir.split("/")[1],
+    dir,
+    forbid: /from\s+["']@harness\//,
+    why: 'import the harness via its barrel ("@harness"), not deep paths ("@harness/...") — add to the barrel if a symbol is missing',
+  })),
 ]
 
 let violations = 0

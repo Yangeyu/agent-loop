@@ -1,6 +1,6 @@
 import { readBoardAnalysisBundle } from "@backend/board/shared/store"
 import { BoardAnalysisBundleTypeSchema } from "@backend/board/tools/types"
-import { defineTool } from "@harness/tool/tool"
+import { defineTool } from "@harness"
 import { z } from "zod"
 
 export const BoardAnalysisBundleReadParameters = z.object({

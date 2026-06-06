@@ -6,23 +6,23 @@
 
 ## 相关文件
 
-- `src/core/agent/registry.ts`
-- `src/core/agent/agents.ts`
-- `src/core/agent/prompts.ts`
-- `src/core/skill/registry.ts`
-- `src/core/tool/registry.ts`
-- `src/core/tool/tools.ts`
-- `src/core/tool/basic.ts`
-- `src/core/tool/bash.ts`
-- `src/core/tool/batch.ts`
-- `src/core/tool/task.ts`
-- `src/core/tool/tool.ts`
-- `src/core/session/tool-part.ts`
-- `src/core/module.ts`
+- `packages/harness/src/agent/registry.ts`
+- `packages/harness/src/agent/agents.ts`
+- `packages/harness/src/agent/prompts.ts`
+- `packages/harness/src/skill/registry.ts`
+- `packages/harness/src/tool/registry.ts`
+- `packages/harness/src/tool/tools.ts`
+- `packages/harness/src/tool/basic.ts`
+- `packages/harness/src/tool/bash.ts`
+- `packages/harness/src/tool/batch.ts`
+- `packages/harness/src/tool/task.ts`
+- `packages/harness/src/tool/tool.ts`
+- `packages/harness/src/session/tool-part.ts`
+- `packages/harness/src/module.ts`
 
 ## Agent 体系
 
-`src/core/agent/registry.ts` 定义 agent registry 工厂；实际 registry 实例由 `src/core/runtime/context.ts` 创建并持有，支持：
+`packages/harness/src/agent/registry.ts` 定义 agent registry 工厂；实际 registry 实例由 `packages/harness/src/runtime/context.ts` 创建并持有，支持：
 
 - `register()`
 - `get()`
@@ -41,14 +41,14 @@ registry 维护全局 agent 定义，用于：
 
 ## Agent Prompt
 
-`src/core/agent/prompts.ts` 中的 prompt 主要描述策略，不做实现：
+`packages/harness/src/agent/prompts.ts` 中的 prompt 主要描述策略，不做实现：
 
 - `build` 倾向直接完成任务，必要时委派 specialist
 - 不在 core 中写死业务模块的委派目标
 
 ## Tool 注册
 
-`src/core/tool/tools.ts` 汇总 core tools：
+`packages/harness/src/tool/tools.ts` 汇总 core tools：
 
 - `task`
 - `task_resume`
@@ -58,11 +58,11 @@ registry 维护全局 agent 定义，用于：
 - `grep`
 - `skill`
 
-`src/core/tool/registry.ts` 定义 tool registry 工厂；实际 registry 实例由 `RuntimeContext.tool_registry` 持有，并根据 agent 的 `tools` 开关筛选当前 step 可用工具。
+`packages/harness/src/tool/registry.ts` 定义 tool registry 工厂；实际 registry 实例由 `RuntimeContext.tool_registry` 持有，并根据 agent 的 `tools` 开关筛选当前 step 可用工具。
 
 ## Tool Harness
 
-`src/core/tool/tool.ts` 提供 `defineTool()`，作为 core tool harness 的统一入口。
+`packages/harness/src/tool/tool.ts` 提供 `defineTool()`，作为 core tool harness 的统一入口。
 
 当前一个 tool 的标准执行顺序是：
 
@@ -73,7 +73,7 @@ registry 维护全局 agent 定义，用于：
 - output / metadata 归一化
 - 结果写回 session tool part
 
-tool 结果在真正落进 session history 前，还会经过 `src/core/session/tool-part.ts` 的稳定 `ToolPart` 协议收口。当前稳定字段包括：
+tool 结果在真正落进 session history 前，还会经过 `packages/harness/src/session/tool-part.ts` 的稳定 `ToolPart` 协议收口。当前稳定字段包括：
 
 - `toolName`
 - `toolCallId`
@@ -148,7 +148,7 @@ tool metadata key 约定优先使用 `camelCase`，例如：
   - delegation result metadata 统一记录 `taskId`、`sessionId`、`parentSessionId`、`agentName`、`subagentName`、`resume` 等关键字段
   - 创建 child session 后，会立刻补发一次带 `sessionId` 的 tool metadata 更新；前端可用 `title` / `description` 作为该子任务 CoT 区块标题，而不必等子任务结束
 
-board 模块当前的最终报告落盘逻辑保持在 `src/board/tools/board-report-write.ts`，`task` 本身不再承担 artifact 透传协议。
+board 模块当前的最终报告落盘逻辑保持在 `packages/backend/src/board/tools/board-report-write.ts`，`task` 本身不再承担 artifact 透传协议。
 
 ## 设计重点
 

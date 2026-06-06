@@ -1,6 +1,6 @@
 import { upsertBoardAnalysisAsset } from "@backend/board/shared/store"
 import { BoardAnalysisAssetWriteParameters } from "@backend/board/tools/types"
-import { defineTool } from "@harness/tool/tool"
+import { defineTool } from "@harness"
 
 export const BoardAnalysisAssetUpsertTool = defineTool({
   id: "board_analysis_asset_upsert",

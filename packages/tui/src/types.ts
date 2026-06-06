@@ -1,4 +1,4 @@
-import type { RuntimeContext } from "@harness/runtime/context"
+import type { RuntimeContext } from "@harness"
 
 export type TuiOptions = {
   runtime: RuntimeContext

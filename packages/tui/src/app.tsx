@@ -1,4 +1,4 @@
-import { runPrompt } from "@harness/runtime/bootstrap"
+import { runPrompt } from "@harness"
 import { ComposerCard, CrashView, Sidebar, TraceEntryBlock, WelcomeCard } from "@tui/components"
 import { handleTraceEvent } from "@tui/trace"
 import { COLORS, belongsToSessionTree, buildSessionTitle, moveSession, resolveInitialAgent } from "@tui/theme"

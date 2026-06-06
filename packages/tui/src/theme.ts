@@ -1,5 +1,4 @@
-import type { RuntimeContext } from "@harness/runtime/context"
-import type { SessionInfo } from "@harness/types"
+import type { RuntimeContext, SessionInfo } from "@harness"
 
 export const COLORS = {
   app: "#0a0a0a",

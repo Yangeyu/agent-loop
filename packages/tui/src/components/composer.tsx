@@ -1,4 +1,4 @@
-import { resolveModelSpec } from "@harness/llm/models"
+import { resolveModelSpec } from "@harness"
 import { appendPromptHistory, loadPromptHistory, type PromptHistoryEntry } from "@tui/prompt-history"
 import { getTextareaKeybindings } from "@tui/textarea-keybindings"
 import { COLORS, PROMPT_MAX_HEIGHT, SPINNER_FRAMES, agentAccent, estimateVisualLines, titleCase } from "@tui/theme"

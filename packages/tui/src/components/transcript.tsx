@@ -1,4 +1,4 @@
-import type { RuntimeContext } from "@harness/runtime/context"
+import type { RuntimeContext } from "@harness"
 import { COLORS } from "@tui/theme"
 import type { TraceEntry } from "@tui/types"
 import { TextAttributes } from "@opentui/core"

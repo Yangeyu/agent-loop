@@ -5,7 +5,7 @@ import {
   getBoardAnalysisDatasetJsonPath,
   summarizeBoardAnalysisDataset,
 } from "@backend/board/shared/store"
-import { defineTool } from "@harness/tool/tool"
+import { defineTool } from "@harness"
 import { z } from "zod"
 
 export const BoardAnalysisContextParameters = z.object({

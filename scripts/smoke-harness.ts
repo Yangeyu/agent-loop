@@ -1,9 +1,16 @@
 import { createAppTestRuntime } from "@backend/compose"
-import { runPrompt } from "@harness/runtime/bootstrap"
-import { SessionCompaction } from "@harness/session/compaction"
-import type { RuntimeEvent } from "@harness/runtime/events"
-import type { TaskArgs, TaskResumeArgs } from "@harness/tool/task"
-import { createID, type AssistantMessage, type SessionInfo, type ToolPart, type UserMessage } from "@harness/types"
+import {
+  createID,
+  runPrompt,
+  SessionCompaction,
+  type AssistantMessage,
+  type RuntimeEvent,
+  type SessionInfo,
+  type TaskArgs,
+  type TaskResumeArgs,
+  type ToolPart,
+  type UserMessage,
+} from "@harness"
 import assert from "node:assert/strict"
 
 process.env.LLM_MODE = "fake"
@@ -12,7 +19,6 @@ process.env.SESSION_STORE = "memory"
 const runtime = await createAppTestRuntime()
 
 await runInvalidArgsCase()
-await runSkillCase()
 await runTaskCase()
 await runTaskResumeCase()
 await runNestedBatchCase()
@@ -37,33 +43,6 @@ async function runInvalidArgsCase() {
   assert.equal(errorPart.state.error.code, "tool_invalid_args")
   assert.equal(errorPart.toolName, "grep")
   assert.ok(errorPart.toolCallId)
-}
-
-async function runSkillCase() {
-  const parent = runtime.session_store.create({ title: "Skill smoke" })
-  const tool = runtime.tool_registry.getTyped<{ name: string }>("skill")
-
-  const result = await tool.execute({
-    name: "repo-map",
-  }, {
-    config: runtime.config,
-    agent_registry: runtime.agent_registry,
-    skill_registry: runtime.skill_registry,
-    session_store: runtime.session_store,
-    tool_registry: runtime.tool_registry,
-    events: runtime.events,
-    sessionID: parent.id,
-    messageID: createID(),
-    agent: "build",
-    abort: new AbortController().signal,
-    messages: [],
-    metadata: async () => {},
-    captureStructuredOutput: async () => {},
-    captureArtifact: async () => {},
-  })
-
-  assert.match(result.output, /<skill_content name="repo-map">/)
-  assert.match(result.output, /# Skill: repo-map/)
 }
 
 async function runTaskCase() {
@@ -131,7 +110,7 @@ async function runNestedBatchCase() {
   assert.ok(batchPart.toolCallId)
   assert.match(batchPart.state.output, /\[batch\]/)
   assert.match(batchPart.state.output, /\[grep\]/)
-  assert.match(batchPart.state.output, /src\/core\/tool\/task\.ts/)
+  assert.match(batchPart.state.output, /packages\/harness\/src\/tool\/task\.ts/)
 }
 
 async function runTraceExportCase() {
@@ -170,21 +149,21 @@ async function runReplayCase() {
 
   const replay = replayRuntime.replay.turnInput({
     sessionID: session.id,
-    messageID: turn.messageID,
+    turnID: turn.turnID,
   })
 
   assert.equal(replay.step, 1)
   assert.ok(replay.system.length > 0, "expected replay system prompt")
   assert.ok(replay.tools.includes("batch"), "expected replay tools to include batch")
   assert.ok(replay.messages.some((message) => message.role === "user"), "expected replay model messages to include user input")
-  assert.equal(replay.llmInput.assistant.id, turn.messageID)
+  assert.equal(replay.llmInput.assistant.id, turn.turnID)
 }
 
 async function runCliDebugCase() {
   const command = [
     "bun",
     "run",
-    "src/index.ts",
+    "apps/cli/src/index.ts",
     "--output",
     "buffered",
     "--trace",

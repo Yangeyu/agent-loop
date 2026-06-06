@@ -1,6 +1,5 @@
 import { createAppRuntime } from "@backend/compose"
-import { attachConsoleLogger, type OutputMode } from "@harness/runtime/logger"
-import { runPrompt } from "@harness/runtime/bootstrap"
+import { attachConsoleLogger, runPrompt, type OutputMode } from "@harness"
 import { startTui } from "@tui"
 
 function parseArgs(argv: string[]) {

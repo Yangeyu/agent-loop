@@ -1,4 +1,4 @@
-import type { SessionInfo } from "@harness/types"
+import type { SessionInfo } from "@harness"
 import { COLORS } from "@tui/theme"
 import type { ActivityState } from "@tui/types"
 import { TextAttributes } from "@opentui/core"

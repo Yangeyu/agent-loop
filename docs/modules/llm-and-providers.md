@@ -6,24 +6,24 @@
 
 ## 相关文件
 
-- `src/core/llm/index.ts`
-- `src/core/llm/models.ts`
-- `src/core/llm/types.ts`
-- `src/core/llm/content.ts`
-- `src/core/llm/providers/create.ts`
-- `src/core/llm/providers/qwen.ts`
-- `src/core/llm/providers/fake.ts`
-- `src/core/llm/providers/sse.ts`
+- `packages/harness/src/llm/index.ts`
+- `packages/harness/src/llm/models.ts`
+- `packages/harness/src/llm/types.ts`
+- `packages/harness/src/llm/content.ts`
+- `packages/harness/src/llm/providers/create.ts`
+- `packages/harness/src/llm/providers/qwen.ts`
+- `packages/harness/src/llm/providers/fake.ts`
+- `packages/harness/src/llm/providers/sse.ts`
 
 ## 统一入口
 
-`src/core/llm/index.ts` 对上层只暴露一件事：`LLM.stream(input)`。
+`packages/harness/src/llm/index.ts` 对上层只暴露一件事：`LLM.stream(input)`。
 
 session 层不需要知道当前是 fake 还是 qwen，只消费统一的 `LLMChunk`。
 
 ## 模型选择
 
-`src/core/llm/models.ts` 负责：
+`packages/harness/src/llm/models.ts` 负责：
 
 - 定义 `fake` 和 `qwen` 两种模型规格
 - 依据 `LLM_MODE` 或 API key 自动选择 runtime
@@ -33,7 +33,7 @@ session 层不需要知道当前是 fake 还是 qwen，只消费统一的 `LLMCh
 
 ## 统一协议
 
-`src/core/llm/types.ts` 定义了 runtime 与 provider 之间的核心契约：
+`packages/harness/src/llm/types.ts` 定义了 runtime 与 provider 之间的核心契约：
 
 - `ModelMessage`
 - `ModelContentBlock`
@@ -45,7 +45,7 @@ session 层不需要知道当前是 fake 还是 qwen，只消费统一的 `LLMCh
 
 ## Provider 适配骨架
 
-`src/core/llm/providers/create.ts` 抽象出两类 provider：
+`packages/harness/src/llm/providers/create.ts` 抽象出两类 provider：
 
 - local streaming provider
 - remote streaming provider
@@ -60,7 +60,7 @@ session 层不需要知道当前是 fake 还是 qwen，只消费统一的 `LLMCh
 
 ## Qwen Provider
 
-`src/core/llm/providers/qwen.ts` 是最完整的远程适配器，负责：
+`packages/harness/src/llm/providers/qwen.ts` 是最完整的远程适配器，负责：
 
 - 构建 DashScope compatible 请求体
 - 把内部 `ModelMessage` 序列化成 Qwen 文本协议
@@ -70,7 +70,7 @@ session 层不需要知道当前是 fake 还是 qwen，只消费统一的 `LLMCh
 
 ## Fake Provider
 
-`src/core/llm/providers/fake.ts` 主要用于 smoke 与本地回归：
+`packages/harness/src/llm/providers/fake.ts` 主要用于 smoke 与本地回归：
 
 - 可模拟 subagent task
 - 可模拟 invalid tool args
@@ -82,7 +82,7 @@ session 层不需要知道当前是 fake 还是 qwen，只消费统一的 `LLMCh
 
 ## SSE 解析
 
-`src/core/llm/providers/sse.ts` 只做一件事：把 `ReadableStream<Uint8Array>` 拆成逐条 `data:` payload，供远程 provider 自己解析 JSON。
+`packages/harness/src/llm/providers/sse.ts` 只做一件事：把 `ReadableStream<Uint8Array>` 拆成逐条 `data:` payload，供远程 provider 自己解析 JSON。
 
 ## 修改建议
 

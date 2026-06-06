@@ -1,6 +1,6 @@
 import { writeBoardReport } from "@backend/board/shared/report-store"
 import { BoardReportWriteParameters } from "@backend/board/tools/types"
-import { defineTool } from "@harness/tool/tool"
+import { defineTool } from "@harness"
 
 export const BoardReportWriteTool = defineTool({
   id: "board_report_write",

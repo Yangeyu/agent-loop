@@ -1,6 +1,4 @@
-import type { RuntimeContext } from "@harness/runtime/context"
-import type { RuntimeEvent } from "@harness/runtime/events"
-import { SessionPrompt } from "@harness/session/prompt"
+import { SessionPrompt, type RuntimeContext, type RuntimeEvent } from "@harness"
 import { corsHeaders, jsonResponse } from "@backend/http/responses"
 import { z } from "zod"
 

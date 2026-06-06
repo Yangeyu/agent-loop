@@ -1,6 +1,5 @@
 import { resolve } from "node:path"
-import { loadText } from "@harness/lib/load-text"
-import type { SkillInfo } from "@harness/skill/types"
+import { loadText, type SkillInfo } from "@harness"
 
 export const boardSkills: SkillInfo[] = [
   {

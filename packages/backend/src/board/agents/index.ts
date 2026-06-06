@@ -1,4 +1,4 @@
-import type { AgentInfo } from "@harness/types"
+import type { AgentInfo } from "@harness"
 import { boardAnalysisPrepareAgent } from "@backend/board/agents/board-analysis-prepare"
 import { boardBundleAnalyzeAgent } from "@backend/board/agents/board-bundle-analyze"
 import { boardWriteAgent } from "@backend/board/agents/board-write"

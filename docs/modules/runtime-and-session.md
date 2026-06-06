@@ -6,32 +6,32 @@
 
 ## 相关文件
 
-- `src/core/config.ts`
-- `src/core/runtime/bootstrap.ts`
-- `src/core/runtime/context.ts`
-- `src/core/plugin/manager.ts`
-- `src/app/plugins.ts`
-- `src/core/session/prompt.ts`
-- `src/core/session/processor.ts`
-- `src/core/session/processor-context.ts`
-- `src/core/session/tool-executor.ts`
-- `src/core/session/execution-policy.ts`
-- `src/core/session/turn-lifecycle.ts`
-- `src/core/session/tool-part.ts`
-- `src/core/session/store/`
-- `src/core/session/model-message.ts`
-- `src/core/session/system.ts`
-- `src/core/session/compaction.ts`
-- `src/core/types.ts`
+- `packages/harness/src/config.ts`
+- `packages/harness/src/runtime/bootstrap.ts`
+- `packages/harness/src/runtime/context.ts`
+- `packages/harness/src/plugin/manager.ts`
+- `packages/backend/src/compose.ts`
+- `packages/harness/src/session/prompt.ts`
+- `packages/harness/src/session/processor.ts`
+- `packages/harness/src/session/processor-context.ts`
+- `packages/harness/src/session/tool-executor.ts`
+- `packages/harness/src/session/execution-policy.ts`
+- `packages/harness/src/session/turn-lifecycle.ts`
+- `packages/harness/src/session/tool-part.ts`
+- `packages/harness/src/session/store/`
+- `packages/harness/src/session/model-message.ts`
+- `packages/harness/src/session/system.ts`
+- `packages/harness/src/session/compaction.ts`
+- `packages/harness/src/types.ts`
 
 ## 配置与运行时上下文
 
-- `src/core/config.ts` 只负责环境变量解析、schema 校验、默认值和缓存读取，不负责创建任何运行时依赖。
-- `src/core/runtime/context.ts` 负责创建新的 `RuntimeContext` 实例，把 `config`、`session_store`、`agent_registry`、`skill_registry`、`tool_registry`、`events` 装配在同一个 runtime 上。
-- `src/core/runtime/trace.ts` 负责订阅 runtime events，收集 turn-level trace，并通过 `RuntimeContext.trace` 暴露导出接口。
-- `src/core/runtime/replay.ts` 负责基于 session state 和 trace 重建指定 turn 的模型输入快照，并通过 `RuntimeContext.replay` 暴露查询接口。
-- `src/core/session/execution-policy.ts` 负责把 runtime config 和 agent 约束解析成 turn 级执行策略。
-- `src/core/runtime/bootstrap.ts` 负责把传入的 runtime plugins 注册到 runtime，或通过 `createRuntime()` 一次性创建并装配新的 runtime 实例。
+- `packages/harness/src/config.ts` 只负责环境变量解析、schema 校验、默认值和缓存读取，不负责创建任何运行时依赖。
+- `packages/harness/src/runtime/context.ts` 负责创建新的 `RuntimeContext` 实例，把 `config`、`session_store`、`agent_registry`、`skill_registry`、`tool_registry`、`events` 装配在同一个 runtime 上。
+- `packages/harness/src/runtime/trace.ts` 负责订阅 runtime events，收集 turn-level trace，并通过 `RuntimeContext.trace` 暴露导出接口。
+- `packages/harness/src/runtime/replay.ts` 负责基于 session state 和 trace 重建指定 turn 的模型输入快照，并通过 `RuntimeContext.replay` 暴露查询接口。
+- `packages/harness/src/session/execution-policy.ts` 负责把 runtime config 和 agent 约束解析成 turn 级执行策略。
+- `packages/harness/src/runtime/bootstrap.ts` 负责把传入的 runtime plugins 注册到 runtime，或通过 `createRuntime()` 一次性创建并装配新的 runtime 实例。
 
 ### RuntimeContext vs RuntimeDeps
 
@@ -50,7 +50,7 @@
 
 ## Runtime bootstrap
 
-`src/core/runtime/bootstrap.ts` 现在通过 plugin manager 按 runtime 实例遍历 plugins：
+`packages/harness/src/runtime/bootstrap.ts` 现在通过 plugin manager 按 runtime 实例遍历 plugins：
 
 - 创建新的 `RuntimeContext`
 - 对 plugin 名称做重复保护，并保证同一个 runtime 上的重复注册是幂等的
@@ -64,7 +64,7 @@
 
 ## SessionPrompt: 外层循环
 
-`src/core/session/prompt.ts` 是 session 驱动入口：
+`packages/harness/src/session/prompt.ts` 是 session 驱动入口：
 
 - 创建 user message 与文本 part
 - 发出 `session-start`
@@ -80,7 +80,7 @@
 
 ## SessionProcessor: 单步执行器
 
-`src/core/session/processor.ts` 是每一轮 assistant turn 的执行器：
+`packages/harness/src/session/processor.ts` 是每一轮 assistant turn 的执行器：
 
 - 调用 `LLM.stream()` 获得统一 chunk 流
 - 将 reasoning/text 增量写入 session parts
@@ -161,7 +161,7 @@ CLI 当前已经提供最小调试出口：
 
 ## SessionStore: Store 接口与运行时适配
 
-`src/core/session/store/` 现在分成三层：
+`packages/harness/src/session/store/` 现在分成三层：
 
 - `types.ts`: `ISessionStore` 边界接口
 - `memory.ts` / `file.ts`: 具体实现
@@ -185,18 +185,18 @@ store 负责维护 session 状态：
 - `state.output` / `state.attachments` / `state.error`
 - `state.time.start` / `state.time.end`
 
-`src/core/session/tool-part.ts` 负责把运行中的 tool 调用归一化成这套稳定 `ToolPart` 结构，避免 board 或其他消费者直接依赖 processor 内部中间态。
+`packages/harness/src/session/tool-part.ts` 负责把运行中的 tool 调用归一化成这套稳定 `ToolPart` 结构，避免 board 或其他消费者直接依赖 processor 内部中间态。
 
 这是项目里最核心的状态事实来源，但初始化职责不再放在 store 模块内部。
 
 ## System prompt 与模型消息
 
-- `src/core/session/system.ts` 负责拼装每一步系统提示，包括最终步警告、available skills 提示与 structured output 约束。
-- `src/core/session/model-message.ts` 负责把 session 内部消息映射为 provider 可消费的 `ModelMessage[]`。
+- `packages/harness/src/session/system.ts` 负责拼装每一步系统提示，包括最终步警告、available skills 提示与 structured output 约束。
+- `packages/harness/src/session/model-message.ts` 负责把 session 内部消息映射为 provider 可消费的 `ModelMessage[]`。
 
 ## Compaction
 
-`src/core/session/compaction.ts` 在消息数达到阈值后，把最近历史压缩成 `compaction` part，并只保留最新 user message 继续执行。
+`packages/harness/src/session/compaction.ts` 在消息数达到阈值后，把最近历史压缩成 `compaction` part，并只保留最新 user message 继续执行。
 
 目的不是长期存档，而是给后续 step 保留足够上下文摘要，避免循环被上下文长度卡死。
 

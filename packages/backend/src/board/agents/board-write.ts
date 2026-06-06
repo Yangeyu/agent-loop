@@ -1,5 +1,5 @@
 import { BOARD_WRITE_PROMPT } from "@backend/board/prompts"
-import type { AgentInfo } from "@harness/types"
+import type { AgentInfo } from "@harness"
 
 export const boardWriteAgent: AgentInfo = {
   name: "board_write",

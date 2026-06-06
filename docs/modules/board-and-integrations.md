@@ -6,21 +6,21 @@
 
 ## 相关文件
 
-- `src/board/index.ts`
-- `src/board/agents.ts`
-- `src/board/tools.ts`
-- `src/board/store.ts`
-- `src/board/snapshot.ts`
-- `src/board/analyze.ts`
-- `src/board/types.ts`
-- `src/board/skills.ts`
-- `src/board/skills/board-analysis.md`
-- `src/board/prompts/index.ts`
-- `src/integrations/postgres/client.ts`
+- `packages/backend/src/board/index.ts`
+- `packages/backend/src/board/agents.ts`
+- `packages/backend/src/board/tools.ts`
+- `packages/backend/src/board/store.ts`
+- `packages/backend/src/board/snapshot.ts`
+- `packages/backend/src/board/analyze.ts`
+- `packages/backend/src/board/types.ts`
+- `packages/backend/src/board/skills.ts`
+- `packages/backend/src/board/skills/board-analysis.md`
+- `packages/backend/src/board/prompts/index.ts`
+- `packages/backend/src/integrations/postgres/client.ts`
 
 ## 模块装配
 
-`src/board/index.ts` 导出 `boardModule`，向 runtime 注册：
+`packages/backend/src/board/index.ts` 导出 `boardModule`，向 runtime 注册：
 
 - `board-analysis` skill
 - `board_analysis_prepare` subagent
@@ -52,14 +52,14 @@
 
 ## 数据归一化
 
-`src/board/snapshot.ts` 负责：
+`packages/backend/src/board/snapshot.ts` 负责：
 
 - 查询 board 主信息和最新 board_data
 - 把 `nodes` 归一化为 `BoardItem[]`
 - 把 `edges` 归一化为 `BoardLink[]`
 - 计算 metadata，如 item/link 数量与类型计数
 
-`src/board/analyze.ts` 负责：
+`packages/backend/src/board/analyze.ts` 负责：
 
 - 清洗无效、重复、空文本节点
 - 清理失效引用
@@ -68,7 +68,7 @@
 
 它们的定位是“数据库原始结构 -> runtime 可消费上下文”的转换边界。
 
-`src/board/store.ts` 负责：
+`packages/backend/src/board/store.ts` 负责：
 
 - 保存 board analysis dataset
 - 将 dataset 持久化为 `data/board-analysis-store/*.json`
@@ -76,14 +76,14 @@
 - 按 `analysisId + bundleType` 读取 bundle 数据
 - 按 `analysisId` 保存和读取中间 analysis assets
 
-`src/board/shared/report-store.ts` 负责：
+`packages/backend/src/board/shared/report-store.ts` 负责：
 
 - 将最终 board 报告写入当前项目的数据目录
 - 返回报告文件路径和基础元数据
 
 ## Postgres 边界
 
-`src/integrations/postgres/client.ts` 封装只读查询：
+`packages/backend/src/integrations/postgres/client.ts` 封装只读查询：
 
 - 读取 `KIWOO_DATABASE_URL`
 - 维护共享连接池

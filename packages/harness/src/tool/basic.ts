@@ -1,7 +1,20 @@
 import fs from "node:fs/promises"
+import { existsSync } from "node:fs"
 import path from "node:path"
 import { defineTool } from "@harness/tool/tool"
 import { z } from "zod"
+
+// Workspace source roots searched by the grep tool. The repo is a bun monorepo,
+// so source lives under packages/* and apps/* (plus dev scripts), not a single src/.
+const GREP_SEARCH_DIRS = ["packages", "apps", "scripts"]
+const GREP_SKIP = /(^|\/)(node_modules|dist|\.git)(\/|$)/
+
+function resolveGrepRoots() {
+  const roots = GREP_SEARCH_DIRS
+    .map((dir) => path.resolve(process.cwd(), dir))
+    .filter((dir) => existsSync(dir))
+  return roots.length > 0 ? roots : [process.cwd()]
+}
 
 export const ReadParameters = z.object({
   filePath: z.string().trim().min(1)
@@ -57,15 +70,15 @@ export const ReadTool = defineTool({
 
 export const GrepTool = defineTool({
   id: "grep",
-  description: "Search for a regular expression across TypeScript files under src/.",
+  description: "Search for a regular expression across TypeScript files in the workspace (packages/ and apps/).",
   parameters: GrepParameters,
   beforeExecute({ args }) {
-    const root = path.resolve(process.cwd(), "src")
+    const roots = resolveGrepRoots().map((root) => path.relative(process.cwd(), root))
     return {
       title: `grep: ${args.pattern}`,
       metadata: {
         pattern: args.pattern,
-        root,
+        roots,
       },
     }
   },
@@ -86,35 +99,36 @@ export const GrepTool = defineTool({
     }
   },
   async execute(args) {
-    const root = path.resolve(process.cwd(), "src")
+    const roots = resolveGrepRoots()
     const pattern = new RegExp(args.pattern)
-    const entries = await fs.readdir(root, { recursive: true, withFileTypes: true })
     const matches: string[] = []
     let fileCount = 0
 
-    for (const entry of entries) {
-      if (!entry.isFile()) continue
-      const relative = entry.parentPath
-          ? path.relative(process.cwd(), path.join(entry.parentPath, entry.name))
-          : path.relative(process.cwd(), path.join(root, entry.name))
-      if (!relative.endsWith(".ts")) continue
-      fileCount += 1
-      const target = path.resolve(process.cwd(), relative)
-      const content = await fs.readFile(target, "utf8")
-      const lines = content.split("\n")
-      lines.forEach((line: string, index: number) => {
-        pattern.lastIndex = 0
-        if (pattern.test(line)) {
-          matches.push(`${relative}:${index + 1}: ${line.trim()}`)
-        }
-      })
+    for (const root of roots) {
+      const entries = await fs.readdir(root, { recursive: true, withFileTypes: true })
+      for (const entry of entries) {
+        if (!entry.isFile()) continue
+        const absolute = path.join(entry.parentPath ?? root, entry.name)
+        const relative = path.relative(process.cwd(), absolute)
+        if (!relative.endsWith(".ts") && !relative.endsWith(".tsx")) continue
+        if (GREP_SKIP.test(relative)) continue
+        fileCount += 1
+        const content = await fs.readFile(absolute, "utf8")
+        const lines = content.split("\n")
+        lines.forEach((line: string, index: number) => {
+          pattern.lastIndex = 0
+          if (pattern.test(line)) {
+            matches.push(`${relative}:${index + 1}: ${line.trim()}`)
+          }
+        })
+      }
     }
 
     return {
       output: matches.length ? matches.join("\n") : `No matches for ${args.pattern}`,
       metadata: {
         pattern: args.pattern,
-        root,
+        roots: roots.map((root) => path.relative(process.cwd(), root)),
         filesScanned: fileCount,
         matchCount: matches.length,
       },
