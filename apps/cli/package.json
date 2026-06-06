@@ -1,0 +1,14 @@
+{
+  "name": "@agent-loop/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "agent-loop": "src/index.ts"
+  },
+  "dependencies": {
+    "@agent-loop/harness": "workspace:*",
+    "@agent-loop/backend": "workspace:*",
+    "@agent-loop/tui": "workspace:*"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "@agent-loop/tui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "module": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@agent-loop/harness": "workspace:*",
+    "@agent-loop/contracts": "workspace:*"
+  }
+}

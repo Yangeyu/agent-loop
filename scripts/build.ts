@@ -6,7 +6,7 @@ import { rmSync } from "node:fs"
 rmSync("dist", { recursive: true, force: true })
 
 const result = await Bun.build({
-  entrypoints: ["./src/index.ts"],
+  entrypoints: ["./apps/cli/src/index.ts"],
   outdir: "./dist",
   target: "bun",
   format: "esm",

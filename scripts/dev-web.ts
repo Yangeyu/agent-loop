@@ -7,14 +7,14 @@ type PipedProcess = Bun.Subprocess<"inherit", "pipe", "pipe">
 type InheritedProcess = Bun.Subprocess<"inherit", "inherit", "inherit">
 
 const rootDir = process.cwd()
-const frontendDir = resolve(rootDir, "frontend")
+const frontendDir = resolve(rootDir, "apps/frontend")
 const backendHost = "127.0.0.1"
 const backendPort = await resolveAvailablePort(4444, 10)
 
 let frontendProcess: InheritedProcess | null = null
 let shuttingDown = false
 
-const backendProcess = Bun.spawn(["bun", "--watch", "src/server.ts", "--port", String(backendPort)], {
+const backendProcess = Bun.spawn(["bun", "--watch", "packages/backend/src/server.ts", "--port", String(backendPort)], {
   cwd: rootDir,
   stdin: "inherit",
   stdout: "pipe",

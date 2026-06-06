@@ -13,30 +13,29 @@ This project extracts a compact core of the `opencode` runtime shape, focused on
 
 ## Files
 
-- `src/core/session/prompt.ts`: outer session loop
-- `src/core/session/processor.ts`: one-step processor
-- `src/core/llm/index.ts`: LLM selector
-- `src/core/llm/providers/qwen.ts`: DashScope SSE-based Qwen implementation with reasoning support
-- `src/core/llm/providers/fake.ts`: deterministic fake implementation
-- `src/core/llm/types.ts`: shared LLM stream types
-- `src/core/runtime/logger.ts`: simple CLI UI renderer with `stream` and `buffered` modes
-- `src/core/tool/task.ts`: child-session subagent execution
-- `src/core/tool/batch.ts`: parallel tool fan-out
-- `src/core/tool/bash.ts`: local shell command execution tool
-- `src/core/session/compaction.ts`: compact old context into a summary message
-- `src/index.ts`: CLI bootstrap and mode selection
-- `src/server.ts`: Bun SSE server for frontend streaming clients
-- `src/http/`: HTTP/SSE module for routes, streaming, and OpenAPI docs
-- `src/tui/app.tsx`: componentized OpenTUI/Solid terminal UI
-- `frontend/`: minimal React chat client for the SSE API
+Bun workspaces — `packages/*` (libraries) and `apps/*` (runnable surfaces). Cross-package imports use the aliases `@harness/*`, `@backend/*`, `@tui/*`, `@contracts`.
+
+- `packages/harness/`: the agent harness (engine). Key files:
+  - `src/session/prompt.ts`: outer session loop
+  - `src/session/processor.ts`: one-step processor
+  - `src/session/compaction.ts`: compact old context into a summary message
+  - `src/llm/index.ts`: LLM selector; `src/llm/providers/{qwen,fake}.ts`: provider impls; `src/llm/types.ts`: stream types
+  - `src/runtime/logger.ts`: CLI UI renderer with `stream` and `buffered` modes
+  - `src/tool/{task,batch,bash}.ts`: subagent execution, parallel fan-out, shell tool
+- `packages/backend/`: thin HTTP/SSE transport over the harness. `src/server.ts` SSE entry, `src/http/` routes+OpenAPI, `src/compose.ts` composition root, `src/board/` report domain plugin, `src/integrations/postgres/`
+- `packages/tui/`: `src/app.tsx` componentized OpenTUI/Solid terminal UI
+- `packages/contracts/`: wire types shared by backend and frontend (SSE `StreamEvent` etc.)
+- `apps/cli/`: `src/index.ts` CLI bootstrap and mode selection
+- `apps/frontend/`: minimal React chat client for the SSE API (imports `@agent-loop/contracts`)
 - `bunfig.toml`: bun preload for OpenTUI Solid JSX transforms
 
 ## Import Conventions
 
-- Use `@/` absolute imports for project source modules, for example `@/core/session/prompt`.
+- Use per-package absolute aliases for project source modules: `@harness/*`, `@backend/*`, `@tui/*`, `@contracts` (registered in `tsconfig.base.json`). Example: `@harness/session/prompt`.
+- The frontend (browser) imports the wire contract by package name: `@agent-loop/contracts`.
 - Do not use relative imports for project-internal modules unless there is a strong reason.
 - Do not add `.js` suffixes to TypeScript source imports.
-- The build uses `tsc-alias` to rewrite alias imports for runnable ESM output in `dist/`.
+- `bun run build` bundles the CLI with `Bun.build` (alias resolution via tsconfig paths), emitting runnable ESM to `dist/`.
 
 ## Run
 
@@ -47,13 +46,13 @@ bun run start "read src/session/prompt.ts and explain the loop"
 
 The project is now bun-first for local development:
 
-- `bun run dev` starts the SSE backend in `bun --watch` mode and starts the `frontend/` React dev server with the same resolved API base URL
+- `bun run dev` starts the SSE backend in `bun --watch` mode and starts the `apps/frontend/` React dev server with the same resolved API base URL
 - `bun run start` runs the TypeScript CLI entrypoint directly
 - `bun run sse` starts a minimal SSE HTTP server on port `4444`
 - `bun run tui` opens the interactive TUI directly
 - `bun run build` bundles the CLI with Bun.build into `dist/`
 
-The repo also includes a standalone minimal React frontend under `frontend/`:
+The repo also includes a standalone minimal React frontend under `apps/frontend/`:
 
 ```bash
 bun run dev
@@ -62,14 +61,14 @@ bun run dev
 This gives you:
 
 - frontend HMR through Vite
-- backend auto-restart on `src/` changes through `bun --watch`
+- backend auto-restart on `packages/backend/src/` changes through `bun --watch`
 - backend logs printed in the same terminal
 
 Or run them separately:
 
 ```bash
 bun run sse
-cd frontend
+cd apps/frontend
 bun install
 bun run dev
 ```
@@ -90,7 +89,7 @@ SSE server example:
 bun run sse
 curl -N -X POST http://localhost:4444/api/chat \
   -H 'content-type: application/json' \
-  -d '{"text":"read src/core/session/prompt.ts and explain the loop"}'
+  -d '{"text":"read packages/harness/src/session/prompt.ts and explain the loop"}'
 ```
 
 If port `4444` is occupied, the server now automatically tries the next ports. You can also pin a port explicitly:
@@ -159,7 +158,7 @@ bun run tui
 You can also open the TUI and immediately submit a prompt:
 
 ```bash
-bun run tui "read src/core/session/prompt.ts and explain the loop"
+bun run tui "read packages/harness/src/session/prompt.ts and explain the loop"
 ```
 
 Available built-in tools now include `read`, `grep`, `bash`, `batch`, `task`, and `skill`.
@@ -179,19 +178,19 @@ For the board analysis workflow, the final `board_write` stage now saves the gen
 Example with the simple CLI display:
 
 ```bash
-bun run start "Use the available tools when helpful. Read src/core/session/prompt.ts and explain SessionPrompt.loop."
+bun run start "Use the available tools when helpful. Read packages/harness/src/session/prompt.ts and explain SessionPrompt.loop."
 ```
 
 Streaming mode prints the answer as it arrives and keeps tool activity readable:
 
 ```bash
-bun run start --output stream "Use the available tools when helpful. Read src/core/session/prompt.ts and explain SessionPrompt.loop."
+bun run start --output stream "Use the available tools when helpful. Read packages/harness/src/session/prompt.ts and explain SessionPrompt.loop."
 ```
 
 Buffered mode waits until the turn completes, then prints compact thinking/answer blocks:
 
 ```bash
-bun run start --output buffered "Use the available tools when helpful. Read src/core/session/prompt.ts and explain SessionPrompt.loop."
+bun run start --output buffered "Use the available tools when helpful. Read packages/harness/src/session/prompt.ts and explain SessionPrompt.loop."
 ```
 
 The split-pane TUI now uses `@opentui/solid` components, keeps the current session transcript on the right and session/status navigation on the left, and renders user/assistant/thinking/tool content in separate cards. It supports:

@@ -8,15 +8,22 @@ Repository core constraints for coding agents.
 - Prioritize loop control, tool execution, subagent delegation, session flow, provider adaptation, and compaction.
 - Use upstream OpenCode as the main reference: `https://github.com/anomalyco/opencode/tree/dev/packages/opencode`
 
-## Local Map
+## Local Map (monorepo)
 
-- `src/index.ts`: CLI entrypoint.
-- `src/runtime/`: bootstrap, events, logging, output.
-- `src/session/`: prompt loop, processor, compaction, persistence.
-- `src/llm/`: model registry, stream types, provider adapters.
-- `src/tool/`: built-in tools.
-- `src/agent/`: agent registry.
-- `src/types.ts`: shared runtime types.
+Bun workspaces: `packages/*` + `apps/*`. Cross-package imports use per-package
+aliases registered once in `tsconfig.base.json`: `@harness/*`, `@backend/*`,
+`@tui/*`, `@contracts`. Each package keeps its own alias for internal imports.
+
+- `packages/harness/`: the agent harness (engine). `src/{runtime,session,llm,tool,agent,skill,plugin}`, `config.ts`, `types.ts`, and `src/index.ts` public barrel. Depends on no other workspace package.
+- `packages/backend/`: thin HTTP/SSE transport over the harness, plus the `board/` domain plugin and `integrations/postgres`. `src/compose.ts` is the composition root (corePlugin + boardPlugin); `src/server.ts` is the SSE entry.
+- `packages/tui/`: terminal UI (opentui/solid).
+- `packages/contracts/`: wire types shared by backend and frontend (SSE `StreamEvent`, attachments). Browser-safe, pure types — the single source of truth for the streaming protocol.
+- `apps/cli/`: CLI entrypoint (`src/index.ts`).
+- `apps/frontend/`: Vite + React web app; imports the wire contract as `@agent-loop/contracts`.
+
+Dependency direction is one-way (surfaces → harness) and enforced by
+`bun run check:boundaries`. The harness never imports a surface; the browser
+frontend only imports `@agent-loop/contracts`.
 
 ## Upstream Map
 
@@ -67,7 +74,7 @@ docs/
 
 ## Code Constraints
 
-- Use `@/` imports for source modules.
+- Use per-package aliases for source modules: `@harness/*`, `@backend/*`, `@tui/*`, `@contracts` (registered in `tsconfig.base.json`). Do not reintroduce a shared `@/` alias — it cannot resolve across packages when source is consumed directly.
 - Do not add `.js` suffixes to TypeScript imports.
 - Prefer `import type` for type-only imports.
 - Keep strict typing; prefer `unknown` plus narrowing over `any`.
@@ -81,31 +88,31 @@ docs/
 - Treat provider responses, tool args, SSE payloads, and external JSON as untrusted input.
 - Parse unknown input into typed structures before it reaches the core loop.
 - Keep each tool's metadata, schema, and execution logic close together.
-- Register new tools in `src/runtime/bootstrap.ts` and enable them for the right agents.
+- Register new tools in `packages/harness/src/runtime/bootstrap.ts` and enable them for the right agents.
 - If a tool result must persist across turns, write it back into session history consistently.
 
 ## LLM Constraints
 
-- Keep `src/llm/index.ts` as the lightweight entrypoint.
-- Keep model selection in `src/llm/models.ts`.
-- Keep shared provider flow in `src/llm/providers/create.ts`.
-- Keep provider-specific logic inside `src/llm/providers/`.
-- Preserve the internal stream contract from `src/llm/types.ts`.
+- Keep `packages/harness/src/llm/index.ts` as the lightweight entrypoint.
+- Keep model selection in `packages/harness/src/llm/models.ts`.
+- Keep shared provider flow in `packages/harness/src/llm/providers/create.ts`.
+- Keep provider-specific logic inside `packages/harness/src/llm/providers/`.
+- Preserve the internal stream contract from `packages/harness/src/llm/types.ts`.
 - Map provider output into internal chunk types instead of leaking provider-specific structures upward.
 
 ## Session And CLI Constraints
 
-- Main loop: `src/session/prompt.ts`.
-- Per-turn executor: `src/session/processor.ts`.
-- Persistence: `src/session/store.ts`.
+- Main loop: `packages/harness/src/session/prompt.ts`.
+- Per-turn executor: `packages/harness/src/session/processor.ts`.
+- Persistence: `packages/harness/src/session/store/`.
 - Keep output policy out of the core loop.
-- Route runtime output through `src/runtime/logger.ts`.
-- Keep `src/index.ts` focused on CLI parsing and orchestration.
+- Route runtime output through `packages/harness/src/runtime/logger.ts`.
+- Keep `apps/cli/src/index.ts` focused on CLI parsing and orchestration.
 
 ## Validation
 
 - Use bun scripts from `package.json`.
-- Baseline checks: `bun run check`, `bun run build`, and focused `bun run ...` smoke runs.
+- Baseline checks: `bun run check` (per-package tsc), `bun run check:boundaries` (dependency direction), `bun run build`, and focused `bun run ...` smoke runs.
 - Useful smoke runs:
 
 ```bash
