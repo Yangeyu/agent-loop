@@ -12,6 +12,7 @@ const ConfigSchema = z.object({
   turn_timeout_ms: z.coerce.number().int().min(1).default(300000),
   turn_max_tool_calls: z.coerce.number().int().min(1).default(8),
   repeated_tool_failure_threshold: z.coerce.number().int().min(1).default(3),
+  compaction_token_threshold: z.coerce.number().int().min(1).default(120000),
 })
 
 export type Config = z.infer<typeof ConfigSchema> & SessionStoreConfig
@@ -30,6 +31,7 @@ export function loadConfigFromEnv(env: NodeJS.ProcessEnv = process.env): Config 
     turn_timeout_ms: env.TURN_TIMEOUT_MS,
     turn_max_tool_calls: env.TURN_MAX_TOOL_CALLS,
     repeated_tool_failure_threshold: env.REPEATED_TOOL_FAILURE_THRESHOLD,
+    compaction_token_threshold: env.COMPACTION_TOKEN_THRESHOLD,
   })
 }
 

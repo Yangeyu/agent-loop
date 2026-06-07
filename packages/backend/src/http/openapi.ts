@@ -75,7 +75,7 @@ export function createOpenAPIDocument(input: { baseUrl: string }) {
                 examples: {
                   basic: {
                     value: {
-                      text: "read src/core/session/prompt.ts and explain the loop",
+                      text: "read packages/harness/src/core/loop.ts and explain the loop",
                     },
                   },
                 },

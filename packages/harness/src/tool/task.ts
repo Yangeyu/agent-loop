@@ -1,12 +1,10 @@
-import { getDelegationDepthInfo, resolveSessionDepth } from "@harness/session/execution-policy"
-import type { AgentRegistry } from "@harness/agent/registry"
-import { SessionPrompt } from "@harness/session/prompt"
+import { getDelegationDepthInfo, resolveSessionDepth } from "@harness/core/policy"
+import { runSession } from "@harness/core/loop"
 import type { ISessionStore } from "@harness/session/store"
 import { defineTool } from "@harness/tool/tool"
 import type {
   AssistantMessage,
   MessagePart,
-  ProviderModel,
   ToolPart,
   ToolDefinition,
 } from "@harness/types"
@@ -46,28 +44,6 @@ export const TaskResumeTool: ToolDefinition<TaskResumeArgs> = createTaskTool({
   parameters: TaskResumeParameters,
   resume: true,
 })
-
-export function withDelegationDescription(input: {
-  tool: ToolDefinition<unknown>
-  agentRegistry: AgentRegistry
-}) {
-  const availableAgents = input.agentRegistry.list().filter((agent) => agent.mode === "subagent")
-  const availableAgentText = availableAgents.length > 0
-    ? availableAgents
-      .map((agent) => `- ${agent.name}: ${agent.description ?? "Specialist subagent"}`)
-      .join("\n")
-    : "- No subagents are currently registered"
-
-  return {
-    ...input.tool,
-    description: [
-      input.tool.description,
-      "",
-      "Available subagents:",
-      availableAgentText,
-    ].join("\n"),
-  } satisfies ToolDefinition<unknown>
-}
 
 function createTaskTool<P extends z.ZodTypeAny>(input: {
   id: string
@@ -133,7 +109,6 @@ function createTaskTool<P extends z.ZodTypeAny>(input: {
       }
 
       const store = ctx.session_store
-      const model = resolveParentModel(ctx.extra?.model)
       const depth = getDelegationDepthInfo({
         store,
         sessionID: ctx.sessionID,
@@ -193,20 +168,20 @@ function createTaskTool<P extends z.ZodTypeAny>(input: {
         },
       })
 
-      await SessionPrompt.prompt({
-        sessionID: child.id,
-        text: args.prompt,
-        agent: agent.name,
-        model,
-        format: ctx.format,
-        abort: ctx.abort,
-      }, {
+      await runSession({
         config: ctx.config,
         agent_registry: ctx.agent_registry,
         skill_registry: ctx.skill_registry,
         session_store: ctx.session_store,
         tool_registry: ctx.tool_registry,
         events: ctx.events,
+        model_provider: ctx.model_provider,
+      }, {
+        sessionID: child.id,
+        text: args.prompt,
+        agent: agent.name,
+        format: ctx.format,
+        abort: ctx.abort,
       })
 
       const completedChild = store.get(child.id)
@@ -320,15 +295,3 @@ function createChildSession(input: {
   })
 }
 
-function resolveParentModel(value: unknown): ProviderModel | undefined {
-  if (!value || typeof value !== "object") return undefined
-
-  const providerID = "providerID" in value ? value.providerID : undefined
-  const modelID = "modelID" in value ? value.modelID : undefined
-  if (typeof providerID !== "string" || typeof modelID !== "string") return undefined
-
-  return {
-    providerID,
-    modelID,
-  }
-}

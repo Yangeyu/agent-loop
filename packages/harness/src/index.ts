@@ -9,10 +9,13 @@ export {
   disposeRuntime,
   runPrompt,
 } from "@harness/runtime/bootstrap"
-export type { RuntimeContext } from "@harness/runtime/context"
+export type { RuntimeContext, RuntimeDeps } from "@harness/runtime/context"
 export type { RuntimeEvent } from "@harness/runtime/events"
 export { attachConsoleLogger } from "@harness/runtime/logger"
 export type { OutputMode } from "@harness/runtime/logger"
+
+// Engine entry
+export { runSession, runLoop } from "@harness/core/loop"
 
 // Plugins / modules
 export { corePlugin, coreModule } from "@harness/module"
@@ -22,9 +25,34 @@ export type { RuntimePlugin } from "@harness/plugin/types"
 export { loadConfigFromEnv, getConfig, resetConfig } from "@harness/config"
 export type { Config } from "@harness/config"
 
-// Session
-export { SessionPrompt } from "@harness/session/prompt"
-export { SessionCompaction } from "@harness/session/compaction"
+// Agents (blueprints): definition + composition helpers
+export { defineAgent } from "@harness/agent/types"
+export type { AgentDefinition, AgentSpec } from "@harness/agent/types"
+export { coreAgents } from "@harness/agent"
+export { baseMiddleware } from "@harness/agent/shared/base-middleware"
+export type { ModelSelector, ModelProvider, ModelCaller } from "@harness/agent/model"
+
+// Middleware library + hook contracts
+export {
+  contextAssembly,
+  structuredOutput,
+  budget,
+  doomLoop,
+  repeatedFailure,
+  compaction,
+} from "@harness/middleware"
+export type {
+  HookContext,
+  Middleware,
+  MiddlewareFactory,
+  ToolCall,
+  ToolGate,
+  TurnGate,
+  TurnOutcome,
+  FinishDecision,
+} from "@harness/hooks/types"
+
+// Session store
 export type { ISessionStore } from "@harness/session/store/types"
 
 // Tools

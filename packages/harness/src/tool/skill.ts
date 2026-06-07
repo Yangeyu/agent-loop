@@ -1,6 +1,5 @@
 import type { SkillInfo } from "@harness/skill/types"
 import { defineTool, ToolExecutionError } from "@harness/tool/tool"
-import type { AnyToolDefinition } from "@harness/types"
 import { z } from "zod"
 
 const SkillParameters = z.object({
@@ -32,27 +31,6 @@ export const SkillTool = defineTool({
     }
   },
 })
-
-export function withSkillDescription(input: {
-  tool: AnyToolDefinition
-  skills: SkillInfo[]
-}): AnyToolDefinition {
-  const list = input.skills.length === 0
-    ? "No skills are currently available."
-    : [
-        "Available skills:",
-        ...input.skills.map((skill) => `- ${skill.name}: ${skill.description}`),
-      ].join("\n")
-
-  return {
-    ...input.tool,
-    description: [
-      input.tool.description,
-      "Use this when a task matches one of the available specialized workflows.",
-      list,
-    ].join("\n\n"),
-  }
-}
 
 function renderSkillContent(skill: SkillInfo) {
   return [

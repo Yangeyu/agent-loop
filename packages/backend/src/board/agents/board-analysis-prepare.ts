@@ -1,14 +1,16 @@
 import { BOARD_ANALYSIS_PREPARE_PROMPT } from "@backend/board/prompts"
-import type { AgentInfo } from "@harness"
+import { baseMiddleware, defineAgent } from "@harness"
 
-export const boardAnalysisPrepareAgent: AgentInfo = {
+export const boardAnalysisPrepareAgent = defineAgent({
   name: "board_analysis_prepare",
-  description: "Loads board data, cleans and aggregates it into a stored analysis dataset, then returns the dataset summary for downstream analysis.",
+  description:
+    "Loads board data, cleans and aggregates it into a stored analysis dataset, then returns the dataset summary for downstream analysis.",
   mode: "subagent",
-  prompt: BOARD_ANALYSIS_PREPARE_PROMPT,
+  instructions: [BOARD_ANALYSIS_PREPARE_PROMPT],
   tools: {
     board_analysis_context: true,
     board_snapshot: true,
   },
   steps: 3,
-}
+  middleware: baseMiddleware(),
+})

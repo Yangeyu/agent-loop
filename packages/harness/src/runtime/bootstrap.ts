@@ -1,27 +1,33 @@
 import { createRuntimeContext, type RuntimeContext } from "@harness/runtime/context"
 import { disposeRuntimePlugins, registerRuntimePlugins } from "@harness/plugin/manager"
-import { SessionPrompt } from "@harness/session/prompt"
+import { runSession } from "@harness/core/loop"
 import { loadConfigFromEnv, type Config } from "@harness/config"
+import type { ModelProvider } from "@harness/agent/model"
 import type { RuntimePlugin } from "@harness/plugin/types"
-import type { UserMessage } from "@harness/types"
+import type { OutputFormat } from "@harness/types"
 
-export async function createRuntime(options?: { config?: Config; plugins?: RuntimePlugin[] }) {
-  return registerRuntimePlugins(createRuntimeContext(options?.config), options?.plugins)
+export async function createRuntime(options?: {
+  config?: Config
+  plugins?: RuntimePlugin[]
+  model_provider?: ModelProvider
+}) {
+  return registerRuntimePlugins(
+    createRuntimeContext({ config: options?.config, model_provider: options?.model_provider }),
+    options?.plugins,
+  )
 }
 
-export async function createTestRuntime(options?: { config?: Partial<Config>; plugins?: RuntimePlugin[] }) {
+export async function createTestRuntime(options?: {
+  config?: Partial<Config>
+  plugins?: RuntimePlugin[]
+  model_provider?: ModelProvider
+}) {
   const config = {
-    ...loadConfigFromEnv({
-      ...process.env,
-      SESSION_STORE: "memory",
-    }),
+    ...loadConfigFromEnv({ ...process.env, SESSION_STORE: "memory" }),
     ...(options?.config ?? {}),
   }
 
-  return createRuntime({
-    config,
-    plugins: options?.plugins,
-  })
+  return createRuntime({ config, plugins: options?.plugins, model_provider: options?.model_provider })
 }
 
 export async function disposeRuntime(runtime: RuntimeContext) {
@@ -34,7 +40,7 @@ export async function runPrompt(options: {
   agent?: string
   sessionID?: string
   printSessionJson?: boolean
-  format?: UserMessage["format"]
+  format?: OutputFormat
   abort?: AbortSignal
 }) {
   const { runtime } = options
@@ -42,13 +48,13 @@ export async function runPrompt(options: {
     ? runtime.session_store.get(options.sessionID)
     : runtime.session_store.create({ title: "CLI session" })
 
-  await SessionPrompt.prompt({
+  await runSession(runtime, {
     sessionID: session.id,
     text: options.text,
     agent: options.agent ?? runtime.agent_registry.defaultAgent().name,
     format: options.format,
     abort: options.abort,
-  }, runtime)
+  })
 
   const current = runtime.session_store.get(session.id)
   if (options.printSessionJson) {

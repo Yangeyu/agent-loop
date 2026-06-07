@@ -8,8 +8,6 @@ function parseArgs(argv: string[]) {
   let json = false
   let sessionID: string | undefined
   let trace = false
-  let replayStep: number | undefined
-  let replayTurnID: string | undefined
   let tui = false
   let outputMode: OutputMode = "stream"
   let textParts: string[] = []
@@ -32,19 +30,6 @@ function parseArgs(argv: string[]) {
       trace = true
       continue
     }
-    if (token === "--replay-step") {
-      const value = args.shift()
-      const step = Number(value)
-      if (Number.isInteger(step) && step > 0) {
-        replayStep = step
-        continue
-      }
-      throw new Error(`Invalid --replay-step value: ${value ?? ""}`)
-    }
-    if (token === "--replay-turn" || token === "--replay-message") {
-      replayTurnID = args.shift() ?? replayTurnID
-      continue
-    }
     if (token === "--tui") {
       tui = true
       continue
@@ -63,8 +48,6 @@ function parseArgs(argv: string[]) {
     json,
     sessionID,
     trace,
-    replayStep,
-    replayTurnID,
     tui,
     outputMode,
     text: textParts.join(" ").trim(),
@@ -72,40 +55,14 @@ function parseArgs(argv: string[]) {
 }
 
 function validateArgs(parsed: ReturnType<typeof parseArgs>) {
-  if (parsed.replayStep !== undefined && parsed.replayTurnID) {
-    throw new Error("Use either --replay-step or --replay-turn, not both")
-  }
-
-  if (parsed.tui && (parsed.trace || parsed.replayStep !== undefined || parsed.replayTurnID)) {
-    throw new Error("Trace and replay debug output are only supported in CLI mode")
+  if (parsed.tui && parsed.trace) {
+    throw new Error("Trace debug output is only supported in CLI mode")
   }
 }
 
 function printDebugSection(label: string, value: unknown) {
   console.log(`\n[${label}]`)
   console.log(JSON.stringify(value, null, 2))
-}
-
-function toReplayDebugSnapshot(runtime: Awaited<ReturnType<typeof createAppRuntime>>, selector: { sessionID: string; step: number } | { sessionID: string; turnID: string }) {
-  const replay = runtime.replay.turnInput(selector)
-  return {
-    sessionID: replay.sessionID,
-    messageID: replay.messageID,
-    turnID: replay.turnID,
-    step: replay.step,
-    agent: replay.agent,
-    system: replay.system,
-    tools: replay.tools,
-    messages: replay.messages,
-    llmInput: {
-      sessionID: replay.llmInput.session.id,
-      userID: replay.llmInput.user.id,
-      assistantID: replay.llmInput.assistant.id,
-      agent: replay.llmInput.agent.name,
-      toolIDs: replay.llmInput.tools.map((tool) => tool.id),
-      messageCount: replay.llmInput.messages.length,
-    },
-  }
 }
 
 async function main() {
@@ -137,8 +94,8 @@ async function main() {
       return
     }
 
-    console.log(`Usage: bun run start [--agent ${defaultAgent}] [--session <id>] [--json] [--trace] [--replay-step <n>] [--replay-turn <id>] [--output stream|buffered] "your prompt"`)
-    console.log("Example: bun run start \"read src/core/session/prompt.ts and explain the loop\"")
+    console.log(`Usage: bun run start [--agent ${defaultAgent}] [--session <id>] [--json] [--trace] [--output stream|buffered] "your prompt"`)
+    console.log("Example: bun run start \"read packages/harness/src/core/loop.ts and explain the loop\"")
     console.log("Interactive terminals can also launch the TUI with: bun run tui")
     return
   }
@@ -155,20 +112,6 @@ async function main() {
 
     if (parsed.trace) {
       printDebugSection("trace", runtime.trace.turnsForSession(session.id))
-    }
-
-    if (parsed.replayStep !== undefined) {
-      printDebugSection("replay", toReplayDebugSnapshot(runtime, {
-        sessionID: session.id,
-        step: parsed.replayStep,
-      }))
-    }
-
-    if (parsed.replayTurnID) {
-      printDebugSection("replay", toReplayDebugSnapshot(runtime, {
-        sessionID: session.id,
-        turnID: parsed.replayTurnID,
-      }))
     }
   } finally {
     detach()

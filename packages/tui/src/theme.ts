@@ -18,7 +18,7 @@ export const COLORS = {
 } as const
 
 export const PROMPT_PLACEHOLDERS = [
-  "read src/core/session/prompt.ts and explain the loop",
+  "read packages/harness/src/core/loop.ts and explain the loop",
   "investigate why the TUI stops streaming after a tool call",
   "refactor the runtime bootstrap with smaller boundaries",
   "review the latest session flow changes for regressions",

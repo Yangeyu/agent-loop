@@ -1,5 +1,5 @@
 import type { ErrorInfo } from "@harness/types"
-import type { RetryPolicy } from "@harness/session/execution-policy"
+import type { RetryPolicy } from "@harness/core/policy"
 
 export const DOOM_LOOP_THRESHOLD = 3
 

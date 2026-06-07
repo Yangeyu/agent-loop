@@ -1,4 +1,4 @@
-import { coreAgents } from "@harness/agent/agents"
+import { coreAgents } from "@harness/agent"
 import { coreTools } from "@harness/tool/tools"
 import type { RuntimePlugin } from "@harness/plugin/types"
 

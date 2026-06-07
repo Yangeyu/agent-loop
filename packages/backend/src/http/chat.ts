@@ -1,4 +1,4 @@
-import { SessionPrompt, type RuntimeContext, type RuntimeEvent } from "@harness"
+import { runSession, type RuntimeContext, type RuntimeEvent } from "@harness"
 import { corsHeaders, jsonResponse } from "@backend/http/responses"
 import { z } from "zod"
 
@@ -322,12 +322,12 @@ export async function handleChatRequest(request: Request, runtime: RuntimeContex
         return
       }
 
-      void SessionPrompt.prompt({
+      void runSession(runtime, {
         sessionID: rootSession.id,
         text: parsed.data.text,
         agent,
         abort: abortController.signal,
-      }, runtime).then(() => {
+      }).then(() => {
         const sent = writer.send("done", {
           sessionID: rootSession.id,
         })

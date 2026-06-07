@@ -1,6 +1,9 @@
+// Pure resolution of retry/timeout/budget numbers from config + agent + session.
+// Budgets are *resolved* here but *enforced* by the budget middleware.
 import type { Config } from "@harness/config"
+import type { AgentDefinition } from "@harness/agent/types"
 import type { ISessionStore } from "@harness/session/store"
-import type { AgentInfo, SessionInfo } from "@harness/types"
+import type { SessionInfo } from "@harness/types"
 
 export type RetryPolicy = {
   maxRetries: number
@@ -29,7 +32,7 @@ export type TurnExecutionPolicy = {
   budget: TurnBudgetPolicy
 }
 
-export function resolveTurnExecutionPolicy(config: Config, agent: AgentInfo, session: SessionInfo): TurnExecutionPolicy {
+export function resolveTurnExecutionPolicy(config: Config, agent: AgentDefinition, session: SessionInfo): TurnExecutionPolicy {
   const maxAgentSteps = agent.steps ?? Number.POSITIVE_INFINITY
   const sessionStepsUsed = countAssistantTurns(session)
   const sessionStepsRemaining = Math.max(0, config.session_max_steps - sessionStepsUsed)

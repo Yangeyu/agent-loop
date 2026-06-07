@@ -23,8 +23,8 @@ export type ModelDefaults = {
 }
 
 export type ModelSpec = {
-  id: "fake" | "qwen"
-  provider: "local" | "qwen-compatible"
+  id: "qwen"
+  provider: "qwen-compatible"
   capabilities: ModelCapabilities
   defaults: ModelDefaults
 }

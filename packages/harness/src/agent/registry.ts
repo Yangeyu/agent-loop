@@ -1,16 +1,16 @@
-import type { AgentInfo } from "@harness/types"
+import type { AgentDefinition } from "@harness/agent/types"
 
 export type AgentRegistry = {
-  agents: Map<string, AgentInfo>
-  register(agent: AgentInfo): void
-  get(name: string): AgentInfo
-  list(): AgentInfo[]
-  defaultAgent(): AgentInfo
+  agents: Map<string, AgentDefinition>
+  register(agent: AgentDefinition): void
+  get(name: string): AgentDefinition
+  list(): AgentDefinition[]
+  defaultAgent(): AgentDefinition
 }
 
 export function createAgentRegistry(): AgentRegistry {
   return {
-    agents: new Map<string, AgentInfo>(),
+    agents: new Map<string, AgentDefinition>(),
 
     register(agent) {
       const existing = this.agents.get(agent.name)
