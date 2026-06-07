@@ -16,6 +16,7 @@ const qwenSpec: ModelSpec = {
     modelID: "qwen3.5-plus",
     temperature: 0.2,
   },
+  contextWindow: 262144,
 }
 
 const qwenRuntime: ModelRuntime = {

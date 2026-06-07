@@ -27,6 +27,9 @@ export type ModelSpec = {
   provider: "qwen-compatible"
   capabilities: ModelCapabilities
   defaults: ModelDefaults
+  // Maximum context window (tokens). Drives proactive compaction's trigger
+  // threshold (contextWindow × compaction_trigger_ratio).
+  contextWindow: number
 }
 
 export type ModelRuntime = {

@@ -12,7 +12,8 @@ const ConfigSchema = z.object({
   turn_timeout_ms: z.coerce.number().int().min(1).default(300000),
   turn_max_tool_calls: z.coerce.number().int().min(1).default(8),
   repeated_tool_failure_threshold: z.coerce.number().int().min(1).default(3),
-  compaction_token_threshold: z.coerce.number().int().min(1).default(120000),
+  compaction_trigger_ratio: z.coerce.number().gt(0).max(1).default(0.75),
+  compaction_retain_ratio: z.coerce.number().gt(0).lt(1).default(0.5),
 })
 
 export type Config = z.infer<typeof ConfigSchema> & SessionStoreConfig
@@ -31,7 +32,8 @@ export function loadConfigFromEnv(env: NodeJS.ProcessEnv = process.env): Config 
     turn_timeout_ms: env.TURN_TIMEOUT_MS,
     turn_max_tool_calls: env.TURN_MAX_TOOL_CALLS,
     repeated_tool_failure_threshold: env.REPEATED_TOOL_FAILURE_THRESHOLD,
-    compaction_token_threshold: env.COMPACTION_TOKEN_THRESHOLD,
+    compaction_trigger_ratio: env.COMPACTION_TRIGGER_RATIO,
+    compaction_retain_ratio: env.COMPACTION_RETAIN_RATIO,
   })
 }
 
