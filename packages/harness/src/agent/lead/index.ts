@@ -3,7 +3,7 @@ import { LEAD_INSTRUCTIONS } from "@harness/agent/lead/prompt"
 import { baseMiddleware } from "@harness/agent/shared/base-middleware"
 import { BASE_AGENT_INSTRUCTIONS } from "@harness/agent/shared/base-prompt"
 import { defineAgent } from "@harness/agent/types"
-import { compaction } from "@harness/middleware"
+import { compaction, viewImage } from "@harness/middleware"
 
 export const leadAgent = defineAgent({
   name: "lead",
@@ -19,7 +19,8 @@ export const leadAgent = defineAgent({
     present_files: true,
     bash: true,
     skill: true,
+    view_image: true,
   },
   steps: 12,
-  middleware: [...baseMiddleware(), subagentList, compaction],
+  middleware: [...baseMiddleware(), subagentList, viewImage, compaction],
 })

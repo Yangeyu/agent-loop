@@ -1,4 +1,5 @@
 // Qwen provider adapter: request building, content mapping, and stream decoding.
+import { imageSourceToUrl } from "@harness/llm/image"
 import { resolveModelSpec } from "@harness/llm/models"
 import { createStreamingProvider } from "@harness/llm/providers/create"
 import type { ProviderRequest } from "@harness/llm/providers/create"
@@ -46,9 +47,15 @@ type QwenAccumulatedToolCall = {
   argumentsText: string
 }
 
+// Content is either a flattened tagged string (text-only messages, the common
+// case) or an OpenAI-style multimodal array when image blocks are present.
+type QwenContentPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string } }
+
 type QwenRequestMessage = {
   role: "system" | "user" | "assistant" | "tool"
-  content: string
+  content: string | QwenContentPart[]
   tool_call_id?: string
   tool_calls?: Array<{
     id: string
@@ -167,11 +174,25 @@ function mapModelMessageToQwen(message: ModelMessage): QwenRequestMessage {
 
   return {
     role: message.role,
-    content: serializeQwenContent(message.content),
+    content: buildMessageContent(message.content),
   }
 }
 
-function serializeQwenContent(blocks: ModelMessage["content"]) {
+// Text-only messages stay a single tagged string (unchanged behavior). When any
+// image block is present, switch to the multimodal array form: one text part for
+// all non-image blocks plus one image_url part per image. Exported for testing.
+export function buildMessageContent(blocks: ModelContentBlock[]): string | QwenContentPart[] {
+  const images = blocks.filter((block): block is Extract<ModelContentBlock, { type: "image" }> => block.type === "image")
+  if (images.length === 0) return serializeQwenContent(blocks)
+
+  const parts: QwenContentPart[] = []
+  const text = serializeQwenContent(blocks.filter((block) => block.type !== "image"))
+  if (text) parts.push({ type: "text", text })
+  for (const image of images) parts.push({ type: "image_url", image_url: { url: imageSourceToUrl(image.source) } })
+  return parts
+}
+
+function serializeQwenContent(blocks: ModelContentBlock[]) {
   return renderQwenContent(buildQwenContentPayload(blocks))
 }
 
@@ -191,6 +212,9 @@ function mapQwenContentItem(part: ModelContentBlock): QwenContentItem {
     }
   }
   if (part.type === "context-summary") return { type: "context-summary", text: part.text }
+  if (part.type === "image") {
+    throw new Error("image content blocks must be serialized via buildMessageContent (image_url), not as text")
+  }
   if (part.type === "tool-output") {
     return {
       type: "tool-result",

@@ -2,6 +2,20 @@
 // once per run, builds the loop-scoped middleware stack (the AgentRun), then
 // drives turns until a middleware-shaped outcome breaks. Delegation to a
 // subagent is just another runSession on a child session (see tool/task.ts).
+//
+// Lifecycle (this file is the authoritative ordering of the hook points):
+//
+//   runSession ── append user message ──► runLoop
+//     per step (one turn):
+//       beforeTurn ──────────(gate stops)──► finish & return
+//       contributeSystem → transformMessages   (ctx.system filled here, after beforeTurn)
+//       runTurn:
+//         stream ─► tool dispatch (beforeToolCall → execute → afterToolCall / onToolError)
+//                ─► onTurnFinish
+//       resolveOutcome ──────(break)────────► return ; else next step
+//
+// Note: the hook order above is the *runtime* order, which differs from the
+// field declaration order on the Middleware type (see hooks/types.ts).
 import { createModelCaller } from "@harness/agent/model"
 import type { AgentDefinition } from "@harness/agent/types"
 import { createTurnContext, type EngineDeps } from "@harness/core/context"
@@ -14,6 +28,7 @@ import { toModelMessages } from "@harness/session/model-message"
 import {
   createID,
   type AssistantMessage,
+  type ImageSource,
   type OutputFormat,
   type ProviderModel,
   type SessionInfo,
@@ -26,6 +41,10 @@ export type RunSessionInput = {
   agent?: string
   model?: ProviderModel
   format?: OutputFormat
+  // Images supplied with the user message (e.g. a TUI `@` file or a ctrl+v
+  // screenshot). The multimodal model sees these directly; see view-image
+  // middleware (resolves file sources) and the qwen image_url mapping.
+  images?: ImageSource[]
   abort?: AbortSignal
 }
 
@@ -41,6 +60,9 @@ export async function runSession(deps: EngineDeps, input: RunSessionInput): Prom
 
   store.appendUserMessage(input.sessionID, user)
   store.appendTextPart(input.sessionID, user.id, { id: createID(), type: "text", text: input.text })
+  for (const source of input.images ?? []) {
+    store.addPart(input.sessionID, user.id, { id: createID(), type: "image", source })
+  }
   deps.events.emit({
     type: "session-start",
     sessionID: input.sessionID,

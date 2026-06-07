@@ -25,7 +25,7 @@ import {
   type UserMessage,
 } from "@harness/types"
 
-const COMPACTION_MODEL_ID = "qwen3.5-flash"
+const COMPACTION_MODEL_ID = "qwen3.6-flash"
 
 const COMPACTOR_INSTRUCTIONS = [
   [

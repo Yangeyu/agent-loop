@@ -22,6 +22,7 @@ Bun workspaces — `packages/*` (libraries) and `apps/*` (runnable surfaces). Cr
   - `src/llm/index.ts`: LLM selector; `src/llm/providers/{qwen,fake}.ts`: provider impls; `src/llm/types.ts`: stream types
   - `src/runtime/logger.ts`: CLI UI renderer with `stream` and `buffered` modes
   - `src/tool/{task,batch,bash}.ts`: subagent execution, parallel fan-out, shell tool
+  - `tests/`: centralized harness test suite, organized by source module area
 - `packages/backend/`: thin HTTP/SSE transport over the harness. `src/server.ts` SSE entry, `src/http/` routes+OpenAPI, `src/compose.ts` composition root, `src/board/` report domain plugin, `src/integrations/postgres/`
 - `packages/tui/`: `src/app.tsx` componentized OpenTUI/Solid terminal UI
 - `packages/contracts/`: wire types shared by backend and frontend (SSE `StreamEvent` etc.)
@@ -51,6 +52,8 @@ The project is now bun-first for local development:
 - `bun run sse` starts a minimal SSE HTTP server on port `4444`
 - `bun run tui` opens the interactive TUI directly
 - `bun run build` bundles the CLI with Bun.build into `dist/`
+- `bun run test:harness` runs the centralized `packages/harness/tests` suite
+- `bun run test:tui` runs the focused `packages/tui/tests` suite
 
 The repo also includes a standalone minimal React frontend under `apps/frontend/`:
 
@@ -196,6 +199,8 @@ bun run start --output buffered "Use the available tools when helpful. Read pack
 The split-pane TUI now uses `@opentui/solid` components, keeps the current session transcript on the right and session/status navigation on the left, and renders user/assistant/thinking/tool content in separate cards. It supports:
 
 - `Enter` to submit the current prompt
+- `@` in the composer to open a filtered workspace file list; selecting an image path still turns it into an image attachment on submit
+- `Ctrl+V` in the composer to attach the current macOS clipboard image as an inline screenshot
 - `Tab` to cycle primary agents
 - `Ctrl+N` to start a new local session
 - `Ctrl+J` / `Ctrl+K` to switch sessions
@@ -237,6 +242,8 @@ Optional overrides:
 Useful smoke checks:
 
 ```bash
+bun run test:harness
+bun run test:tui
 bun run check
 bun run build
 bun run smoke:text

@@ -94,6 +94,6 @@ describe("compaction middleware (integration)", () => {
     expect(compactions[0].summary.length).toBeGreaterThan(0)
 
     // The summarizer ran on the dedicated compaction model, not the lead model.
-    expect(modelIDs).toContain("qwen3.5-flash")
+    expect(modelIDs).toContain("qwen3.6-flash")
   })
 })

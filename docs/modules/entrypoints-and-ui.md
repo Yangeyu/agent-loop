@@ -78,7 +78,7 @@
 
 - 左侧 sidebar：当前 agent、会话列表、快捷键提示。
 - 右侧 transcript：按 session tree 扁平展示 user / thinking / tool / answer / error。
-- 底部 composer：输入 prompt，支持取消与快速切换会话。
+- 底部 composer：输入 prompt，支持取消、快速切换会话，以及通过 `@` 打开全文件候选列表并按当前 token 过滤；若选中的是图片路径，提交时会自动作为图片附件传给 harness，也可继续用 `ctrl+v` 附加剪贴板图片。
 
 ## 事件驱动渲染
 

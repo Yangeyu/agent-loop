@@ -69,6 +69,11 @@ export type TurnOutcome =
   | { kind: "continue"; reason: TurnOutcomeReason }
   | { kind: "break"; reason: TurnOutcomeReason; note?: string }
 
+// Hooks are grouped below by phase, NOT by runtime order. The actual per-turn
+// firing sequence is beforeTurn → contributeSystem → transformMessages → (stream
+// + tool hooks) → onTurnFinish → resolveOutcome; see core/loop.ts for the map.
+// In particular beforeTurn runs before contributeSystem, so ctx.system is still
+// empty during beforeTurn.
 export type Middleware = {
   name: string
   // Context assembly (ordered)

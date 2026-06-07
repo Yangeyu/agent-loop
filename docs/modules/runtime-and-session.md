@@ -22,6 +22,7 @@
 - `packages/harness/src/session/model-message.ts`
 - `packages/harness/src/session/system.ts`
 - `packages/harness/src/session/compaction.ts`
+- `packages/harness/tests/`
 - `packages/harness/src/types.ts`
 
 ## 配置与运行时上下文
@@ -214,3 +215,9 @@ store 负责维护 session 状态：
 - 再读 `prompt.ts` 看整体 loop。
 - 然后读 `processor.ts` 看单步内如何消费 stream 和执行 tool。
 - 最后读 `session/store/` 和 `compaction.ts` 看状态如何保存与压缩。
+
+## 测试布局
+
+- `packages/harness` 的测试现在统一放在 `packages/harness/tests/`，不再散落在 `src/` 下。
+- 测试目录按源码模块分区，便于集中运行和管理，例如 `tests/session/`、`tests/middleware/`、`tests/tool/`。
+- 推荐从仓库根目录执行 `bun run test:harness`，或在包内执行 `bun run test`。

@@ -1,13 +1,16 @@
 import { resolveModelSpec } from "@harness"
+import { loadClipboardImage, parseInlineImageAttachments, type ComposerImageAttachment } from "@tui/images"
+import { applyFileSuggestion, getFileSuggestions, listWorkspaceFiles, resolveActiveMention, type FileSuggestion } from "@tui/mention-files"
 import { appendPromptHistory, loadPromptHistory, type PromptHistoryEntry } from "@tui/prompt-history"
 import { getTextareaKeybindings } from "@tui/textarea-keybindings"
 import { COLORS, PROMPT_MAX_HEIGHT, SPINNER_FRAMES, agentAccent, estimateVisualLines, titleCase } from "@tui/theme"
-import type { ComposerHandle } from "@tui/types"
+import type { ComposerHandle, ComposerSubmitInput } from "@tui/types"
 import type { TextareaRenderable } from "@opentui/core"
 import { useRenderer, useTerminalDimensions } from "@opentui/solid"
-import { Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js"
+import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js"
 
 const COMPOSER_FOOTER_HEIGHT = 2
+const FILE_SUGGESTION_LIMIT = 6
 
 function clampInputHeight(lines: number) {
   return Math.max(1, Math.min(PROMPT_MAX_HEIGHT, lines))
@@ -22,7 +25,8 @@ export function ComposerCard(props: {
   ref: (value: unknown) => void
   initialValue?: string
   busy: boolean
-  onSubmit: (value: string) => Promise<void> | void
+  onSubmit: (value: ComposerSubmitInput) => Promise<void> | void
+  onNotice?: (message: string) => void
   selectedAgent: string
   activityStatus: string
 }) {
@@ -35,10 +39,18 @@ export function ComposerCard(props: {
   const [historyCursor, setHistoryCursor] = createSignal(0)
   const [historyDraft, setHistoryDraft] = createSignal("")
   const [spinnerFrame, setSpinnerFrame] = createSignal(0)
+  const [clipboardImages, setClipboardImages] = createSignal<ComposerImageAttachment[]>([])
+  const [fileSuggestions, setFileSuggestions] = createSignal<FileSuggestion[]>([])
+  const [fileSuggestionIndex, setFileSuggestionIndex] = createSignal(0)
+  const [fileSuggestionOpen, setFileSuggestionOpen] = createSignal(false)
+  const [fileSuggestionLoading, setFileSuggestionLoading] = createSignal(false)
   const highlight = createMemo(() => agentAccent(props.selectedAgent))
+  const parsedImages = createMemo(() => parseInlineImageAttachments(value()).images)
+  const attachments = createMemo(() => [...clipboardImages(), ...parsedImages()])
   let textareaRef: TextareaRenderable | undefined
   let refreshQueued = false
   let resizeTimer: ReturnType<typeof setTimeout> | undefined
+  let suggestionRequest = 0
 
   const inputWrapWidth = () => {
     const measured = textareaRef?.width
@@ -46,7 +58,12 @@ export function ComposerCard(props: {
     return Math.max(24, term().width - 44)
   }
 
-  const composerBodyHeight = () => inputHeight() + 4
+  const suggestionHeight = () => {
+    if (!fileSuggestionOpen()) return 0
+    if (fileSuggestionLoading()) return 2
+    return Math.min(fileSuggestions().length || 1, FILE_SUGGESTION_LIMIT) + 1
+  }
+  const composerBodyHeight = () => inputHeight() + 4 + (attachments().length > 0 ? 2 : 0) + suggestionHeight()
   const composerTotalHeight = () => composerBodyHeight() + COMPOSER_FOOTER_HEIGHT
 
   const syncInputHeight = (nextValue = value()) => {
@@ -89,8 +106,26 @@ export function ComposerCard(props: {
   const clear = () => {
     setHistoryCursor(0)
     setHistoryDraft("")
+    setClipboardImages([])
+    setFileSuggestionOpen(false)
+    setFileSuggestions([])
+    setFileSuggestionIndex(0)
     updateValue("")
     textareaRef?.clear()
+    requestTextareaRefresh()
+  }
+
+  const attachClipboardImage = async () => {
+    if (props.busy) return
+
+    const result = loadClipboardImage()
+    if (!result.ok) {
+      props.onNotice?.(result.error)
+      return
+    }
+
+    setClipboardImages((current) => [...current, result.attachment])
+    props.onNotice?.(`Attached ${result.attachment.label}`)
     requestTextareaRefresh()
   }
 
@@ -122,15 +157,72 @@ export function ComposerCard(props: {
     })
   }
 
+  const refreshFileSuggestions = async () => {
+    if (!textareaRef) return
+
+    const mention = resolveActiveMention(textareaRef.plainText, textareaRef.cursorOffset)
+    if (!mention) {
+      setFileSuggestionOpen(false)
+      setFileSuggestions([])
+      setFileSuggestionIndex(0)
+      setFileSuggestionLoading(false)
+      return
+    }
+
+    const requestID = ++suggestionRequest
+    setFileSuggestionOpen(true)
+    setFileSuggestionLoading(true)
+
+    try {
+      const files = await listWorkspaceFiles(process.cwd())
+      if (requestID !== suggestionRequest) return
+
+      const suggestions = getFileSuggestions(files, mention.query, FILE_SUGGESTION_LIMIT)
+      setFileSuggestions(suggestions)
+      setFileSuggestionIndex((current) => Math.min(current, Math.max(suggestions.length - 1, 0)))
+      setFileSuggestionLoading(false)
+    } catch (error) {
+      if (requestID !== suggestionRequest) return
+      setFileSuggestionOpen(false)
+      setFileSuggestions([])
+      setFileSuggestionIndex(0)
+      setFileSuggestionLoading(false)
+      props.onNotice?.(error instanceof Error ? error.message : String(error))
+    }
+  }
+
+  const moveFileSuggestion = (direction: -1 | 1) => {
+    const suggestions = fileSuggestions()
+    if (suggestions.length === 0) return
+    setFileSuggestionIndex((current) => (current + direction + suggestions.length) % suggestions.length)
+  }
+
+  const acceptFileSuggestion = () => {
+    if (!textareaRef) return false
+    const suggestion = fileSuggestions()[fileSuggestionIndex()]
+    if (!suggestion) return false
+
+    const result = applyFileSuggestion(textareaRef.plainText, textareaRef.cursorOffset, suggestion)
+    applyValue(result.text)
+    queueMicrotask(() => {
+      if (!textareaRef) return
+      textareaRef.cursorOffset = result.cursorOffset
+      void refreshFileSuggestions()
+    })
+    return true
+  }
+
   const submit = async () => {
-    const text = value().trim()
-    if (!text || props.busy) return
+    const parsed = parseInlineImageAttachments(value())
+    const text = parsed.text.trim()
+    const images = [...clipboardImages(), ...parsed.images].map((image) => image.source)
+    if ((text.length === 0 && images.length === 0) || props.busy) return
 
     const current = value()
     const nextHistory = await appendPromptHistory({ input: current }, history()).catch(() => history())
     setHistory(nextHistory)
     clear()
-    await props.onSubmit(current)
+    await props.onSubmit({ text, images })
   }
 
   createEffect(() => {
@@ -138,6 +230,7 @@ export function ComposerCard(props: {
       clear,
       focus: () => textareaRef?.focus(),
       value: () => textareaRef?.plainText ?? value(),
+      attachClipboardImage,
     } satisfies ComposerHandle)
   })
 
@@ -173,6 +266,13 @@ export function ComposerCard(props: {
     term().width
     syncInputHeight()
     requestTextareaRefresh()
+  })
+
+  createEffect(() => {
+    value()
+    queueMicrotask(() => {
+      void refreshFileSuggestions()
+    })
   })
 
   return (
@@ -211,9 +311,42 @@ export function ComposerCard(props: {
               }}
               onCursorChange={() => {
                 syncInputHeight()
+                void refreshFileSuggestions()
               }}
               onKeyDown={(event) => {
                 if (!textareaRef) return
+
+                if (fileSuggestionOpen()) {
+                  if (event.name === "up") {
+                    moveFileSuggestion(-1)
+                    event.preventDefault()
+                    event.stopPropagation()
+                    return
+                  }
+
+                  if (event.name === "down") {
+                    moveFileSuggestion(1)
+                    event.preventDefault()
+                    event.stopPropagation()
+                    return
+                  }
+
+                  if (event.name === "tab" || event.name === "return") {
+                    if (acceptFileSuggestion()) {
+                      event.preventDefault()
+                      event.stopPropagation()
+                      return
+                    }
+                  }
+
+                  if (event.name === "escape") {
+                    setFileSuggestionOpen(false)
+                    setFileSuggestions([])
+                    event.preventDefault()
+                    event.stopPropagation()
+                    return
+                  }
+                }
 
                 if (event.name === "up" && textareaRef.cursorOffset === 0 && textareaRef.visualCursor.visualRow === 0) {
                   moveHistory(-1)
@@ -241,6 +374,33 @@ export function ComposerCard(props: {
               <text fg={COLORS.text}>{modelSpec.defaults.modelID}</text>
               <text fg={COLORS.muted}>{modelSpec.provider}</text>
             </box>
+            <Show when={attachments().length > 0}>
+              <box flexDirection="row" gap={1} flexShrink={0} paddingBottom={1}>
+                <text fg={COLORS.muted}>images</text>
+                <For each={attachments().slice(0, 3)}>
+                  {(image) => <text fg={image.origin === "clipboard" ? COLORS.info : COLORS.warning}>{titleCase(image.origin)}</text>}
+                </For>
+                <text fg={COLORS.text}>{attachments().map((image) => image.label).join(" , ")}</text>
+              </box>
+            </Show>
+            <Show when={fileSuggestionOpen()}>
+              <box flexDirection="column" gap={0} paddingBottom={1}>
+                <Show when={fileSuggestionLoading()} fallback={(
+                  <Show when={fileSuggestions().length > 0} fallback={<text fg={COLORS.muted}>No matching files</text>}>
+                    <For each={fileSuggestions()}>
+                      {(suggestion, index) => (
+                        <box flexDirection="row" gap={1} backgroundColor={index() === fileSuggestionIndex() ? COLORS.panelSoft : COLORS.panelAccent}>
+                          <text fg={suggestion.image ? COLORS.warning : COLORS.info}>{index() === fileSuggestionIndex() ? ">" : " "}</text>
+                          <text fg={suggestion.image ? COLORS.warning : COLORS.text}>{suggestion.path}</text>
+                        </box>
+                      )}
+                    </For>
+                  </Show>
+                )}>
+                  <text fg={COLORS.muted}>Searching files...</text>
+                </Show>
+              </box>
+            </Show>
           </box>
         </box>
       </box>
@@ -263,6 +423,8 @@ export function ComposerCard(props: {
           <text fg={COLORS.text}>enter <span style={{ fg: COLORS.muted }}>send</span></text>
           <text fg={COLORS.text}>shift+enter <span style={{ fg: COLORS.muted }}>newline</span></text>
           <text fg={COLORS.text}>up/down <span style={{ fg: COLORS.muted }}>history</span></text>
+          <text fg={COLORS.text}>@ <span style={{ fg: COLORS.muted }}>files</span></text>
+          <text fg={COLORS.text}>ctrl+v <span style={{ fg: COLORS.muted }}>clipboard image</span></text>
           <text fg={COLORS.text}>tab <span style={{ fg: COLORS.muted }}>agents</span></text>
           <text fg={COLORS.text}>ctrl+n <span style={{ fg: COLORS.muted }}>new</span></text>
           <text fg={COLORS.text}>ctrl+c <span style={{ fg: COLORS.muted }}>clear</span></text>

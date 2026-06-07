@@ -210,7 +210,22 @@ export type CompactionPart = {
   summary: string
 }
 
-export type MessagePart = TextPart | ReasoningPart | CompactionPart | ToolPart
+// An image attached to a message, in one of three source forms. `file` is a
+// local path (resolved to base64 before reaching the provider), `base64` is
+// inline bytes (e.g. a pasted screenshot), `url` is a remote link passed to the
+// model as-is. See llm/image.ts for resolution and qwen image_url mapping.
+export type ImageSource =
+  | { kind: "file"; path: string; mime: string }
+  | { kind: "base64"; data: string; mime: string }
+  | { kind: "url"; url: string; mime?: string }
+
+export type ImagePart = {
+  id: string
+  type: "image"
+  source: ImageSource
+}
+
+export type MessagePart = TextPart | ReasoningPart | CompactionPart | ImagePart | ToolPart
 
 export type SessionMessage = UserMessage | AssistantMessage
 

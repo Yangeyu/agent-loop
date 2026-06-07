@@ -1,0 +1,27 @@
+import { describe, expect, it } from "bun:test"
+import { buildMessageContent } from "@harness/llm/providers/qwen"
+import type { ModelContentBlock } from "@harness/llm/types"
+
+describe("qwen buildMessageContent", () => {
+  it("keeps text-only content as a flattened string", () => {
+    expect(buildMessageContent([{ type: "text", text: "hello" }])).toBe("hello")
+  })
+
+  it("switches to a multimodal array when an image block is present", () => {
+    const blocks: ModelContentBlock[] = [
+      { type: "text", text: "look" },
+      { type: "image", source: { kind: "url", url: "https://example.com/a.png" } },
+    ]
+
+    expect(buildMessageContent(blocks)).toEqual([
+      { type: "text", text: "look" },
+      { type: "image_url", image_url: { url: "https://example.com/a.png" } },
+    ])
+  })
+
+  it("encodes a base64 source as a data URL", () => {
+    expect(buildMessageContent([{ type: "image", source: { kind: "base64", data: "AAA", mime: "image/png" } }])).toEqual([
+      { type: "image_url", image_url: { url: "data:image/png;base64,AAA" } },
+    ])
+  })
+})

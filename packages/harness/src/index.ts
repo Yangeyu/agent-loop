@@ -40,6 +40,7 @@ export {
   doomLoop,
   repeatedFailure,
   compaction,
+  viewImage,
 } from "@harness/middleware"
 export type {
   HookContext,

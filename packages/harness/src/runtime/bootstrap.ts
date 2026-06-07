@@ -4,7 +4,7 @@ import { runSession } from "@harness/core/loop"
 import { loadConfigFromEnv, type Config } from "@harness/config"
 import type { ModelProvider } from "@harness/agent/model"
 import type { RuntimePlugin } from "@harness/plugin/types"
-import type { OutputFormat } from "@harness/types"
+import type { ImageSource, OutputFormat } from "@harness/types"
 
 export async function createRuntime(options?: {
   config?: Config
@@ -41,6 +41,7 @@ export async function runPrompt(options: {
   sessionID?: string
   printSessionJson?: boolean
   format?: OutputFormat
+  images?: ImageSource[]
   abort?: AbortSignal
 }) {
   const { runtime } = options
@@ -53,6 +54,7 @@ export async function runPrompt(options: {
     text: options.text,
     agent: options.agent ?? runtime.agent_registry.defaultAgent().name,
     format: options.format,
+    images: options.images,
     abort: options.abort,
   })
 

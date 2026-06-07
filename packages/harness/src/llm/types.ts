@@ -1,5 +1,5 @@
 // Core LLM protocol types shared across the runtime and providers.
-import type { AgentInfo, AssistantMessage, SessionInfo, ToolDefinition, UserMessage } from "@harness/types"
+import type { AgentInfo, AssistantMessage, ImageSource, SessionInfo, ToolDefinition, UserMessage } from "@harness/types"
 
 export type ModelContentBlock =
   | { type: "text"; text: string; synthetic?: boolean }
@@ -8,6 +8,7 @@ export type ModelContentBlock =
   | { type: "tool-output"; output: string; title?: string; metadata?: unknown }
   | { type: "tool-error"; toolName: string; input: unknown; error: string }
   | { type: "context-summary"; text: string }
+  | { type: "image"; source: ImageSource }
   | { type: "error"; text: string }
 
 export type ModelCapabilities = {
@@ -15,6 +16,8 @@ export type ModelCapabilities = {
   reasoning: boolean
   structuredOutput: boolean
   streaming: boolean
+  // Whether the model accepts image content blocks (multimodal vision input).
+  vision: boolean
 }
 
 export type ModelDefaults = {

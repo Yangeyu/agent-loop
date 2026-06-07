@@ -1,5 +1,5 @@
 import type { ModelContentBlock, ModelMessage } from "@harness/llm/types"
-import type { AssistantMessage, CompactionPart, MessagePart, SessionInfo, TextPart, ToolPart, UserMessage } from "@harness/types"
+import type { AssistantMessage, CompactionPart, ImagePart, MessagePart, SessionInfo, TextPart, ToolPart, UserMessage } from "@harness/types"
 
 export function toModelMessages(session: SessionInfo): ModelMessage[] {
   const messages: ModelMessage[] = []
@@ -34,6 +34,10 @@ function buildUserMessage(message: UserMessage, parts: MessagePart[], index: num
   }
 
   content.push(...textParts.map((part) => ({ type: "text" as const, text: part.text, synthetic: part.synthetic })))
+
+  const imageParts = parts.filter((part): part is ImagePart => part.type === "image")
+  content.push(...imageParts.map((part) => ({ type: "image" as const, source: part.source })))
+
   if (content.length === 0) return undefined
 
   return {

@@ -38,7 +38,7 @@ export type AgentSpec = {
 
 const DEFAULT_MODEL: ModelSelector = {
   providerID: "qwen",
-  modelID: "qwen3.5-plus",
+  modelID: "qwen3.7-plus",
   temperature: 0.2,
 }
 

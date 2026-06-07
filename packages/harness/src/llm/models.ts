@@ -11,9 +11,10 @@ const qwenSpec: ModelSpec = {
     reasoning: true,
     structuredOutput: true,
     streaming: true,
+    vision: true,
   },
   defaults: {
-    modelID: "qwen3.5-plus",
+    modelID: "qwen3.7-plus",
     temperature: 0.2,
   },
   contextWindow: 262144,

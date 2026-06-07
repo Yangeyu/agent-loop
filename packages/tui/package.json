@@ -8,6 +8,9 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "scripts": {
+    "test": "bun test tests"
+  },
   "dependencies": {
     "@agent-loop/harness": "workspace:*",
     "@agent-loop/contracts": "workspace:*",

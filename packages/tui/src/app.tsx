@@ -2,7 +2,7 @@ import { runPrompt } from "@harness"
 import { ComposerCard, CrashView, Sidebar, TraceEntryBlock, WelcomeCard } from "@tui/components"
 import { handleTraceEvent } from "@tui/trace"
 import { COLORS, belongsToSessionTree, buildSessionTitle, moveSession, resolveInitialAgent } from "@tui/theme"
-import type { ActivityState, ComposerHandle, TraceEntry, TuiOptions } from "@tui/types"
+import type { ActivityState, ComposerHandle, ComposerSubmitInput, TraceEntry, TuiOptions } from "@tui/types"
 import { render, useKeyboard, useRenderer, useTerminalDimensions, useSelectionHandler } from "@opentui/solid"
 import { ErrorBoundary, For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js"
 import { spawn } from "node:child_process"
@@ -95,11 +95,11 @@ function App(props: TuiOptions) {
     setNotice(`Agent: ${primary[nextIndex].name}`)
   }
 
-  const submitPrompt = async (value: string) => {
-    const text = value.trim()
-    if (!text || activity().busy) return
+  const submitPrompt = async (input: ComposerSubmitInput) => {
+    const text = input.text.trim()
+    if (activity().busy || (text.length === 0 && input.images.length === 0)) return
 
-    const nextSession = session() ?? createSession(text)
+    const nextSession = session() ?? createSession(text || "Image prompt")
     abort = new AbortController()
     setNotice(undefined)
     setActivity({
@@ -112,6 +112,7 @@ function App(props: TuiOptions) {
       await runPrompt({
         runtime,
         text,
+        images: input.images,
         agent: selectedAgent(),
         sessionID: nextSession.id,
         abort: abort.signal,
@@ -178,6 +179,13 @@ function App(props: TuiOptions) {
       return
     }
 
+    if (event.ctrl && event.name === "v") {
+      void composerRef?.attachClipboardImage()
+      event.preventDefault()
+      event.stopPropagation()
+      return
+    }
+
     if (event.name === "escape" && activity().busy) {
       cancelTurn()
       event.preventDefault()
@@ -239,7 +247,7 @@ function App(props: TuiOptions) {
     onCleanup(unsubscribe)
 
     if (props.initialPrompt && props.autoSubmitInitial) {
-      void submitPrompt(props.initialPrompt)
+      void submitPrompt({ text: props.initialPrompt, images: [] })
     }
   })
 
@@ -280,6 +288,7 @@ function App(props: TuiOptions) {
             }}
             busy={activity().busy}
             onSubmit={submitPrompt}
+            onNotice={setNotice}
             selectedAgent={selectedAgent()}
             activityStatus={activity().status}
             initialValue={props.autoSubmitInitial ? "" : props.initialPrompt ?? ""}

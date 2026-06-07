@@ -3,6 +3,10 @@
 import type { ModelMessage } from "@harness/llm/types"
 
 const CHARS_PER_TOKEN = 4
+// Flat nominal token cost per image. Images aren't counted by their (potentially
+// huge base64) length — that would swamp the estimate — so the gate uses a fixed
+// monotonic weight instead.
+const IMAGE_TOKEN_ESTIMATE = 1024
 
 export function estimateTextTokens(text: string): number {
   return Math.ceil(text.length / CHARS_PER_TOKEN)
@@ -31,5 +35,7 @@ function blockChars(block: ModelMessage["content"][number]): number {
       return block.error.length + block.toolName.length
     case "structured-output":
       return typeof block.data === "string" ? block.data.length : JSON.stringify(block.data).length
+    case "image":
+      return IMAGE_TOKEN_ESTIMATE * CHARS_PER_TOKEN
   }
 }

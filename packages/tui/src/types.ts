@@ -1,4 +1,9 @@
-import type { RuntimeContext } from "@harness"
+import type { ImageSource, RuntimeContext } from "@harness"
+
+export type ComposerSubmitInput = {
+  text: string
+  images: ImageSource[]
+}
 
 export type TuiOptions = {
   runtime: RuntimeContext
@@ -30,4 +35,5 @@ export type ComposerHandle = {
   clear: () => void
   focus: () => void
   value: () => string
+  attachClipboardImage: () => Promise<void>
 }

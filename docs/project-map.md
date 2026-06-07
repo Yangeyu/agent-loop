@@ -15,18 +15,19 @@
 ```text
 packages/
 ├── harness/                        # agent harness（引擎），跨包别名 @harness
-│   └── src/
-│       ├── agent/                  # agent 注册、默认 prompt
-│       ├── llm/                    # 模型注册、provider 协议、Qwen/fake 适配
-│       ├── plugin/                 # runtime plugin 契约与装配
-│       ├── runtime/                # bootstrap、事件总线、控制台输出
-│       ├── session/                # prompt loop、processor、store、compaction
-│       ├── skill/                  # runtime skill registry
-│       ├── tool/                   # 内置工具注册与执行
-│       ├── module.ts               # core 插件定义
-│       ├── config.ts               # 配置解析与校验
-│       ├── types.ts                # 全局核心类型
-│       └── index.ts                # 公共 API barrel（@harness 出口）
+│   ├── src/
+│   │   ├── agent/                  # agent 注册、默认 prompt
+│   │   ├── llm/                    # 模型注册、provider 协议、Qwen/fake 适配
+│   │   ├── plugin/                 # runtime plugin 契约与装配
+│   │   ├── runtime/                # bootstrap、事件总线、控制台输出
+│   │   ├── session/                # prompt loop、processor、store、compaction
+│   │   ├── skill/                  # runtime skill registry
+│   │   ├── tool/                   # 内置工具注册与执行
+│   │   ├── module.ts               # core 插件定义
+│   │   ├── config.ts               # 配置解析与校验
+│   │   ├── types.ts                # 全局核心类型
+│   │   └── index.ts                # 公共 API barrel（@harness 出口）
+│   └── tests/                      # 按模块分区集中管理 harness 测试
 ├── backend/                        # 薄 HTTP/SSE 传输层 + 领域功能，别名 @backend
 │   └── src/
 │       ├── http/                   # HTTP/SSE 模块与在线文档
@@ -77,6 +78,7 @@ apps/
 - 新增 runtime plugin: 新建插件对象后注册到 `packages/backend/src/compose.ts`
 - 新增 provider: 放在 `packages/harness/src/llm/providers/`，并接入 `packages/harness/src/llm/models.ts`
 - 新增结构化输出场景: 复用 `SessionPrompt` 中的 `StructuredOutput` 注入机制
+- harness 测试统一放在 `packages/harness/tests/`，按 `llm/`、`middleware/`、`session/`、`tool/` 等模块目录分区
 
 ## 初始化约束
 
