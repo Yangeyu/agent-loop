@@ -27,7 +27,6 @@ export function dashScope(): Provider {
     baseURL: process.env.QWEN_BASE_URL ?? "https://dashscope.aliyuncs.com/compatible-mode/v1",
     apiKeyEnv: ["DASHSCOPE_API_KEY", "QWEN_API_KEY"],
     defaultModelID: "qwen3.7-plus",
-    defaultTemperature: 0.2,
     models: [
       {
         id: "qwen3.7-plus",

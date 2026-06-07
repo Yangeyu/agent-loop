@@ -23,7 +23,8 @@ const DEFAULT_PROVIDER_ID = providers[0].id
  * @returns the provider's streaming result
  */
 export function streamText(input: LLMInput): LLMStreamResult {
-  return resolveProvider(input.user.model.providerID).stream(input)
+  const provider = resolveProvider(input.user.model.providerID)
+  return provider.stream(input, selectModel(provider, input.user.model.modelID))
 }
 
 /**
@@ -44,16 +45,26 @@ export type ResolvedModelSpec = ProviderModelSpec & { providerID: string }
  */
 export function resolveModelSpec(selector?: { providerID?: string; modelID?: string }): ResolvedModelSpec {
   const provider = resolveProvider(selector?.providerID)
-  const wanted = selector?.modelID || provider.defaultModelID
-  const model =
-    provider.models.find((entry) => entry.id === wanted) ??
-    provider.models.find((entry) => entry.id === provider.defaultModelID) ??
-    provider.models[0]
-  return { ...model, providerID: provider.id }
+  return { ...selectModel(provider, selector?.modelID), providerID: provider.id }
 }
 
 function resolveProvider(providerID?: string): Provider {
   const provider = providerRegistry[providerID || DEFAULT_PROVIDER_ID]
   if (!provider) throw new Error(`Unknown model provider "${providerID}". Registered: ${Object.keys(providerRegistry).join(", ")}.`)
   return provider
+}
+
+/**
+ * Selects a provider's model by id, falling back to its default then its first
+ * model when the id is empty or unknown. The single home for model selection —
+ * both the request path (streamText) and the capability-gating path
+ * (resolveModelSpec) resolve through here, so a provider never re-resolves.
+ */
+function selectModel(provider: Provider, modelID?: string): ProviderModelSpec {
+  const wanted = modelID || provider.defaultModelID
+  return (
+    provider.models.find((entry) => entry.id === wanted) ??
+    provider.models.find((entry) => entry.id === provider.defaultModelID) ??
+    provider.models[0]
+  )
 }

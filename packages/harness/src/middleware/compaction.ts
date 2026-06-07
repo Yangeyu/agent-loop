@@ -14,7 +14,7 @@ import type { LLMInput } from "@harness/llm/types"
 import { resolveModelSpec } from "@harness/llm/models"
 import type { HookContext, MiddlewareFactory } from "@harness/hooks/types"
 import { estimateModelTokens } from "@harness/middleware/token-estimate"
-import { toModelMessages } from "@harness/session/model-message"
+import { toModelMessages } from "@harness/llm/message"
 import {
   createID,
   type AssistantMessage,
@@ -40,7 +40,7 @@ const COMPACTOR_INSTRUCTIONS = [
 const compactor = defineAgent({
   name: "compactor",
   mode: "subagent",
-  model: { providerID: "dashscope", modelID: COMPACTION_MODEL_ID, temperature: 0.2 },
+  model: { providerID: "dashscope", modelID: COMPACTION_MODEL_ID },
   instructions: COMPACTOR_INSTRUCTIONS,
   tools: {},
 })

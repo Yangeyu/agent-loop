@@ -1,6 +1,8 @@
 /** Core LLM protocol types shared across the runtime and providers. */
 import type { AgentInfo, AssistantMessage, ImageSource, SessionInfo, ToolDefinition, UserMessage } from "@harness/types"
 
+export const DEFAULT_TEMPERATURE = 0.2
+
 /** A single block of model message content (text, reasoning, tool I/O, image …). */
 export type ModelContentBlock =
   | { type: "text"; text: string; synthetic?: boolean }
@@ -49,21 +51,42 @@ export type Provider = {
   models: ProviderModelSpec[]
   /** The model used when a request does not name one. */
   defaultModelID: string
-  /** Issues one streaming Chat Completions request for the given input. */
-  stream(input: LLMInput): LLMStreamResult
+  /**
+   * Issues one streaming request for the given input against the already-resolved
+   * model. Model selection is the entrypoint's job (see streamText); the provider
+   * receives the concrete model and only sends — it never re-resolves.
+   */
+  stream(input: LLMInput, model: ProviderModelSpec): LLMStreamResult
 }
 
-/** A single message in provider-neutral form (the tool variant carries its call). */
-export type ModelMessage = {
-  role: "system" | "user" | "assistant"
-  content: ModelContentBlock[]
-} | {
-  role: "tool"
-  toolCallId: string
-  toolName: string
+/** A tool call the assistant issued in a turn (the request half of a call). */
+export type ModelToolCall = {
+  id: string
+  name: string
   input: unknown
-  content: ModelContentBlock[]
 }
+
+/**
+ * A single message in provider-neutral form. The assistant message owns the tool
+ * calls it issued (`toolCalls`); each `tool` message carries only the result,
+ * linked back by `toolCallId`. This mirrors the wire protocol's shape, so a
+ * provider maps the list 1:1 without re-grouping calls and results.
+ */
+export type ModelMessage =
+  | {
+      role: "system" | "user"
+      content: ModelContentBlock[]
+    }
+  | {
+      role: "assistant"
+      content: ModelContentBlock[]
+      toolCalls?: ModelToolCall[]
+    }
+  | {
+      role: "tool"
+      toolCallId: string
+      content: ModelContentBlock[]
+    }
 
 /** The fully assembled input for one model turn, handed to a provider's stream(). */
 export type LLMInput = {
@@ -71,6 +94,7 @@ export type LLMInput = {
   user: UserMessage
   assistant: AssistantMessage
   agent: AgentInfo
+  temperature?: number
   system: string[]
   messages: ModelMessage[]
   tools: ToolDefinition[]

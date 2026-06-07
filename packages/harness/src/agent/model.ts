@@ -24,6 +24,6 @@ export function createModelCaller(selector: ModelSelector, provider: ModelProvid
   return {
     selector,
     providerModel: { providerID: selector.providerID, modelID: selector.modelID },
-    stream: (input) => provider(input),
+    stream: (input) => provider({ ...input, temperature: selector.temperature ?? input.temperature }),
   }
 }

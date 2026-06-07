@@ -26,7 +26,7 @@ import { createTurnAbortSignal, resolveTurnExecutionPolicy } from "@harness/core
 import { appendStopNote } from "@harness/core/stream-sink"
 import { runTurn } from "@harness/core/turn"
 import { MiddlewareStack } from "@harness/hooks/stack"
-import { toModelMessages } from "@harness/session/model-message"
+import { toModelMessages } from "@harness/llm/message"
 import {
   createID,
   type AssistantMessage,
