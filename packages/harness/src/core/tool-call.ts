@@ -5,7 +5,7 @@ import { appendStopNote, StreamSink } from "@harness/core/stream-sink"
 import type { TurnContext } from "@harness/core/context"
 import type { MiddlewareStack } from "@harness/hooks/stack"
 import type { ToolCall } from "@harness/hooks/types"
-import { isAbortError } from "@harness/session/retry"
+import { isAbortError } from "@harness/core/retry"
 import {
   createRunningToolPart,
   toCompletedToolPart,

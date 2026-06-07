@@ -5,7 +5,7 @@ import { dispatchToolCall } from "@harness/core/tool-call"
 import { StreamSink } from "@harness/core/stream-sink"
 import type { MiddlewareStack } from "@harness/hooks/stack"
 import type { LLMInput } from "@harness/llm/types"
-import { classifyRetry, isAbortError, retry, retryDelay, toErrorInfo } from "@harness/session/retry"
+import { classifyRetry, isAbortError, retry, retryDelay, toErrorInfo } from "@harness/core/retry"
 import type { FinishReason } from "@harness/types"
 
 export async function runTurn(ctx: TurnContext, stack: MiddlewareStack): Promise<{ sawToolCall: boolean }> {

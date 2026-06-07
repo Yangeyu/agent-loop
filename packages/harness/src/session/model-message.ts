@@ -1,4 +1,3 @@
-import { renderTaggedText } from "@harness/llm/content"
 import type { ModelContentBlock, ModelMessage } from "@harness/llm/types"
 import type { AssistantMessage, CompactionPart, MessagePart, SessionInfo, TextPart, ToolPart, UserMessage } from "@harness/types"
 
@@ -20,13 +19,6 @@ export function toModelMessages(session: SessionInfo): ModelMessage[] {
   }
 
   return messages
-}
-
-export function serializeAssistantMessage(message: AssistantMessage, parts: MessagePart[]) {
-  return buildAssistantMessages(message, parts)
-    .map((item) => serializeModelMessage(item))
-    .filter(Boolean)
-    .join("\n\n")
 }
 
 function buildUserMessage(message: UserMessage, parts: MessagePart[], index: number): ModelMessage | undefined {
@@ -138,12 +130,4 @@ function toToolResultMessage(part: ToolPart): ModelMessage | undefined {
       },
     ],
   }
-}
-
-function serializeModelMessage(message: ModelMessage) {
-  if (message.role === "tool") {
-    return renderTaggedText(message.content)
-  }
-
-  return renderTaggedText(message.content)
 }

@@ -1,8 +1,6 @@
 import type { ErrorInfo } from "@harness/types"
 import type { RetryPolicy } from "@harness/core/policy"
 
-export const DOOM_LOOP_THRESHOLD = 3
-
 type RetryInput<T> = {
   abort: AbortSignal
   maxRetries: number
@@ -68,10 +66,6 @@ export function classifyRetry(error: unknown): RetryClassification {
   }
 }
 
-export function isRetryableError(error: unknown): boolean {
-  return classifyRetry(error).retryable
-}
-
 export function isAbortError(error: unknown): boolean {
   return (
     error instanceof DOMException
@@ -99,8 +93,8 @@ export function retryDelay(attempt: number, policy: RetryPolicy): number {
   return Math.min(policy.baseDelayMs * 2 ** (attempt - 1), policy.maxDelayMs)
 }
 
-export async function sleep(ms: number, abort: AbortSignal): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
+function sleep(ms: number, abort: AbortSignal): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
     const timeout = setTimeout(() => {
       abort.removeEventListener("abort", onAbort)
       resolve()
@@ -130,18 +124,4 @@ export async function retry<T>(input: RetryInput<T>): Promise<T> {
   }
 
   throw new Error("Retry attempts exhausted")
-}
-
-export function isDoomLoop(
-  history: Array<{ toolName: string; args: unknown }>,
-  toolName: string,
-  args: unknown,
-): boolean {
-  const recent = history.slice(-(DOOM_LOOP_THRESHOLD - 1))
-  return (
-    recent.length === DOOM_LOOP_THRESHOLD - 1 &&
-    recent.every(
-      (item) => item.toolName === toolName && JSON.stringify(item.args) === JSON.stringify(args),
-    )
-  )
 }
