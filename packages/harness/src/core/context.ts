@@ -1,5 +1,7 @@
-// Engine-internal per-turn context. Superset of HookContext: middleware see the
-// HookContext view; the engine additionally tracks streaming accumulation state.
+/**
+ * Engine-internal per-turn context. Superset of HookContext: middleware see the
+ * HookContext view; the engine additionally tracks streaming accumulation state.
+ */
 import type { ModelCaller, ModelProvider } from "@harness/agent/model"
 import type { ModelMessage } from "@harness/llm/types"
 import type { TurnExecutionPolicy } from "@harness/core/policy"
@@ -14,9 +16,10 @@ import type {
   UserMessage,
 } from "@harness/types"
 
-// The engine's dependency surface is exactly the runtime's dependency surface.
+/** The engine's dependency surface is exactly the runtime's dependency surface. */
 export type EngineDeps = RuntimeDeps
 
+/** The engine-internal turn context: HookContext plus streaming accumulation state. */
 export type TurnContext = HookContext & {
   user: UserMessage
   assistant: AssistantMessage
@@ -37,6 +40,15 @@ export type TurnContext = HookContext & {
   textPart?: TextPart
 }
 
+/**
+ * Assembles the per-turn TurnContext from the engine deps and turn inputs. The
+ * `system`/`messages` fields start empty and are filled by the contributeSystem /
+ * transformMessages hooks before the turn streams.
+ *
+ * @param input - engine deps plus this turn's agent, model caller, policy, ids,
+ *   user/assistant messages, tools, step number, and abort signal
+ * @returns the initialized turn context
+ */
 export function createTurnContext(input: {
   deps: EngineDeps
   agent: HookContext["agent"]

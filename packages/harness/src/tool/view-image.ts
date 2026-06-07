@@ -89,7 +89,7 @@ async function describeImage(ctx: ToolContext, source: ImageSource, prompt: stri
   const synthetic = {
     sessionID: ctx.sessionID,
     agent: VIEW_AGENT.name,
-    model: { providerID: "qwen", modelID: VIEW_MODEL_ID },
+    model: { providerID: "dashscope", modelID: VIEW_MODEL_ID },
     time: { created: now },
   }
   const user: UserMessage = { id: createID(), role: "user", ...synthetic }

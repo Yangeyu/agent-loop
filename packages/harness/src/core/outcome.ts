@@ -1,11 +1,20 @@
-// Base turn-outcome resolution: continue vs break, derived purely from the
-// assistant message state and whether tool calls were seen. Policy-driven
-// overrides (step budget, structured output) are applied by middleware via
-// the resolveOutcome hook.
+/**
+ * Base turn-outcome resolution: continue vs break, derived purely from the
+ * assistant message state and whether tool calls were seen. Policy-driven
+ * overrides (step budget, structured output) are applied by middleware via
+ * the resolveOutcome hook.
+ */
 import type { TurnContext } from "@harness/core/context"
 import type { TurnOutcome } from "@harness/hooks/types"
 import type { AssistantMessage } from "@harness/types"
 
+/**
+ * Computes the default turn outcome from the assistant message and tool-call flag.
+ *
+ * @param ctx - the turn context
+ * @param sawToolCall - whether the turn issued any tool call
+ * @returns continue (tool calls / empty output) or break (error / final text)
+ */
 export function baseOutcome(ctx: TurnContext, sawToolCall: boolean): TurnOutcome {
   const session = ctx.session_store.get(ctx.sessionID)
   const assistant = session.messages.find((message) => message.id === ctx.assistant.id) as AssistantMessage | undefined

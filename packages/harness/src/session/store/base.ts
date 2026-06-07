@@ -11,12 +11,14 @@ import {
 } from "@harness/types"
 import type { ISessionStore } from "./types"
 
-// Shared CRUD over SessionInfo. Subclasses supply only where bytes live:
-//   read(id)   — fetch a session, or null when absent
-//   persist(s) — make the (possibly mutated) session durable
-//   list()     — enumerate all sessions
-// Every mutator is read → mutate-in-place → persist, so memory and file stores
-// differ only in storage, never in how messages/parts are shaped.
+/**
+ * Shared CRUD over SessionInfo. Subclasses supply only where bytes live:
+ *   read(id)   — fetch a session, or null when absent
+ *   persist(s) — make the (possibly mutated) session durable
+ *   list()     — enumerate all sessions
+ * Every mutator is read → mutate-in-place → persist, so memory and file stores
+ * differ only in storage, never in how messages/parts are shaped.
+ */
 export abstract class BaseSessionStore implements ISessionStore {
   protected abstract read(sessionID: string): SessionInfo | null
   protected abstract persist(session: SessionInfo): void

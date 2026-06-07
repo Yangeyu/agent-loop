@@ -6,9 +6,9 @@
 //
 // Everything compaction needs is owned here: the summarizer blueprint (model +
 // prompt) is declared inline with defineAgent but is NEVER run through the loop —
-// it is invoked single-shot via ctx.llm (the provider transport; the qwen
-// provider selects the model from the synthetic user.model, not the caller),
-// which keeps it free of tools/middleware/budgets and re-entrancy-safe.
+// it is invoked single-shot via ctx.llm (the provider transport; routing picks
+// the provider/model from the synthetic user.model, not the caller), which keeps
+// it free of tools/middleware/budgets and re-entrancy-safe.
 import { defineAgent } from "@harness/agent/types"
 import type { LLMInput } from "@harness/llm/types"
 import { resolveModelSpec } from "@harness/llm/models"
@@ -40,7 +40,7 @@ const COMPACTOR_INSTRUCTIONS = [
 const compactor = defineAgent({
   name: "compactor",
   mode: "subagent",
-  model: { providerID: "qwen", modelID: COMPACTION_MODEL_ID, temperature: 0.2 },
+  model: { providerID: "dashscope", modelID: COMPACTION_MODEL_ID, temperature: 0.2 },
   instructions: COMPACTOR_INSTRUCTIONS,
   tools: {},
 })
@@ -109,7 +109,7 @@ async function summarizeOlderHalf(ctx: HookContext, session: SessionInfo, older:
   const synthetic = {
     sessionID: ctx.sessionID,
     agent: compactor.name,
-    // The qwen provider reads the model from user.model (not the caller's
+    // Routing reads the provider/model from user.model (not the caller's
     // selector), so this is what swaps the summarizer onto the cheaper model.
     model: { providerID: compactor.model.providerID, modelID: compactor.model.modelID },
     time: { created: now },

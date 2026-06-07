@@ -1,7 +1,9 @@
-// StreamSink accumulates the model stream (reasoning / text) into the session
-// store, manages turn phase transitions, and emits the corresponding events.
-// It is agent-agnostic and owns no business policy (structured output, budgets,
-// and outcome decisions all live in middleware).
+/**
+ * StreamSink accumulates the model stream (reasoning / text) into the session
+ * store, manages turn phase transitions, and emits the corresponding events.
+ * It is agent-agnostic and owns no business policy (structured output, budgets,
+ * and outcome decisions all live in middleware).
+ */
 import type { TurnContext } from "@harness/core/context"
 import { createID, type ErrorInfo, type ReasoningPart, type TextPart, type TurnPhase } from "@harness/types"
 
@@ -14,6 +16,10 @@ const VALID_PHASE_TRANSITIONS: Record<TurnPhase, TurnPhase[]> = {
   finishing: [],
 }
 
+/**
+ * Accumulates one turn's stream into the session store and emits turn events.
+ * Methods drive the turn through its phases; `finish`/`fail`/`abort` are terminal.
+ */
 export class StreamSink {
   constructor(private readonly ctx: TurnContext) {}
 
@@ -153,8 +159,13 @@ export class StreamSink {
   }
 }
 
-// Appends a synthetic stop note to the current assistant message (shared by the
-// budget middleware / tool guards via the engine).
+/**
+ * Appends a synthetic stop note to the current assistant message (shared by the
+ * budget middleware / tool guards via the engine).
+ *
+ * @param ctx - the turn context
+ * @param note - the synthetic note text to append
+ */
 export function appendStopNote(ctx: TurnContext, note: string) {
   ctx.session_store.appendTextPart(ctx.sessionID, ctx.assistant.id, {
     id: createID(),

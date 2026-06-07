@@ -1,6 +1,19 @@
+/**
+ * Projects a stored SessionInfo (messages + their parts) into the provider-neutral
+ * ModelMessage list the LLM input carries. Each user/assistant message's parts are
+ * folded into content blocks; tool parts become trailing tool-result messages; and
+ * a compaction part renders as a `context-summary` system message before its owner,
+ * so a compacted history reads as a summary followed by the retained tail.
+ */
 import type { ModelContentBlock, ModelMessage } from "@harness/llm/types"
 import type { AssistantMessage, CompactionPart, ImagePart, MessagePart, SessionInfo, TextPart, ToolPart, UserMessage } from "@harness/types"
 
+/**
+ * Projects a session into the ordered ModelMessage list for an LLM turn.
+ *
+ * @param session - the stored session (messages + parts keyed by message id)
+ * @returns the model messages, in conversation order
+ */
 export function toModelMessages(session: SessionInfo): ModelMessage[] {
   const messages: ModelMessage[] = []
 

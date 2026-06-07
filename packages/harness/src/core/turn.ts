@@ -1,5 +1,7 @@
-// runTurn: a single model turn. Wraps the stream in retry, accumulates output
-// via StreamSink, dispatches tool calls, and finalizes via the onTurnFinish hook.
+/**
+ * runTurn: a single model turn. Wraps the stream in retry, accumulates output
+ * via StreamSink, dispatches tool calls, and finalizes via the onTurnFinish hook.
+ */
 import type { TurnContext } from "@harness/core/context"
 import { dispatchToolCall } from "@harness/core/tool-call"
 import { StreamSink } from "@harness/core/stream-sink"
@@ -8,6 +10,15 @@ import type { LLMInput } from "@harness/llm/types"
 import { classifyRetry, isAbortError, retry, retryDelay, toErrorInfo } from "@harness/core/retry"
 import type { FinishReason } from "@harness/types"
 
+/**
+ * Runs one model turn: streams (with retry) into the StreamSink, dispatching tool
+ * calls and finalizing on finish. Aborts and stream failures are absorbed into the
+ * sink so the loop can decide what to do next.
+ *
+ * @param ctx - the turn context (model caller, policy, session ids, abort)
+ * @param stack - the agent's middleware stack, for the per-turn hooks
+ * @returns whether the turn issued at least one tool call
+ */
 export async function runTurn(ctx: TurnContext, stack: MiddlewareStack): Promise<{ sawToolCall: boolean }> {
   const sink = new StreamSink(ctx)
   sink.start()

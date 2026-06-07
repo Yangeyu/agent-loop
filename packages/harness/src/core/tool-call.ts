@@ -1,6 +1,8 @@
-// Tool dispatch: validate -> execute -> persist result/error -> emit events.
-// Contains NO business policy. Budgets, doom-loop and repeated-failure guards
-// are middleware (beforeToolCall / onToolError); rewriting is afterToolCall.
+/**
+ * Tool dispatch: validate -> execute -> persist result/error -> emit events.
+ * Contains NO business policy. Budgets, doom-loop and repeated-failure guards
+ * are middleware (beforeToolCall / onToolError); rewriting is afterToolCall.
+ */
 import { appendStopNote, StreamSink } from "@harness/core/stream-sink"
 import type { TurnContext } from "@harness/core/context"
 import type { MiddlewareStack } from "@harness/hooks/stack"
@@ -29,8 +31,20 @@ type GuardedToolResult =
   | { status: "stop"; error: ErrorInfo; note?: string }
   | { status: "abort" }
 
+/** Whether the loop should continue after a tool call, or stop the turn. */
 export type ToolDispatchResult = { kind: "continue" } | { kind: "stop" }
 
+/**
+ * Dispatches a single tool call from the stream: runs it through the guard/execute
+ * pipeline, drives the sink's phase, and translates a guard stop/abort into a turn
+ * stop (failing the sink and appending a stop note).
+ *
+ * @param ctx - the turn context
+ * @param stack - the middleware stack (before/after/onError tool hooks)
+ * @param sink - the stream sink for phase + terminal transitions
+ * @param chunk - the tool-call chunk (name, call id, args)
+ * @returns whether to continue the turn or stop it
+ */
 export async function dispatchToolCall(
   ctx: TurnContext,
   stack: MiddlewareStack,

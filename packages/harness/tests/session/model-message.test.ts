@@ -8,7 +8,7 @@ function userSession(parts: MessagePart[]): SessionInfo {
     role: "user",
     sessionID: "s1",
     agent: "lead",
-    model: { providerID: "qwen", modelID: "qwen3.7-plus" },
+    model: { providerID: "dashscope", modelID: "qwen3.7-plus" },
     time: { created: 0 },
   }
   return { id: "s1", title: "t", messages: [user], parts: { u1: parts } }

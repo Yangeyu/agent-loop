@@ -148,7 +148,7 @@ function createToolCallHarness(tool: ToolDefinition) {
   tool_registry.register(tool)
   const events = createRuntimeEvents()
 
-  const model = { providerID: "qwen", modelID: "qwen3.5-plus" }
+  const model = { providerID: "dashscope", modelID: "qwen3.7-plus" }
   const user: UserMessage = {
     id: "user-1",
     role: "user",

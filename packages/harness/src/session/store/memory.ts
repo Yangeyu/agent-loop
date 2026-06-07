@@ -1,6 +1,8 @@
+/** In-memory session store: a Map, lost on process exit. Default for tests/dev. */
 import type { SessionInfo } from "@harness/types"
 import { BaseSessionStore } from "./base"
 
+/** Session store backed by an in-process Map. */
 export class MemorySessionStore extends BaseSessionStore {
   private sessions = new Map<string, SessionInfo>()
 

@@ -1,3 +1,8 @@
+/**
+ * Error classification + the generic retry driver shared by the turn loop.
+ * classifyRetry decides what is retryable; retry() runs an operation with
+ * exponential backoff and abort support.
+ */
 import type { ErrorInfo } from "@harness/types"
 import type { RetryPolicy } from "@harness/core/policy"
 
@@ -10,6 +15,7 @@ type RetryInput<T> = {
   run(): Promise<T>
 }
 
+/** The bucket an error falls into for retry/telemetry purposes. */
 export type RetryCategory =
   | "abort"
   | "timeout"
@@ -18,6 +24,7 @@ export type RetryCategory =
   | "rate_limit"
   | "unknown"
 
+/** The verdict for an error: whether to retry, its category, and a brief reason. */
 export type RetryClassification = {
   retryable: boolean
   category: RetryCategory
@@ -40,6 +47,13 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase()
 }
 
+/**
+ * Classifies an error into a retry verdict by matching its message against known
+ * transient patterns; aborts are never retryable.
+ *
+ * @param error - the thrown error
+ * @returns whether it is retryable, its category, and a reason
+ */
 export function classifyRetry(error: unknown): RetryClassification {
   if (isAbortError(error)) {
     return {
@@ -66,6 +80,12 @@ export function classifyRetry(error: unknown): RetryClassification {
   }
 }
 
+/**
+ * Whether an error is an abort (DOMException/Error named "AbortError").
+ *
+ * @param error - the thrown error
+ * @returns true if it represents an abort
+ */
 export function isAbortError(error: unknown): boolean {
   return (
     error instanceof DOMException
@@ -74,6 +94,13 @@ export function isAbortError(error: unknown): boolean {
   )
 }
 
+/**
+ * Normalizes any thrown value into the structured ErrorInfo stored on a part.
+ *
+ * @param error - the thrown value
+ * @param retryable - the retryable flag to record (from classification)
+ * @returns the structured error info
+ */
 export function toErrorInfo(error: unknown, retryable: boolean): ErrorInfo {
   if (error instanceof Error) {
     return {
@@ -89,6 +116,13 @@ export function toErrorInfo(error: unknown, retryable: boolean): ErrorInfo {
   }
 }
 
+/**
+ * Exponential backoff delay for an attempt, capped at the policy's max.
+ *
+ * @param attempt - the 1-based retry attempt number
+ * @param policy - the retry policy (base/max delays)
+ * @returns the delay in milliseconds
+ */
 export function retryDelay(attempt: number, policy: RetryPolicy): number {
   return Math.min(policy.baseDelayMs * 2 ** (attempt - 1), policy.maxDelayMs)
 }
@@ -109,6 +143,14 @@ function sleep(ms: number, abort: AbortSignal): Promise<void> {
   })
 }
 
+/**
+ * Runs an operation with retries: on failure, consults shouldRetry, invokes the
+ * optional onRetry, sleeps for getDelay, and tries again until maxRetries.
+ *
+ * @param input - the operation plus retry policy callbacks and abort signal
+ * @returns the operation's resolved value
+ * @throws the last error if retries are exhausted or shouldRetry returns false
+ */
 export async function retry<T>(input: RetryInput<T>): Promise<T> {
   for (let attempt = 0; attempt <= input.maxRetries; attempt += 1) {
     try {

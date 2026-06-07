@@ -1,21 +1,23 @@
-// The agent orchestration loop. Agent-agnostic: it resolves the agent blueprint
-// once per run, builds the loop-scoped middleware stack (the AgentRun), then
-// drives turns until a middleware-shaped outcome breaks. Delegation to a
-// subagent is just another runSession on a child session (see tool/task.ts).
-//
-// Lifecycle (this file is the authoritative ordering of the hook points):
-//
-//   runSession ── append user message ──► runLoop
-//     per step (one turn):
-//       beforeTurn ──────────(gate stops)──► finish & return
-//       contributeSystem → transformMessages   (ctx.system filled here, after beforeTurn)
-//       runTurn:
-//         stream ─► tool dispatch (beforeToolCall → execute → afterToolCall / onToolError)
-//                ─► onTurnFinish
-//       resolveOutcome ──────(break)────────► return ; else next step
-//
-// Note: the hook order above is the *runtime* order, which differs from the
-// field declaration order on the Middleware type (see hooks/types.ts).
+/**
+ * The agent orchestration loop. Agent-agnostic: it resolves the agent blueprint
+ * once per run, builds the loop-scoped middleware stack (the AgentRun), then
+ * drives turns until a middleware-shaped outcome breaks. Delegation to a
+ * subagent is just another runSession on a child session (see tool/task.ts).
+ *
+ * Lifecycle (this file is the authoritative ordering of the hook points):
+ *
+ *   runSession ── append user message ──► runLoop
+ *     per step (one turn):
+ *       beforeTurn ──────────(gate stops)──► finish & return
+ *       contributeSystem → transformMessages   (ctx.system filled here, after beforeTurn)
+ *       runTurn:
+ *         stream ─► tool dispatch (beforeToolCall → execute → afterToolCall / onToolError)
+ *                ─► onTurnFinish
+ *       resolveOutcome ──────(break)────────► return ; else next step
+ *
+ * Note: the hook order above is the *runtime* order, which differs from the
+ * field declaration order on the Middleware type (see hooks/types.ts).
+ */
 import { createModelCaller } from "@harness/agent/model"
 import type { AgentDefinition } from "@harness/agent/types"
 import { createTurnContext, type EngineDeps } from "@harness/core/context"
@@ -35,6 +37,7 @@ import {
   type UserMessage,
 } from "@harness/types"
 
+/** A request to run a session turn-loop from a new user message. */
 export type RunSessionInput = {
   sessionID: string
   text: string
@@ -43,11 +46,19 @@ export type RunSessionInput = {
   format?: OutputFormat
   // Images supplied with the user message (e.g. a TUI `@` file or a ctrl+v
   // screenshot). The multimodal model sees these directly; see view-image
-  // middleware (resolves file sources) and the qwen image_url mapping.
+  // middleware (resolves file sources) and the image_url mapping.
   images?: ImageSource[]
   abort?: AbortSignal
 }
 
+/**
+ * Appends a user message (text + images) to the session, emits session-start, and
+ * drives the agent loop to completion.
+ *
+ * @param deps - the engine dependencies (store, registries, events, config)
+ * @param input - the session id, user text, and optional agent/model/format/images
+ * @returns the session after the loop breaks
+ */
 export async function runSession(deps: EngineDeps, input: RunSessionInput): Promise<SessionInfo> {
   const store = deps.session_store
   const agent = deps.agent_registry.get(input.agent ?? deps.agent_registry.defaultAgent().name)
@@ -73,6 +84,16 @@ export async function runSession(deps: EngineDeps, input: RunSessionInput): Prom
   return runLoop(deps, { sessionID: input.sessionID, agent, abort: input.abort })
 }
 
+/**
+ * Drives the turn loop for an already-seeded session: builds the agent's
+ * middleware stack once, then runs turns (beforeTurn gate → system/messages →
+ * runTurn → resolveOutcome) until an outcome breaks. The reusable entry for
+ * subagent delegation, which seeds the child session itself.
+ *
+ * @param deps - the engine dependencies
+ * @param input - the session id, resolved agent blueprint, and optional abort
+ * @returns the session after the loop breaks
+ */
 export async function runLoop(
   deps: EngineDeps,
   input: { sessionID: string; agent: AgentDefinition; abort?: AbortSignal },

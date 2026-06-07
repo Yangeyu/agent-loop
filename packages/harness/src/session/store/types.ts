@@ -1,3 +1,4 @@
+/** The session persistence contract: CRUD over sessions, messages, and parts. */
 import type {
   AssistantMessage,
   MessagePart,
@@ -9,6 +10,10 @@ import type {
   UserMessage,
 } from "@harness/types"
 
+/**
+ * Storage-agnostic session store. Implementations (memory, file) persist the same
+ * SessionInfo shape; the engine and middleware depend only on this interface.
+ */
 export interface ISessionStore {
   create(input: { parentID?: string; title: string }): SessionInfo
   get(sessionID: string): SessionInfo

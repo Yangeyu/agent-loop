@@ -371,8 +371,8 @@ export function ComposerCard(props: {
             />
             <box flexDirection="row" gap={1} flexShrink={0} paddingTop={1} paddingBottom={1}>
               <text fg={highlight()}>{titleCase(props.selectedAgent)}</text>
-              <text fg={COLORS.text}>{modelSpec.defaults.modelID}</text>
-              <text fg={COLORS.muted}>{modelSpec.provider}</text>
+              <text fg={COLORS.text}>{modelSpec.id}</text>
+              <text fg={COLORS.muted}>{modelSpec.providerID}</text>
             </box>
             <Show when={attachments().length > 0}>
               <box flexDirection="row" gap={1} flexShrink={0} paddingBottom={1}>

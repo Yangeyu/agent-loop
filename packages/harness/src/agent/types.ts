@@ -37,7 +37,7 @@ export type AgentSpec = {
 }
 
 const DEFAULT_MODEL: ModelSelector = {
-  providerID: "qwen",
+  providerID: "dashscope",
   modelID: "qwen3.7-plus",
   temperature: 0.2,
 }

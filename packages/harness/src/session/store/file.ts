@@ -1,8 +1,13 @@
+/**
+ * File-backed session store: one JSON file per session under `dir`, with an
+ * in-memory cache. SessionInfo is exactly the persisted shape, so it round-trips.
+ */
 import type { SessionInfo } from "@harness/types"
 import { BaseSessionStore } from "./base"
 import fs from "node:fs"
 import path from "node:path"
 
+/** Session store that persists each session as a JSON file on disk. */
 export class FileSessionStore extends BaseSessionStore {
   private cache = new Map<string, SessionInfo>()
 

@@ -1,20 +1,25 @@
-// Pure resolution of retry/timeout/budget numbers from config + agent + session.
-// Budgets are *resolved* here but *enforced* by the budget middleware.
+/**
+ * Pure resolution of retry/timeout/budget numbers from config + agent + session.
+ * Budgets are *resolved* here but *enforced* by the budget middleware.
+ */
 import type { Config } from "@harness/config"
 import type { AgentDefinition } from "@harness/agent/types"
 import type { ISessionStore } from "@harness/session/store"
 import type { SessionInfo } from "@harness/types"
 
+/** Retry backoff bounds for a single turn's model call. */
 export type RetryPolicy = {
   maxRetries: number
   baseDelayMs: number
   maxDelayMs: number
 }
 
+/** Per-turn timeout bound. */
 export type TimeoutPolicy = {
   turnTimeoutMs: number
 }
 
+/** Resolved step/tool/depth budgets for a turn (enforced by budget middleware). */
 export type TurnBudgetPolicy = {
   maxSteps: number
   maxAgentSteps: number
@@ -26,12 +31,22 @@ export type TurnBudgetPolicy = {
   maxSubagentDepth: number
 }
 
+/** The full set of execution bounds for a turn: retry + timeout + budget. */
 export type TurnExecutionPolicy = {
   retry: RetryPolicy
   timeout: TimeoutPolicy
   budget: TurnBudgetPolicy
 }
 
+/**
+ * Resolves the turn execution policy from config, the agent blueprint, and the
+ * current session (used to compute remaining session-step budget).
+ *
+ * @param config - the runtime config
+ * @param agent - the agent blueprint (its per-agent step cap)
+ * @param session - the current session (to count steps already used)
+ * @returns the resolved retry/timeout/budget policy
+ */
 export function resolveTurnExecutionPolicy(config: Config, agent: AgentDefinition, session: SessionInfo): TurnExecutionPolicy {
   const maxAgentSteps = agent.steps ?? Number.POSITIVE_INFINITY
   const sessionStepsUsed = countAssistantTurns(session)
@@ -59,10 +74,23 @@ export function resolveTurnExecutionPolicy(config: Config, agent: AgentDefinitio
   }
 }
 
+/**
+ * Counts assistant turns in a session (≈ steps used).
+ *
+ * @param session - the session to count
+ * @returns the number of assistant messages
+ */
 export function countAssistantTurns(session: SessionInfo) {
   return session.messages.filter((message) => message.role === "assistant").length
 }
 
+/**
+ * Walks the parent chain to compute a session's delegation depth.
+ *
+ * @param store - the session store, to resolve parent sessions
+ * @param sessionID - the session whose depth to measure
+ * @returns the depth (0 for a root session)
+ */
 export function resolveSessionDepth(store: ISessionStore, sessionID: string) {
   let depth = 0
   let current = store.get(sessionID)
@@ -75,6 +103,13 @@ export function resolveSessionDepth(store: ISessionStore, sessionID: string) {
   return depth
 }
 
+/**
+ * Computes whether delegating one level deeper from a session is within the depth
+ * cap, returning the current/next depth alongside the verdict.
+ *
+ * @param input - the store, the session id, and the max allowed depth
+ * @returns current/next depth, the cap, and whether delegation is allowed
+ */
 export function getDelegationDepthInfo(input: {
   store: ISessionStore
   sessionID: string
@@ -91,6 +126,14 @@ export function getDelegationDepthInfo(input: {
   }
 }
 
+/**
+ * Derives a turn-scoped abort signal that fires on the parent's abort or after the
+ * timeout, whichever comes first. Returns a `dispose` to clear the timer and
+ * detach the parent listener (call it in a finally).
+ *
+ * @param input - the optional parent signal and the turn timeout in ms (≤0/∞ = none)
+ * @returns the derived `signal` and a `dispose` cleanup
+ */
 export function createTurnAbortSignal(input: { parent?: AbortSignal; timeoutMs: number }) {
   const parent = input.parent
   if (!Number.isFinite(input.timeoutMs) || input.timeoutMs <= 0) {
