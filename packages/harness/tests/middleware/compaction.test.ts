@@ -1,29 +1,34 @@
 import { describe, expect, it } from "bun:test"
-import { createTestRuntime, runPrompt } from "@harness"
-import { corePlugin } from "@harness/module"
-import { resolveCutBoundary } from "@harness/middleware/compaction"
-import type { ModelProvider } from "@harness/agent/model"
+import { baseMiddleware, createTestRuntime, defineAgent, runPrompt, type Config } from "@harness"
+import { createCompaction, resolveCutBoundary } from "@harness/middleware/compaction"
 import type { LLMChunk } from "@harness/llm/types"
 import type { SessionMessage } from "@harness/types"
-
-// Records the model id of every provider call and replays a fixed script per call.
-function recordingProvider(chunks: LLMChunk[]): { provider: ModelProvider; modelIDs: string[] } {
-  const modelIDs: string[] = []
-  const provider: ModelProvider = (input) => {
-    modelIDs.push(input.user.model.modelID)
-    return {
-      fullStream: (async function* () {
-        for (const chunk of chunks) yield chunk
-      })(),
-    }
-  }
-  return { provider, modelIDs }
-}
+import { createFakeModel } from "../support/fake-model"
 
 const ANSWER_SCRIPT: LLMChunk[] = [
   { type: "text-delta", textDelta: "done" },
   { type: "finish", finishReason: "stop" },
 ]
+
+// A primary agent whose main model and (injected) summarizer model are both fakes,
+// so compaction runs deterministically and we can observe whether the dedicated
+// summarizer — not the main model — produced the summary.
+async function buildRuntime(config?: Partial<Config>) {
+  const summarizerCalls: string[] = []
+  const summarizer = createFakeModel({
+    chunks: ANSWER_SCRIPT,
+    spec: { id: "qwen3.6-flash" },
+    onStream: () => summarizerCalls.push("qwen3.6-flash"),
+  })
+  const agent = defineAgent({
+    name: "lead",
+    mode: "primary",
+    model: createFakeModel({ chunks: ANSWER_SCRIPT, spec: { id: "qwen3.7-plus", contextWindow: 262144 } }),
+    middleware: [...baseMiddleware(), createCompaction({ summarizer })],
+  })
+  const runtime = await createTestRuntime({ plugins: [{ name: "test", agents: [agent] }], config })
+  return { runtime, summarizerCalls }
+}
 
 function msg(role: SessionMessage["role"]): SessionMessage {
   return { role } as SessionMessage
@@ -48,8 +53,7 @@ describe("resolveCutBoundary", () => {
 
 describe("compaction middleware (integration)", () => {
   it("does not compact when the estimate stays below the window ratio", async () => {
-    const { provider } = recordingProvider(ANSWER_SCRIPT)
-    const runtime = await createTestRuntime({ plugins: [corePlugin], model_provider: provider })
+    const { runtime, summarizerCalls } = await buildRuntime()
 
     const compactions: unknown[] = []
     runtime.events.subscribe((event) => {
@@ -60,16 +64,15 @@ describe("compaction middleware (integration)", () => {
     const second = await runPrompt({ runtime, agent: "lead", sessionID: first.id, text: "second question" })
 
     expect(compactions).toHaveLength(0)
+    expect(summarizerCalls).toHaveLength(0)
     expect(second.messages.length).toBe(4) // user1, assistant1, user2, assistant2 — all retained
   })
 
   it("keeps the recent half and replaces the older half with a summary when over threshold", async () => {
-    const { provider, modelIDs } = recordingProvider(ANSWER_SCRIPT)
-    const runtime = await createTestRuntime({
-      plugins: [corePlugin],
-      model_provider: provider,
-      // Force the trigger: threshold = contextWindow × ratio ≈ a few tokens.
-      config: { compaction_trigger_ratio: 0.00001, compaction_retain_ratio: 0.5 },
+    // Force the trigger: threshold = contextWindow × ratio ≈ a few tokens.
+    const { runtime, summarizerCalls } = await buildRuntime({
+      compaction_trigger_ratio: 0.00001,
+      compaction_retain_ratio: 0.5,
     })
 
     const compactions: { summary: string }[] = []
@@ -93,7 +96,7 @@ describe("compaction middleware (integration)", () => {
     expect(compactions).toHaveLength(1)
     expect(compactions[0].summary.length).toBeGreaterThan(0)
 
-    // The summarizer ran on the dedicated compaction model, not the lead model.
-    expect(modelIDs).toContain("qwen3.6-flash")
+    // The summary ran on the dedicated summarizer model, not the main model.
+    expect(summarizerCalls).toEqual(["qwen3.6-flash"])
   })
 })

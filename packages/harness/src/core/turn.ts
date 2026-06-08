@@ -67,7 +67,7 @@ async function runStreamOnce(
   sink: StreamSink,
 ): Promise<{ kind: "completed"; sawToolCall: boolean } | { kind: "stop" }> {
   let sawToolCall = false
-  const stream = ctx.modelCaller.stream(buildLLMInput(ctx))
+  const stream = ctx.model.stream(buildLLMInput(ctx))
 
   sink.enterPhase("streaming")
 
@@ -111,10 +111,6 @@ async function finalizeTurn(ctx: TurnContext, stack: MiddlewareStack, sink: Stre
 
 function buildLLMInput(ctx: TurnContext): LLMInput {
   return {
-    session: ctx.session_store.get(ctx.sessionID),
-    user: ctx.user,
-    assistant: ctx.assistant,
-    agent: ctx.agent,
     system: ctx.system,
     messages: ctx.messages,
     tools: ctx.tools,

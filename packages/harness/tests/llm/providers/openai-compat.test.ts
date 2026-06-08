@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test"
 import { buildMessageContent, mapMessages } from "@harness/llm/providers/openai-compat"
-import { resolveModelSpec } from "@harness/llm/models"
+import { createDashScopeModel } from "@harness/llm/providers/dashscope"
 import type { ModelContentBlock, ModelMessage } from "@harness/llm/types"
 
 describe("openai-compat buildMessageContent", () => {
@@ -61,22 +61,24 @@ describe("openai-compat mapMessages tool grouping", () => {
   })
 })
 
-describe("resolveModelSpec provider routing", () => {
-  it("defaults to the default provider's default model", () => {
-    const spec = resolveModelSpec()
-    expect(spec.id).toBe("qwen3.7-plus")
-    expect(spec.capabilities.vision).toBe(true)
-    expect(spec.contextWindow).toBe(262144)
+describe("createDashScopeModel spec binding", () => {
+  it("binds the default qwen model", () => {
+    const model = createDashScopeModel()
+    expect(model.providerID).toBe("dashscope")
+    expect(model.spec.id).toBe("qwen3.7-plus")
+    expect(model.spec.capabilities.vision).toBe(true)
+    expect(model.spec.contextWindow).toBe(262144)
   })
 
-  it("resolves a specific model within a provider", () => {
-    const spec = resolveModelSpec({ providerID: "dashscope", modelID: "qwen3.6-flash" })
-    expect(spec.id).toBe("qwen3.6-flash")
-    expect(spec.capabilities.vision).toBe(false)
-    expect(spec.contextWindow).toBe(131072)
+  it("binds a specific model by id", () => {
+    const model = createDashScopeModel({ modelID: "qwen3.6-flash" })
+    expect(model.spec.id).toBe("qwen3.6-flash")
+    expect(model.spec.capabilities.vision).toBe(false)
+    expect(model.spec.contextWindow).toBe(131072)
   })
 
-  it("throws on an unknown provider", () => {
-    expect(() => resolveModelSpec({ providerID: "nope" })).toThrow(/Unknown model provider/)
+  it("falls back to the default model for an unknown id", () => {
+    const model = createDashScopeModel({ modelID: "nope" })
+    expect(model.spec.id).toBe("qwen3.7-plus")
   })
 })

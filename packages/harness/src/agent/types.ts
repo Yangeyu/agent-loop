@@ -1,7 +1,9 @@
-// AgentDefinition is the static blueprint registered for each agent type.
-// It declares the model, prompt template, tool allowlist, and an assemble()
-// that produces the loop-scoped middleware stack for an AgentRun.
-import type { ModelSelector } from "@harness/agent/model"
+// AgentDefinition is the static blueprint registered for each agent type. It
+// pairs a capability surface (prompt template, tool allowlist, assemble()) with a
+// bound model instance — the two orthogonal halves of an agent. The model is a
+// concrete Model (built by a provider's createXxxModel, e.g. createDashScopeModel),
+// so there is no registry and no per-request routing.
+import type { Model } from "@harness/llm/types"
 import type { MiddlewareFactory } from "@harness/hooks/types"
 import type { OutputFormat } from "@harness/types"
 
@@ -9,7 +11,7 @@ export type AgentDefinition = {
   name: string
   description?: string
   mode: "primary" | "subagent"
-  model: ModelSelector
+  model: Model
   // The agent's own instruction fragments; rendered by the context-assembly
   // middleware alongside the shared base prompt. Named `instructions` (not
   // `prompt`) so AgentDefinition stays structurally assignable to AgentInfo.
@@ -26,7 +28,10 @@ export type AgentSpec = {
   name: string
   description?: string
   mode: "primary" | "subagent"
-  model?: ModelSelector
+  // The agent's model instance, built by a provider factory (e.g.
+  // createDashScopeModel({ modelID })). Required: an agent has no model until one
+  // is bound at its composition site.
+  model: Model
   instructions?: string[]
   tools?: Record<string, boolean>
   steps?: number
@@ -36,19 +41,13 @@ export type AgentSpec = {
   assemble?: () => { middleware: MiddlewareFactory[] }
 }
 
-const DEFAULT_MODEL: ModelSelector = {
-  providerID: "dashscope",
-  modelID: "qwen3.7-plus",
-  temperature: 0.2,
-}
-
 export function defineAgent(spec: AgentSpec): AgentDefinition {
   const middleware = spec.middleware ?? []
   return {
     name: spec.name,
     description: spec.description,
     mode: spec.mode,
-    model: spec.model ?? DEFAULT_MODEL,
+    model: spec.model,
     instructions: spec.instructions ?? [],
     tools: spec.tools ?? {},
     steps: spec.steps,

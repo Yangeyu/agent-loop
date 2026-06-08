@@ -1,7 +1,5 @@
 import { getConfig, type Config } from "@harness/config"
 import { createAgentRegistry, type AgentRegistry } from "@harness/agent/registry"
-import type { ModelProvider } from "@harness/agent/model"
-import { streamText } from "@harness/llm/index"
 import { createRuntimeEvents, type RuntimeEventBus } from "@harness/runtime/events"
 import { createRuntimeTrace, type RuntimeTrace } from "@harness/runtime/trace"
 import { createSkillRegistry, type SkillRegistry } from "@harness/skill/registry"
@@ -17,17 +15,14 @@ export type RuntimeContext = {
   tool_registry: ToolRegistry
   events: RuntimeEventBus
   trace: RuntimeTrace
-  // Low-level model provider injected here so surfaces/tests can swap it
-  // (default: qwen). Agents bind it into a ModelCaller via agent/model.ts.
-  model_provider: ModelProvider
 }
 
 export type RuntimeDeps = Pick<
   RuntimeContext,
-  "config" | "agent_registry" | "skill_registry" | "session_store" | "tool_registry" | "events" | "model_provider"
+  "config" | "agent_registry" | "skill_registry" | "session_store" | "tool_registry" | "events"
 >
 
-export function createRuntimeContext(options?: { config?: Config; model_provider?: ModelProvider }): RuntimeContext {
+export function createRuntimeContext(options?: { config?: Config }): RuntimeContext {
   const config = options?.config ?? getConfig()
   const events = createRuntimeEvents()
   const session_store = createSessionStore(config)
@@ -44,6 +39,5 @@ export function createRuntimeContext(options?: { config?: Config; model_provider
     tool_registry,
     events,
     trace,
-    model_provider: options?.model_provider ?? streamText,
   }
 }

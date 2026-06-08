@@ -7,7 +7,8 @@ import type { HookContext } from "@harness/hooks/types"
 import type { ModelMessage } from "@harness/llm/types"
 
 const transform = viewImage().transformMessages!
-const ctx = {} as unknown as HookContext
+// The middleware only reads ctx.model.spec.capabilities.vision; stub a vision model.
+const ctx = { model: { spec: { capabilities: { vision: true } } } } as unknown as HookContext
 
 describe("view-image middleware", () => {
   it("reads a local file source and base64-encodes it", async () => {

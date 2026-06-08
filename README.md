@@ -215,14 +215,10 @@ The simple renderer still shows terminal output for:
 - formatted tool activity lines for `read`, `grep`, `glob`, `bash`, `task`, and fallback tools
 - compaction, structured output, and final turn status lines
 
-## Qwen
+## Qwen (DashScope)
 
-By default the runtime will use Qwen when one of these environment variables is present:
-
-- `DASHSCOPE_API_KEY`
-- `QWEN_API_KEY`
-
-It targets `qwen3.5-plus` and the DashScope compatible endpoint by default:
+Agents bind a DashScope (qwen) model by default, targeting `qwen3.7-plus` over the
+DashScope OpenAI-compatible endpoint. Set your key and run:
 
 ```bash
 export DASHSCOPE_API_KEY=...
@@ -231,9 +227,7 @@ bun run start
 
 Optional overrides:
 
-- `QWEN_BASE_URL` defaults to `https://dashscope.aliyuncs.com/compatible-mode/v1`
-- `LLM_MODE=fake` forces deterministic local behavior
-- `LLM_MODE=qwen` forces remote Qwen mode
+- `DASHSCOPE_BASE_URL` defaults to `https://dashscope.aliyuncs.com/compatible-mode/v1`
 - `MODEL_MAX_RETRIES`, `MODEL_RETRY_BASE_DELAY_MS`, `MODEL_RETRY_MAX_DELAY_MS` tune model retry behavior
 - `SESSION_MAX_STEPS` caps total assistant turns across a session
 - `SUBAGENT_MAX_DEPTH` caps child-session delegation depth

@@ -1,4 +1,3 @@
-import { resolveModelSpec } from "@harness"
 import { loadClipboardImage, parseInlineImageAttachments, type ComposerImageAttachment } from "@tui/images"
 import { applyFileSuggestion, getFileSuggestions, listWorkspaceFiles, resolveActiveMention, type FileSuggestion } from "@tui/mention-files"
 import { appendPromptHistory, loadPromptHistory, type PromptHistoryEntry } from "@tui/prompt-history"
@@ -28,9 +27,10 @@ export function ComposerCard(props: {
   onSubmit: (value: ComposerSubmitInput) => Promise<void> | void
   onNotice?: (message: string) => void
   selectedAgent: string
+  // The selected agent's bound model, shown in the footer (id + provider).
+  model: { id: string; providerID: string }
   activityStatus: string
 }) {
-  const modelSpec = resolveModelSpec()
   const renderer = useRenderer()
   const term = useTerminalDimensions()
   const [inputHeight, setInputHeight] = createSignal(1)
@@ -371,8 +371,8 @@ export function ComposerCard(props: {
             />
             <box flexDirection="row" gap={1} flexShrink={0} paddingTop={1} paddingBottom={1}>
               <text fg={highlight()}>{titleCase(props.selectedAgent)}</text>
-              <text fg={COLORS.text}>{modelSpec.id}</text>
-              <text fg={COLORS.muted}>{modelSpec.providerID}</text>
+              <text fg={COLORS.text}>{props.model.id}</text>
+              <text fg={COLORS.muted}>{props.model.providerID}</text>
             </box>
             <Show when={attachments().length > 0}>
               <box flexDirection="row" gap={1} flexShrink={0} paddingBottom={1}>

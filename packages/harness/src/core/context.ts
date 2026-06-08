@@ -2,8 +2,7 @@
  * Engine-internal per-turn context. Superset of HookContext: middleware see the
  * HookContext view; the engine additionally tracks streaming accumulation state.
  */
-import type { ModelCaller, ModelProvider } from "@harness/agent/model"
-import type { ModelMessage } from "@harness/llm/types"
+import type { Model, ModelMessage } from "@harness/llm/types"
 import type { TurnExecutionPolicy } from "@harness/core/policy"
 import type { HookContext } from "@harness/hooks/types"
 import type { RuntimeDeps } from "@harness/runtime/context"
@@ -23,10 +22,6 @@ export type EngineDeps = RuntimeDeps
 export type TurnContext = HookContext & {
   user: UserMessage
   assistant: AssistantMessage
-  modelCaller: ModelCaller
-  // Engine-only: passed through so tools (e.g. task delegation) can spawn a
-  // nested runSession. Not part of the middleware-facing HookContext.
-  model_provider: ModelProvider
   tools: ToolDefinition[]
   system: string[]
   messages: ModelMessage[]
@@ -52,7 +47,7 @@ export type TurnContext = HookContext & {
 export function createTurnContext(input: {
   deps: EngineDeps
   agent: HookContext["agent"]
-  modelCaller: ModelCaller
+  model: Model
   policy: TurnExecutionPolicy
   sessionID: string
   user: UserMessage
@@ -76,11 +71,9 @@ export function createTurnContext(input: {
     policy: input.policy,
     abort: input.abort,
     format: input.user.format,
-    llm: input.modelCaller,
+    model: input.model,
     user: input.user,
     assistant: input.assistant,
-    modelCaller: input.modelCaller,
-    model_provider: input.deps.model_provider,
     tools: input.tools,
     system: [],
     messages: [],

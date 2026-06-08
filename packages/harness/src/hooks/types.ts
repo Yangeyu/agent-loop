@@ -2,10 +2,9 @@
 // rewrite context, gate tool calls, and shape turn outcomes. It is distinct from
 // the read-only event bus (runtime/events.ts), which remains the observation layer.
 import type { AgentRegistry } from "@harness/agent/registry"
-import type { ModelCaller } from "@harness/agent/model"
 import type { AgentDefinition } from "@harness/agent/types"
 import type { Config } from "@harness/config"
-import type { ModelMessage } from "@harness/llm/types"
+import type { Model, ModelMessage } from "@harness/llm/types"
 import type { TurnExecutionPolicy } from "@harness/core/policy"
 import type { RuntimeEventBus } from "@harness/runtime/events"
 import type { SkillRegistry } from "@harness/skill/registry"
@@ -32,9 +31,10 @@ export type HookContext = {
   // System fragments assembled for this turn. Populated before transformMessages
   // runs, so transform middleware (e.g. compaction) can measure system + messages.
   system: string[]
-  // The current agent's bound model caller. Used by middleware that must call the
-  // model directly (e.g. compaction) — bypasses the stack to avoid re-entrancy.
-  llm: ModelCaller
+  // The current agent's bound model instance. Read by gating middleware for its
+  // spec (capabilities/contextWindow); also callable directly for out-of-band
+  // single-shot calls that must bypass the stack to avoid re-entrancy.
+  model: Model
 }
 
 export type ToolCall = {

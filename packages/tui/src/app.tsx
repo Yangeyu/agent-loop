@@ -27,6 +27,11 @@ function App(props: TuiOptions) {
   const renderer = useRenderer()
   const term = useTerminalDimensions()
   const [selectedAgent, setSelectedAgent] = createSignal(resolveInitialAgent(runtime.agent_registry, props.agent))
+  // The selected agent's bound model, for the composer footer.
+  const selectedModel = createMemo(() => {
+    const model = runtime.agent_registry.get(selectedAgent()).model
+    return { id: model.spec.id, providerID: model.providerID }
+  })
   const [currentSessionID, setCurrentSessionID] = createSignal<string | undefined>()
   const [activity, setActivity] = createSignal<ActivityState>({
     phase: "idle",
@@ -290,6 +295,7 @@ function App(props: TuiOptions) {
             onSubmit={submitPrompt}
             onNotice={setNotice}
             selectedAgent={selectedAgent()}
+            model={selectedModel()}
             activityStatus={activity().status}
             initialValue={props.autoSubmitInitial ? "" : props.initialPrompt ?? ""}
           />

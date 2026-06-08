@@ -18,7 +18,6 @@
  * Note: the hook order above is the *runtime* order, which differs from the
  * field declaration order on the Middleware type (see hooks/types.ts).
  */
-import { createModelCaller } from "@harness/agent/model"
 import type { AgentDefinition } from "@harness/agent/types"
 import { createTurnContext, type EngineDeps } from "@harness/core/context"
 import { baseOutcome } from "@harness/core/outcome"
@@ -99,7 +98,7 @@ export async function runLoop(
   input: { sessionID: string; agent: AgentDefinition; abort?: AbortSignal },
 ): Promise<SessionInfo> {
   const store = deps.session_store
-  const modelCaller = createModelCaller(input.agent.model, deps.model_provider)
+  const model = input.agent.model
   const stack = MiddlewareStack.build(input.agent.assemble().middleware)
   const rootAbort = input.abort ?? new AbortController().signal
 
@@ -120,7 +119,7 @@ export async function runLoop(
     const ctx = createTurnContext({
       deps,
       agent: input.agent,
-      modelCaller,
+      model,
       policy,
       sessionID: input.sessionID,
       user,
@@ -200,7 +199,7 @@ function createUserMessage(input: {
     role: "user",
     sessionID: input.sessionID,
     agent: input.agent.name,
-    model: input.model ?? { providerID: input.agent.model.providerID, modelID: input.agent.model.modelID },
+    model: input.model ?? { providerID: input.agent.model.providerID, modelID: input.agent.model.spec.id },
     format: input.format,
     time: { created: Date.now() },
   }

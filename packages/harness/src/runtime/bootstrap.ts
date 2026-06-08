@@ -2,32 +2,26 @@ import { createRuntimeContext, type RuntimeContext } from "@harness/runtime/cont
 import { disposeRuntimePlugins, registerRuntimePlugins } from "@harness/plugin/manager"
 import { runSession } from "@harness/core/loop"
 import { loadConfigFromEnv, type Config } from "@harness/config"
-import type { ModelProvider } from "@harness/agent/model"
 import type { RuntimePlugin } from "@harness/plugin/types"
 import type { ImageSource, OutputFormat } from "@harness/types"
 
 export async function createRuntime(options?: {
   config?: Config
   plugins?: RuntimePlugin[]
-  model_provider?: ModelProvider
 }) {
-  return registerRuntimePlugins(
-    createRuntimeContext({ config: options?.config, model_provider: options?.model_provider }),
-    options?.plugins,
-  )
+  return registerRuntimePlugins(createRuntimeContext({ config: options?.config }), options?.plugins)
 }
 
 export async function createTestRuntime(options?: {
   config?: Partial<Config>
   plugins?: RuntimePlugin[]
-  model_provider?: ModelProvider
 }) {
   const config = {
     ...loadConfigFromEnv({ ...process.env, SESSION_STORE: "memory" }),
     ...(options?.config ?? {}),
   }
 
-  return createRuntime({ config, plugins: options?.plugins, model_provider: options?.model_provider })
+  return createRuntime({ config, plugins: options?.plugins })
 }
 
 export async function disposeRuntime(runtime: RuntimeContext) {

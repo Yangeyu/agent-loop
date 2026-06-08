@@ -203,7 +203,6 @@ function createToolContext(ctx: TurnContext, stack: MiddlewareStack, part: ToolP
     session_store: ctx.session_store,
     tool_registry: ctx.tool_registry,
     events: ctx.events,
-    model_provider: ctx.model_provider,
     sessionID: ctx.sessionID,
     messageID: ctx.assistant.parentID,
     turnID: ctx.assistant.id,

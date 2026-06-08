@@ -117,18 +117,15 @@ docs/
 
 ```bash
 bun run start --output stream "你是谁"
-LLM_MODE=qwen bun run start --output stream "你是谁"
-LLM_MODE=fake bun run start --output buffered "@general investigate auth flow"
+bun run start --output buffered "@general investigate auth flow"
 ```
 
 - There is currently no `npm test` script.
 
 ## Environment
 
-- `LLM_MODE=qwen|fake`
 - `DASHSCOPE_API_KEY`
-- `QWEN_API_KEY`
-- `QWEN_BASE_URL`
+- `DASHSCOPE_BASE_URL` (defaults to the DashScope OpenAI-compatible endpoint)
 
 ## Repo Rules
 

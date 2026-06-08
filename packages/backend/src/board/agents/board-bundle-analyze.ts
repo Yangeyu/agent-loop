@@ -1,11 +1,12 @@
 import { BOARD_BUNDLE_ANALYZE_PROMPT } from "@backend/board/prompts"
-import { baseMiddleware, defineAgent } from "@harness"
+import { baseMiddleware, createDashScopeModel, defineAgent } from "@harness"
 
 export const boardBundleAnalyzeAgent = defineAgent({
   name: "board_bundle_analyze",
   description:
     "Analyzes exactly one board analysis bundle and stores one reusable asset back into the analysis dataset.",
   mode: "subagent",
+  model: createDashScopeModel({ modelID: "qwen3.7-plus" }),
   instructions: [BOARD_BUNDLE_ANALYZE_PROMPT],
   tools: {
     board_analysis_bundle_read: true,

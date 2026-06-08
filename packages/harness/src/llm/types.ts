@@ -1,5 +1,5 @@
 /** Core LLM protocol types shared across the runtime and providers. */
-import type { AgentInfo, AssistantMessage, ImageSource, SessionInfo, ToolDefinition, UserMessage } from "@harness/types"
+import type { ImageSource, ToolDefinition } from "@harness/types"
 
 export const DEFAULT_TEMPERATURE = 0.2
 
@@ -37,26 +37,20 @@ export type ProviderModelSpec = {
 }
 
 /**
- * A model provider implementation — the unit the registry holds and routes to.
- * Each provider (DashScope, OpenAI, DeepSeek …) is created by its own module
- * (e.g. providers/dashscope.ts), which owns how it builds its LLM. Modules that
- * target an OpenAI-compatible endpoint build on the shared compat factory
- * (providers/openai-compat.ts); a provider that needs a wholly different
- * transport can implement this contract directly.
+ * A ready-to-use model instance — provider, connection, and target model all
+ * bound at construction time. This is the unit an agent holds (see
+ * AgentDefinition.model): there is no central registry and no per-request
+ * routing. Each provider module builds its own via its createXxxModel factory
+ * (e.g. createDashScopeModel); modules targeting an OpenAI-compatible endpoint
+ * build on the shared compat factory (providers/openai-compat.ts).
  */
-export type Provider = {
-  /** Stable provider id used for registry lookup and `model.providerID` routing. */
-  id: string
-  /** The models this provider serves; read for capabilities/context window. */
-  models: ProviderModelSpec[]
-  /** The model used when a request does not name one. */
-  defaultModelID: string
-  /**
-   * Issues one streaming request for the given input against the already-resolved
-   * model. Model selection is the entrypoint's job (see streamText); the provider
-   * receives the concrete model and only sends — it never re-resolves.
-   */
-  stream(input: LLMInput, model: ProviderModelSpec): LLMStreamResult
+export type Model = {
+  /** Provider id this instance speaks to (e.g. "dashscope"); display/metadata only. */
+  readonly providerID: string
+  /** The bound model's spec — capabilities + context window, read by gating middleware. */
+  readonly spec: ProviderModelSpec
+  /** Issues one streaming request against the bound model; never re-resolves. */
+  stream(input: LLMInput): LLMStreamResult
 }
 
 /** A tool call the assistant issued in a turn (the request half of a call). */
@@ -88,12 +82,13 @@ export type ModelMessage =
       content: ModelContentBlock[]
     }
 
-/** The fully assembled input for one model turn, handed to a provider's stream(). */
+/**
+ * The fully assembled input for one model turn, handed to a Model's stream().
+ * Holds exactly what the transport sends — the conversation is already projected
+ * to system + messages upstream (see llm/message.ts), so no session/agent context
+ * leaks into the wire layer.
+ */
 export type LLMInput = {
-  session: SessionInfo
-  user: UserMessage
-  assistant: AssistantMessage
-  agent: AgentInfo
   temperature?: number
   system: string[]
   messages: ModelMessage[]

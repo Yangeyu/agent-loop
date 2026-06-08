@@ -4,25 +4,23 @@
 // it keeps the recent half of the conversation (cut at a user-message boundary)
 // and replaces the older half with a single summary, persisted via replaceState.
 //
-// Everything compaction needs is owned here: the summarizer blueprint (model +
-// prompt) is declared inline with defineAgent but is NEVER run through the loop —
-// it is invoked single-shot via ctx.llm (the provider transport; routing picks
-// the provider/model from the synthetic user.model, not the caller), which keeps
-// it free of tools/middleware/budgets and re-entrancy-safe.
-import { defineAgent } from "@harness/agent/types"
-import type { LLMInput } from "@harness/llm/types"
-import { resolveModelSpec } from "@harness/llm/models"
+// Everything compaction needs is owned here: it builds its own cheap summarizer
+// Model in-module (createDashScopeModel on the flash model) and invokes it
+// single-shot via .stream() — never through the loop, so it stays free of
+// tools/middleware/budgets and re-entrancy-safe. The gating threshold reads the
+// agent's own model spec (ctx.model.spec), so a subagent on a smaller window
+// compacts at the right point.
+import { createDashScopeModel } from "@harness/llm/providers/dashscope"
+import type { LLMInput, Model } from "@harness/llm/types"
 import type { HookContext, MiddlewareFactory } from "@harness/hooks/types"
 import { estimateModelTokens } from "@harness/middleware/token-estimate"
 import { toModelMessages } from "@harness/llm/message"
 import {
   createID,
-  type AssistantMessage,
   type CompactionPart,
   type MessagePart,
   type SessionInfo,
   type SessionMessage,
-  type UserMessage,
 } from "@harness/types"
 
 const COMPACTION_MODEL_ID = "qwen3.6-flash"
@@ -35,49 +33,53 @@ const COMPACTOR_INSTRUCTIONS = [
   ].join(" "),
 ]
 
-// Summarizer blueprint: a model + prompt config carrier. Declared with the
-// project's agent paradigm, but used only as a single-shot call — never runLoop.
-const compactor = defineAgent({
-  name: "compactor",
-  mode: "subagent",
-  model: { providerID: "dashscope", modelID: COMPACTION_MODEL_ID },
-  instructions: COMPACTOR_INSTRUCTIONS,
-  tools: {},
-})
+/**
+ * Builds the compaction middleware. The summarizer model is created in-module by
+ * default (the cheap qwen flash model); tests inject their own via `summarizer`.
+ *
+ * @param opts.summarizer - override the summarizer Model (defaults to qwen3.6-flash)
+ */
+export function createCompaction(opts?: { summarizer?: Model }): MiddlewareFactory {
+  return () => {
+    const summarizer = opts?.summarizer ?? createDashScopeModel({ modelID: COMPACTION_MODEL_ID })
+    return {
+      name: "compaction",
 
-export const compaction: MiddlewareFactory = () => ({
-  name: "compaction",
+      async beforeTurn(ctx) {
+        const session = ctx.session_store.get(ctx.sessionID)
+        const messages = toModelMessages(session)
+        // ctx.system is not yet assembled at beforeTurn; the system prompt is small
+        // relative to history, and the 0.75 ratio leaves headroom, so estimating
+        // messages alone is sufficient to gate.
+        const estimate = estimateModelTokens([], messages)
+        const threshold = ctx.model.spec.contextWindow * ctx.config.compaction_trigger_ratio
+        if (estimate < threshold) return { proceed: true }
 
-  async beforeTurn(ctx) {
-    const session = ctx.session_store.get(ctx.sessionID)
-    const messages = toModelMessages(session)
-    // ctx.system is not yet assembled at beforeTurn; the system prompt is small
-    // relative to history, and the 0.75 ratio leaves headroom, so estimating
-    // messages alone is sufficient to gate.
-    const estimate = estimateModelTokens([], messages)
-    const threshold = resolveModelSpec().contextWindow * ctx.config.compaction_trigger_ratio
-    if (estimate < threshold) return { proceed: true }
+        const cut = resolveCutBoundary(session.messages, ctx.config.compaction_retain_ratio)
+        if (cut === undefined) return { proceed: true }
 
-    const cut = resolveCutBoundary(session.messages, ctx.config.compaction_retain_ratio)
-    if (cut === undefined) return { proceed: true }
+        const older = session.messages.slice(0, cut)
+        const kept = session.messages.slice(cut)
 
-    const older = session.messages.slice(0, cut)
-    const kept = session.messages.slice(cut)
+        const summary = await summarizeOlderHalf(ctx, summarizer, session, older)
+        if (!summary) return { proceed: true }
 
-    const summary = await summarizeOlderHalf(ctx, session, older)
-    if (!summary) return { proceed: true }
+        const compactionPart: CompactionPart = { id: createID(), type: "compaction", summary }
+        ctx.session_store.replaceState({
+          sessionID: ctx.sessionID,
+          messages: kept,
+          parts: keptPartsWithSummaryOnBoundary(session, kept, compactionPart),
+        })
+        ctx.events.emit({ type: "compaction", sessionID: ctx.sessionID, summary })
 
-    const compactionPart: CompactionPart = { id: createID(), type: "compaction", summary }
-    ctx.session_store.replaceState({
-      sessionID: ctx.sessionID,
-      messages: kept,
-      parts: keptPartsWithSummaryOnBoundary(session, kept, compactionPart),
-    })
-    ctx.events.emit({ type: "compaction", sessionID: ctx.sessionID, summary })
+        return { proceed: true }
+      },
+    }
+  }
+}
 
-    return { proceed: true }
-  },
-})
+/** The compaction middleware with its default in-module summarizer model. */
+export const compaction: MiddlewareFactory = createCompaction()
 
 // Keep the recent ~retain_ratio of message records, then snap the cut forward to
 // the next user message so the kept window starts on a clean user turn. Returns
@@ -94,7 +96,12 @@ export function resolveCutBoundary(messages: SessionMessage[], retainRatio: numb
   return undefined
 }
 
-async function summarizeOlderHalf(ctx: HookContext, session: SessionInfo, older: SessionMessage[]): Promise<string> {
+async function summarizeOlderHalf(
+  ctx: HookContext,
+  summarizer: Model,
+  session: SessionInfo,
+  older: SessionMessage[],
+): Promise<string> {
   if (older.length === 0) return ""
 
   const olderSession: SessionInfo = {
@@ -105,31 +112,15 @@ async function summarizeOlderHalf(ctx: HookContext, session: SessionInfo, older:
   const olderMessages = toModelMessages(olderSession)
   if (olderMessages.length === 0) return ""
 
-  const now = Date.now()
-  const synthetic = {
-    sessionID: ctx.sessionID,
-    agent: compactor.name,
-    // Routing reads the provider/model from user.model (not the caller's
-    // selector), so this is what swaps the summarizer onto the cheaper model.
-    model: { providerID: compactor.model.providerID, modelID: compactor.model.modelID },
-    time: { created: now },
-  }
-  const user: UserMessage = { id: createID(), role: "user", ...synthetic }
-  const assistant: AssistantMessage = { id: createID(), role: "assistant", parentID: user.id, ...synthetic }
-
   const llmInput: LLMInput = {
-    session,
-    user,
-    assistant,
-    agent: compactor,
-    system: compactor.instructions,
+    system: COMPACTOR_INSTRUCTIONS,
     messages: olderMessages,
     tools: [],
     abort: ctx.abort,
   }
 
   let text = ""
-  for await (const chunk of ctx.llm.stream(llmInput).fullStream) {
+  for await (const chunk of summarizer.stream(llmInput).fullStream) {
     if (chunk.type === "text-delta") text += chunk.textDelta
     else if (chunk.type === "error") break
   }

@@ -8,21 +8,19 @@
 // representation and one image_url mapping.
 import path from "node:path"
 import { resolveImageSource } from "@harness/llm/image"
-import type { LLMInput, ModelMessage } from "@harness/llm/types"
+import { createDashScopeModel } from "@harness/llm/providers/dashscope"
+import type { LLMInput, Model, ModelMessage } from "@harness/llm/types"
 import { defineTool } from "@harness/tool/tool"
-import {
-  createID,
-  type AgentInfo,
-  type AssistantMessage,
-  type ImageSource,
-  type ToolContext,
-  type UserMessage,
-} from "@harness/types"
+import { type ImageSource, type ToolContext } from "@harness/types"
 import { z } from "zod"
 
 const VIEW_MODEL_ID = "qwen3.7-plus"
 
-const VIEW_AGENT: AgentInfo = { name: "view_image", mode: "subagent" }
+// The vision model is built in-module (the same path user-supplied images take):
+// a single bound qwen multimodal Model, created lazily so import stays side-effect
+// free and reused across calls.
+let visionModel: Model | undefined
+const getVisionModel = (): Model => (visionModel ??= createDashScopeModel({ modelID: VIEW_MODEL_ID }))
 
 const VIEW_INSTRUCTIONS = [
   "You are an image understanding assistant. Look at the provided image and answer",
@@ -85,15 +83,6 @@ async function describeImage(ctx: ToolContext, source: ImageSource, prompt: stri
   // Resolve a local file to base64 up front so the provider only ever sees a
   // url/base64 source (file sources are rejected at the image_url mapping).
   const resolved = await resolveImageSource(source)
-  const now = Date.now()
-  const synthetic = {
-    sessionID: ctx.sessionID,
-    agent: VIEW_AGENT.name,
-    model: { providerID: "dashscope", modelID: VIEW_MODEL_ID },
-    time: { created: now },
-  }
-  const user: UserMessage = { id: createID(), role: "user", ...synthetic }
-  const assistant: AssistantMessage = { id: createID(), role: "assistant", parentID: user.id, ...synthetic }
 
   const messages: ModelMessage[] = [
     {
@@ -106,10 +95,6 @@ async function describeImage(ctx: ToolContext, source: ImageSource, prompt: stri
   ]
 
   const llmInput: LLMInput = {
-    session: ctx.session_store.get(ctx.sessionID),
-    user,
-    assistant,
-    agent: VIEW_AGENT,
     system: [VIEW_INSTRUCTIONS],
     messages,
     tools: [],
@@ -117,7 +102,7 @@ async function describeImage(ctx: ToolContext, source: ImageSource, prompt: stri
   }
 
   let text = ""
-  for await (const chunk of ctx.model_provider(llmInput).fullStream) {
+  for await (const chunk of getVisionModel().stream(llmInput).fullStream) {
     if (chunk.type === "text-delta") text += chunk.textDelta
     else if (chunk.type === "error") {
       throw new Error(typeof chunk.error === "string" ? chunk.error : "vision model call failed")

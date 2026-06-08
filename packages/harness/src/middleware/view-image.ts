@@ -5,15 +5,14 @@
 // screenshots) and `url` sources pass through untouched. Runs as a transformMessages
 // fold (messages -> messages, no store writes), so it does not break fold purity.
 import { resolveImageSource } from "@harness/llm/image"
-import { resolveModelSpec } from "@harness/llm/models"
 import type { ModelContentBlock, ModelMessage } from "@harness/llm/types"
 import type { MiddlewareFactory } from "@harness/hooks/types"
 
 export const viewImage: MiddlewareFactory = () => ({
   name: "view-image",
 
-  async transformMessages(_ctx, messages) {
-    if (!resolveModelSpec().capabilities.vision) return messages
+  async transformMessages(ctx, messages) {
+    if (!ctx.model.spec.capabilities.vision) return messages
     return Promise.all(messages.map(resolveMessageImages))
   },
 })

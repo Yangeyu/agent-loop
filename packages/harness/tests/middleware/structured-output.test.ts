@@ -1,25 +1,20 @@
 import { describe, expect, it } from "bun:test"
-import { createTestRuntime, runPrompt, type AssistantMessage } from "@harness"
-import { corePlugin } from "@harness/module"
-import type { ModelProvider } from "@harness/agent/model"
+import { baseMiddleware, createTestRuntime, defineAgent, runPrompt, type AssistantMessage } from "@harness"
 import type { LLMChunk } from "@harness/llm/types"
-
-// Scripts the model stream so the loop runs deterministically without a provider.
-function scriptedProvider(chunks: LLMChunk[]): ModelProvider {
-  return () => ({
-    fullStream: (async function* () {
-      for (const chunk of chunks) yield chunk
-    })(),
-  })
-}
+import { createFakeModel } from "../support/fake-model"
 
 const JSON_FORMAT = { type: "json_schema" as const, schema: { type: "object" } }
 
-async function lastAssistant(provider: ModelProvider) {
-  const runtime = await createTestRuntime({
-    plugins: [corePlugin],
-    model_provider: provider,
+// Runs one prompt against a primary agent whose model replays the given chunks,
+// so the structured-output middleware is exercised without a network provider.
+async function lastAssistant(chunks: LLMChunk[]) {
+  const agent = defineAgent({
+    name: "lead",
+    mode: "primary",
+    model: createFakeModel({ chunks }),
+    middleware: baseMiddleware(),
   })
+  const runtime = await createTestRuntime({ plugins: [{ name: "test", agents: [agent] }] })
   const session = await runPrompt({
     runtime,
     agent: "lead",
@@ -31,23 +26,19 @@ async function lastAssistant(provider: ModelProvider) {
 
 describe("structured-output middleware", () => {
   it("captures parsed JSON into assistant.structured on finish", async () => {
-    const provider = scriptedProvider([
+    const assistant = await lastAssistant([
       { type: "text-delta", textDelta: '{"ok":true}' },
       { type: "finish", finishReason: "stop" },
     ])
-
-    const assistant = await lastAssistant(provider)
     expect(assistant.structured).toEqual({ ok: true })
     expect(assistant.error).toBeUndefined()
   })
 
   it("fails the turn when structured output is not valid JSON", async () => {
-    const provider = scriptedProvider([
+    const assistant = await lastAssistant([
       { type: "text-delta", textDelta: "not json" },
       { type: "finish", finishReason: "stop" },
     ])
-
-    const assistant = await lastAssistant(provider)
     expect(assistant.structured).toBeUndefined()
     expect(assistant.finish).toBe("error")
     expect(assistant.error?.code).toBe("invalid_structured_output")

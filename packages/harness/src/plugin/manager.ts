@@ -27,7 +27,6 @@ function runtimeDepsFor(runtime: RuntimeContext) {
     session_store: runtime.session_store,
     tool_registry: runtime.tool_registry,
     events: runtime.events,
-    model_provider: runtime.model_provider,
   }
 }
 

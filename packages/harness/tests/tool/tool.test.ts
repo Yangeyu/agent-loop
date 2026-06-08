@@ -1,5 +1,4 @@
 import { describe, expect, it } from "bun:test"
-import { createModelCaller, type ModelProvider } from "@harness/agent/model"
 import { createAgentRegistry } from "@harness/agent/registry"
 import { defineAgent } from "@harness/agent/types"
 import { loadConfigFromEnv } from "@harness/config"
@@ -15,10 +14,9 @@ import { defineTool } from "@harness/tool/tool"
 import { createToolRegistry } from "@harness/tool/registry"
 import type { AssistantMessage, ToolContext, ToolDefinition, UserMessage } from "@harness/types"
 import { z } from "zod"
+import { createFakeModel } from "../support/fake-model"
 
-const stubProvider: ModelProvider = () => ({
-  fullStream: (async function* () {})(),
-})
+const stubModel = createFakeModel()
 
 describe("defineTool", () => {
   it("merges execute and afterExecute metadata", async () => {
@@ -121,7 +119,6 @@ function createToolContextStub(): ToolContext {
     session_store: new MemorySessionStore(),
     tool_registry: createToolRegistry(),
     events: createRuntimeEvents(),
-    model_provider: stubProvider,
     sessionID: "session-1",
     messageID: "message-1",
     turnID: "turn-1",
@@ -139,7 +136,7 @@ function createToolCallHarness(tool: ToolDefinition) {
   const store = new MemorySessionStore()
   const session = store.create({ title: "Test session" })
 
-  const agent = defineAgent({ name: "lead", mode: "primary", steps: 4 })
+  const agent = defineAgent({ name: "lead", mode: "primary", steps: 4, model: stubModel })
   const agent_registry = createAgentRegistry()
   agent_registry.register(agent)
 
@@ -178,13 +175,12 @@ function createToolCallHarness(tool: ToolDefinition) {
     session_store: store,
     tool_registry,
     events,
-    model_provider: stubProvider,
   }
 
   const ctx = createTurnContext({
     deps,
     agent,
-    modelCaller: createModelCaller(agent.model, stubProvider),
+    model: agent.model,
     policy: resolveTurnExecutionPolicy(config, agent, store.get(session.id)),
     sessionID: session.id,
     user,

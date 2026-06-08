@@ -30,7 +30,6 @@ export { defineAgent } from "@harness/agent/types"
 export type { AgentDefinition, AgentSpec } from "@harness/agent/types"
 export { coreAgents } from "@harness/agent"
 export { baseMiddleware } from "@harness/agent/shared/base-middleware"
-export type { ModelSelector, ModelProvider, ModelCaller } from "@harness/agent/model"
 
 // Middleware library + hook contracts
 export {
@@ -63,8 +62,9 @@ export type { TaskArgs, TaskResumeArgs } from "@harness/tool/task"
 // Skills
 export type { SkillInfo } from "@harness/skill/types"
 
-// LLM
-export { resolveModelSpec } from "@harness/llm/models"
+// LLM: the Model abstraction + provider model factories
+export { createDashScopeModel, createOpenAICompatModel } from "@harness/llm/index"
+export type { Model, ModelCapabilities, ProviderModelSpec, DashScopeConfig, OpenAICompatModelConfig } from "@harness/llm/index"
 
 // Utilities
 export { loadText } from "@harness/lib/load-text"

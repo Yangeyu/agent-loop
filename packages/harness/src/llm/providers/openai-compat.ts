@@ -6,29 +6,32 @@
  * llm/message.ts): the assistant message carries its tool calls and each tool
  * message its result, so this module maps the list straight through without
  * re-grouping. A provider module (e.g. providers/dashscope.ts) builds its own
- * implementation on top by calling createOpenAICompatProvider with its
- * endpoint/key/models; vendor differences enter solely through the config hooks
- * (extraBody for request extras, readReasoning for non-standard streaming
- * fields). This module knows nothing about any specific vendor.
+ * createXxxModel factory on top by calling createOpenAICompatModel with a
+ * resolved connection (baseURL/apiKey) and the target model spec; vendor
+ * differences enter solely through the config hooks (extraBody for request
+ * extras, readReasoning for non-standard streaming fields). This module knows
+ * nothing about any specific vendor.
  */
 import OpenAI from "openai"
-import { DEFAULT_TEMPERATURE, type LLMChunk, type LLMInput, type LLMStreamResult, type ModelContentBlock, type ModelMessage, type Provider, type ProviderModelSpec } from "@harness/llm/types"
+import { DEFAULT_TEMPERATURE, type LLMChunk, type LLMInput, type Model, type ModelContentBlock, type ModelMessage, type ProviderModelSpec } from "@harness/llm/types"
 import { imageSourceToUrl } from "@harness/llm/image"
 import { serializeContentBlocks } from "@harness/llm/message"
 import { createID, ToolDefinition } from "@harness/types"
 import { zodToJsonSchema } from "zod-to-json-schema"
 
 /**
- * The data a provider module hands the compat factory: where to reach the
- * endpoint, which env vars hold its key, the models it serves, and two optional
- * hooks for the vendor's non-standard bits.
+ * What a provider's createXxxModel factory hands the compat base to build one
+ * bound Model: the resolved connection (provider id, endpoint, key), the target
+ * model spec, an optional default temperature, and two optional hooks for the
+ * vendor's non-standard bits. Key resolution (env fallbacks, etc.) is the
+ * provider factory's job — this base receives a concrete connection.
  */
-export type OpenAICompatConfig = {
-  id: string
+export type OpenAICompatModelConfig = {
+  providerID: string
   baseURL: string
-  apiKeyEnv: string[]
-  models: ProviderModelSpec[]
-  defaultModelID: string
+  apiKey: string
+  model: ProviderModelSpec
+  temperature?: number
   // Vendor-specific request body additions (e.g. DashScope's enable_thinking).
   extraBody?(model: ProviderModelSpec): Record<string, unknown>
   // Vendor-specific reasoning extraction from a streaming delta (e.g. DashScope /
@@ -61,33 +64,35 @@ type AccumulatedToolCall = {
 }
 
 /**
- * Builds a Provider for an OpenAI-compatible endpoint: one OpenAI SDK client
- * pointed at the config's baseURL/apiKey, lazily created and reused across every
- * model and turn. This is the shared base — provider modules call it from their
- * own factory (e.g. dashScope()) to produce their implementation.
+ * Builds one bound Model for an OpenAI-compatible endpoint: an OpenAI SDK client
+ * pointed at the config's baseURL/apiKey, lazily created and reused across turns.
+ * This is the shared base — a provider's createXxxModel factory (e.g.
+ * createDashScopeModel) calls it with a resolved connection and target spec.
  *
- * @param config - the provider's endpoint, key env, models, and quirk hooks
- * @returns a Provider whose stream() issues one Chat Completions request per call
+ * @param config - the resolved connection, target model spec, and quirk hooks
+ * @returns a Model whose stream() issues one Chat Completions request per call
  */
-export function createOpenAICompatProvider(config: OpenAICompatConfig): Provider {
+export function createOpenAICompatModel(config: OpenAICompatModelConfig): Model {
   let client: OpenAI | undefined
-  // The SDK client is a thin config holder; build it on first use (so missing
-  // keys only surface when the provider is actually invoked) and reuse it.
-  const getClient = () => (client ??= new OpenAI({ apiKey: resolveApiKey(config), baseURL: config.baseURL }))
+  // The SDK client is a thin config holder; build it on first use (so a missing
+  // key only surfaces when the model is actually invoked) and reuse it.
+  const getClient = () => {
+    if (!config.apiKey) throw new Error(`Missing API key for provider "${config.providerID}".`)
+    return (client ??= new OpenAI({ apiKey: config.apiKey, baseURL: config.baseURL }))
+  }
   return {
-    id: config.id,
-    models: config.models,
-    defaultModelID: config.defaultModelID,
-    stream: (input, model) => ({ fullStream: runStream(config, getClient, input, model) }),
+    providerID: config.providerID,
+    spec: config.model,
+    stream: (input) => ({ fullStream: runStream(config, getClient, input) }),
   }
 }
 
 async function* runStream(
-  config: OpenAICompatConfig,
+  config: OpenAICompatModelConfig,
   getClient: () => OpenAI,
   input: LLMInput,
-  model: ProviderModelSpec,
 ): AsyncGenerator<LLMChunk> {
+  const model = config.model
   const toolCalls = new Map<number, AccumulatedToolCall>()
   let finishReason = "stop"
 
@@ -99,7 +104,7 @@ async function* runStream(
         model: model.id,
         messages: buildMessages(input),
         ...(tools.length > 0 ? { tools, tool_choice: "auto" as const } : {}),
-        temperature: input.temperature ?? DEFAULT_TEMPERATURE,
+        temperature: input.temperature ?? config.temperature ?? DEFAULT_TEMPERATURE,
         stream: true,
         stream_options: { include_usage: true },
         ...(config.extraBody?.(model) ?? {}),
@@ -243,12 +248,4 @@ function mapFinishReason(reason: string): string {
   if (reason === "length") return "length"
   if (reason === "error") return "error"
   return "stop"
-}
-
-function resolveApiKey(config: OpenAICompatConfig): string {
-  for (const env of config.apiKeyEnv) {
-    const value = process.env[env]
-    if (value) return value
-  }
-  throw new Error(`Missing API key for provider "${config.id}". Set one of: ${config.apiKeyEnv.join(", ")}.`)
 }

@@ -175,7 +175,6 @@ function createTaskTool<P extends z.ZodTypeAny>(input: {
         session_store: ctx.session_store,
         tool_registry: ctx.tool_registry,
         events: ctx.events,
-        model_provider: ctx.model_provider,
       }, {
         sessionID: child.id,
         text: args.prompt,
