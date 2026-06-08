@@ -1,134 +1,73 @@
 # AGENTS.md
 
-Repository core constraints for coding agents.
+A compact TypeScript agent runtime (Bun workspaces) that captures OpenCode's core
+behavior: an agentic loop with tool execution, subagent delegation, session state,
+provider adaptation, and compaction — not a full product clone.
 
-## Purpose
-
-- Build a compact TypeScript runtime that captures core OpenCode behavior, not a full product clone.
-- Prioritize loop control, tool execution, subagent delegation, session flow, provider adaptation, and compaction.
-- Use upstream OpenCode as the main reference: `https://github.com/anomalyco/opencode/tree/dev/packages/opencode`
-
-## Local Map (monorepo)
-
-Bun workspaces: `packages/*` + `apps/*`. Cross-package imports use per-package
-aliases registered once in `tsconfig.base.json`: `@harness/*`, `@backend/*`,
-`@tui/*`, `@contracts`. Each package keeps its own alias for internal imports.
-
-- `packages/harness/`: the agent harness (engine). `src/{runtime,session,llm,tool,agent,skill,plugin}`, `config.ts`, `types.ts`, and `src/index.ts` public barrel. Depends on no other workspace package.
-- `packages/backend/`: thin HTTP/SSE transport over the harness, plus the `board/` domain plugin and `integrations/postgres`. `src/compose.ts` is the composition root (corePlugin + boardPlugin); `src/server.ts` is the SSE entry.
-- `packages/tui/`: terminal UI (opentui/solid).
-- `packages/contracts/`: wire types shared by backend and frontend (SSE `StreamEvent`, attachments). Browser-safe, pure types — the single source of truth for the streaming protocol.
-- `apps/cli/`: CLI entrypoint (`src/index.ts`).
-- `apps/frontend/`: Vite + React web app; imports the wire contract as `@agent-loop/contracts`.
-
-Dependency direction is one-way (surfaces → harness) and enforced by
-`bun run check:boundaries`. The harness never imports a surface; the browser
-frontend only imports `@agent-loop/contracts`.
-
-## Upstream Map
-
-- `packages/opencode/src/session/prompt.ts`
-- `packages/opencode/src/session/processor.ts`
-- `packages/opencode/src/session/store.ts`
-- `packages/opencode/src/session/compact.ts`
-- `packages/opencode/src/tool/task.ts`
-- `packages/opencode/src/tool/tool.ts`
-- `packages/opencode/src/provider/`
-
-## Project Docs Map
-
-- Read `docs/README.md` first when you need the project documentation index.
-- Read `docs/project-map.md` first when you need the overall architecture and execution path.
-- Before exploring source deeply, prefer the matching module doc under `docs/modules/` and then confirm details in code.
-- Keep `docs/` in sync when module responsibilities, runtime flow, or user-visible capabilities change.
-
-```text
-docs/
-├── README.md
-├── project-map.md
-└── modules/
-    ├── entrypoints-and-ui.md
-    ├── runtime-and-session.md
-    ├── llm-and-providers.md
-    ├── agents-and-tools.md
-    └── board-and-integrations.md
-```
-
-### Doc Routing
-
-- CLI or TUI work: read `docs/modules/entrypoints-and-ui.md`
-- Runtime loop, store, compaction, or system prompt work: read `docs/modules/runtime-and-session.md`
-- Model/provider/streaming work: read `docs/modules/llm-and-providers.md`
-- Agent/tool/delegation work: read `docs/modules/agents-and-tools.md`
-- Board report or PostgreSQL integration work: read `docs/modules/board-and-integrations.md`
+This file is the entry point: the core constraints below are non-negotiable; the
+**Doc Map** routes you to the right document before you read source.
 
 ## Core Constraints
 
-- Keep the main runtime flow explicit: input -> model -> tool execution -> session update -> next step.
-- Preserve upstream concepts and naming when they improve clarity.
-- Choose design patterns by module responsibility; use the simplest design that stays clear and extensible.
-- Follow SOLID pragmatically: keep single responsibilities clear, extend with composition over branching, preserve substitutability at module boundaries, keep interfaces narrow, and depend on abstractions at runtime seams.
-- Keep providers, tools, stores, and renderers as focused boundary adapters.
-- Centralize and make traceable all state transitions around session messages, parts, tools, and compaction.
-- Introduce abstractions only when they clearly improve readability, reuse, or change isolation.
+- **Aliases, not relative paths.** Cross-package and internal imports use per-package
+  aliases (`@harness/*`, `@backend/*`, `@tui/*`, `@contracts`), registered in
+  `tsconfig.base.json`. Never reintroduce a shared `@/` alias; never add `.js` suffixes.
+- **One-way dependencies.** Surfaces (cli/backend/tui/frontend) depend on the harness,
+  never the reverse. The browser frontend only imports `@agent-loop/contracts`. Enforced
+  by `bun run check:boundaries`.
+- **The engine is agent-agnostic.** `core/` drives the loop; behavior enters through an
+  agent's middleware and tools, never by branching on agent identity in the engine.
+- **Explicit dependencies, no new globals.** Runtime collaborators flow through
+  `RuntimeContext` / `RuntimeDeps`; do not add module-level singletons or `getX()` lookups.
+- **Strict typing at boundaries.** Treat provider output, tool args, and external JSON as
+  untrusted; parse to typed structures before they reach the loop. Prefer `unknown` + narrowing.
+- **Fail fast over silent fallback.** Reject unknown input (e.g. an unknown model id) loudly;
+  do not paper over it with a default.
+- **Style.** No semicolons, double quotes, 2-space indent, `import type` for type-only
+  imports. JSDoc on exported API, `//` on internal implementation.
 
-## Code Constraints
+Full rationale and the rest of the engineering conventions live in
+[`docs/conventions.md`](docs/conventions.md).
 
-- Use per-package aliases for source modules: `@harness/*`, `@backend/*`, `@tui/*`, `@contracts` (registered in `tsconfig.base.json`). Do not reintroduce a shared `@/` alias — it cannot resolve across packages when source is consumed directly.
-- Do not add `.js` suffixes to TypeScript imports.
-- Prefer `import type` for type-only imports.
-- Keep strict typing; prefer `unknown` plus narrowing over `any`.
-- Follow existing style: no semicolons, double quotes, 2-space indentation.
-- Prefer short functions and straightforward module boundaries.
-- When applying SOLID here, prefer small focused modules, explicit dependency injection for runtime collaborators, and narrow interfaces over catch-all managers.
+## Doc Map
 
-## Type And Tool Constraints
+`docs/modules/` is organized by package — find the package you're touching, read its doc,
+then confirm details in code.
 
-- Model core runtime data with explicit types and discriminated unions.
-- Treat provider responses, tool args, SSE payloads, and external JSON as untrusted input.
-- Parse unknown input into typed structures before it reaches the core loop.
-- Keep each tool's metadata, schema, and execution logic close together.
-- Register new tools in `packages/harness/src/runtime/bootstrap.ts` and enable them for the right agents.
-- If a tool result must persist across turns, write it back into session history consistently.
+| When you are working on… | Read |
+| --- | --- |
+| Anything — overall structure & execution path | [`docs/project-map.md`](docs/project-map.md) |
+| Engineering conventions & accumulated principles | [`docs/conventions.md`](docs/conventions.md) |
+| **harness** — the loop, turn lifecycle, middleware, session state | [`docs/modules/harness/core-and-runtime.md`](docs/modules/harness/core-and-runtime.md) |
+| **harness** — models, providers, streaming protocol | [`docs/modules/harness/llm-and-providers.md`](docs/modules/harness/llm-and-providers.md) |
+| **harness** — agents, agent middleware, tools, delegation | [`docs/modules/harness/agents-and-tools.md`](docs/modules/harness/agents-and-tools.md) |
+| **backend** — HTTP/SSE transport & composition | [`docs/modules/backend/http-and-sse.md`](docs/modules/backend/http-and-sse.md) |
+| **backend** — board report domain & PostgreSQL | [`docs/modules/backend/board.md`](docs/modules/backend/board.md) |
+| **contracts** — shared wire/SSE protocol | [`docs/modules/contracts.md`](docs/modules/contracts.md) |
+| **tui** / **cli** / **frontend** — a surface | [`docs/modules/tui.md`](docs/modules/tui.md) · [`cli.md`](docs/modules/cli.md) · [`frontend.md`](docs/modules/frontend.md) |
 
-## LLM Constraints
+[`docs/README.md`](docs/README.md) explains how the docs are organized and how to write them.
 
-- Keep `packages/harness/src/llm/index.ts` as the lightweight entrypoint.
-- Keep model selection in `packages/harness/src/llm/models.ts`.
-- Keep shared provider flow in `packages/harness/src/llm/providers/create.ts`.
-- Keep provider-specific logic inside `packages/harness/src/llm/providers/`.
-- Preserve the internal stream contract from `packages/harness/src/llm/types.ts`.
-- Map provider output into internal chunk types instead of leaking provider-specific structures upward.
+## Doc Sync
 
-## Session And CLI Constraints
-
-- Main loop: `packages/harness/src/session/prompt.ts`.
-- Per-turn executor: `packages/harness/src/session/processor.ts`.
-- Persistence: `packages/harness/src/session/store/`.
-- Keep output policy out of the core loop.
-- Route runtime output through `packages/harness/src/runtime/logger.ts`.
-- Keep `apps/cli/src/index.ts` focused on CLI parsing and orchestration.
+When you change a module's responsibility, the runtime flow, or a user-visible command,
+update the matching doc in the same change. Docs state durable design — not a changelog.
 
 ## Validation
 
-- Use bun scripts from `package.json`.
-- Baseline checks: `bun run check` (per-package tsc), `bun run check:boundaries` (dependency direction), `bun run build`, and focused `bun run ...` smoke runs.
-- Useful smoke runs:
-
 ```bash
-bun run start --output stream "你是谁"
-bun run start --output buffered "@general investigate auth flow"
+bun run check             # per-package tsc
+bun run check:boundaries  # dependency direction
+bun run test:harness      # harness test suite
+bun run build             # bundle the CLI
 ```
-
-- There is currently no `npm test` script.
 
 ## Environment
 
-- `DASHSCOPE_API_KEY`
-- `DASHSCOPE_BASE_URL` (defaults to the DashScope OpenAI-compatible endpoint)
+- `DASHSCOPE_API_KEY` — required to reach the model.
+- `DASHSCOPE_BASE_URL` — optional; defaults to the DashScope OpenAI-compatible endpoint.
 
-## Repo Rules
+## Reference
 
-- Check `.cursor/rules/`, `.cursorrules`, and `.github/copilot-instructions.md` if they appear.
-- If new repo-level instruction files are added, follow them and update this document.
-- Update `README.md` when changing user-visible behavior or commands.
+Upstream OpenCode, used as the behavioral reference:
+`https://github.com/anomalyco/opencode/tree/dev/packages/opencode`.

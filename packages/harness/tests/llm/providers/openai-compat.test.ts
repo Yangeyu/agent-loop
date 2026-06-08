@@ -77,8 +77,7 @@ describe("createDashScopeModel spec binding", () => {
     expect(model.spec.contextWindow).toBe(131072)
   })
 
-  it("falls back to the default model for an unknown id", () => {
-    const model = createDashScopeModel({ modelID: "nope" })
-    expect(model.spec.id).toBe("qwen3.7-plus")
+  it("throws on an unknown model id", () => {
+    expect(() => createDashScopeModel({ modelID: "nope" })).toThrow(/Unknown DashScope model "nope"/)
   })
 })

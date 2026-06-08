@@ -49,7 +49,7 @@ const MODELS: Record<string, ProviderModelSpec> = {
 
 /** Config for a DashScope model instance: which model + optional connection overrides. */
 export type DashScopeConfig = {
-  // The qwen model to bind; defaults to qwen3.7-plus. Unknown ids fall back to it.
+  // The qwen model to bind; defaults to qwen3.7-plus. An unknown id throws.
   modelID?: string
   // Connection overrides. When omitted, the provider's ConnectionSchema supplies
   // them (DASHSCOPE_BASE_URL / DASHSCOPE_API_KEY, each with its own schema default).
@@ -70,7 +70,12 @@ export type DashScopeConfig = {
  */
 export function createDashScopeModel(config: DashScopeConfig = {}): Model {
   const modelID = config.modelID ?? DEFAULT_MODEL_ID
-  const spec = MODELS[modelID] ?? MODELS[DEFAULT_MODEL_ID]
+  const spec = MODELS[modelID]
+  if (!spec) {
+    throw new Error(
+      `Unknown DashScope model "${modelID}". Known models: ${Object.keys(MODELS).join(", ")}.`,
+    )
+  }
   const connection = resolveConnection()
   return createOpenAICompatModel({
     providerID: PROVIDER_ID,

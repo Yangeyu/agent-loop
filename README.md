@@ -2,26 +2,29 @@
 
 This project extracts a compact core of the `opencode` runtime shape, focused on:
 
-- `SessionPrompt.loop()` as the outer agentic loop
-- `SessionProcessor.process()` as the per-step stream and tool executor
-- `LLM.stream()` as the model-facing boundary
-- `TaskTool.execute()` as the subagent orchestration primitive
-- `SessionCompaction.process()` as the context compaction path
-- injected `StructuredOutput` handling for JSON-schema-style final answers
+- `runSession` / `runLoop` (`core/loop.ts`) as the outer agentic loop
+- `core/turn.ts` as the per-turn stream-and-tool executor
+- `Model.stream()` (`llm/`) as the model-facing boundary — one bound model per agent, no registry
+- the `task` tool as the subagent orchestration primitive
+- the `compaction` middleware as the context compaction path
+- `structured-output` middleware for JSON-schema-style final answers
 - reasoning parts emitted as a first-class event stream
 - a local split-pane CLI TUI inspired by OpenCode's terminal experience
+
+> Architecture and module docs live under [`docs/`](docs/README.md); start at
+> [`AGENTS.md`](AGENTS.md). This README is the run guide.
 
 ## Files
 
 Bun workspaces — `packages/*` (libraries) and `apps/*` (runnable surfaces). Cross-package imports use the aliases `@harness/*`, `@backend/*`, `@tui/*`, `@contracts`.
 
-- `packages/harness/`: the agent harness (engine). Key files:
-  - `src/session/prompt.ts`: outer session loop
-  - `src/session/processor.ts`: one-step processor
-  - `src/session/compaction.ts`: compact old context into a summary message
-  - `src/llm/index.ts`: LLM selector; `src/llm/providers/{qwen,fake}.ts`: provider impls; `src/llm/types.ts`: stream types
+- `packages/harness/`: the agent harness (engine). Key areas:
+  - `src/core/`: the loop (`loop.ts`), per-turn executor (`turn.ts`), policy, retry
+  - `src/hooks/` + `src/middleware/`: the middleware lifecycle and built-ins (compaction, structured-output, view-image, budgets)
+  - `src/llm/`: the `Model` abstraction and providers (`providers/openai-compat.ts` base, `providers/dashscope.ts`)
+  - `src/agent/`: agents as self-contained modules (`lead/`, `general/`)
+  - `src/tool/`: `defineTool` harness and built-in tools (`task`, `batch`, `bash`, …)
   - `src/runtime/logger.ts`: CLI UI renderer with `stream` and `buffered` modes
-  - `src/tool/{task,batch,bash}.ts`: subagent execution, parallel fan-out, shell tool
   - `tests/`: centralized harness test suite, organized by source module area
 - `packages/backend/`: thin HTTP/SSE transport over the harness. `src/server.ts` SSE entry, `src/http/` routes+OpenAPI, `src/compose.ts` composition root, `src/board/` report domain plugin, `src/integrations/postgres/`
 - `packages/tui/`: `src/app.tsx` componentized OpenTUI/Solid terminal UI
@@ -32,7 +35,7 @@ Bun workspaces — `packages/*` (libraries) and `apps/*` (runnable surfaces). Cr
 
 ## Import Conventions
 
-- Use per-package absolute aliases for project source modules: `@harness/*`, `@backend/*`, `@tui/*`, `@contracts` (registered in `tsconfig.base.json`). Example: `@harness/session/prompt`.
+- Use per-package absolute aliases for project source modules: `@harness/*`, `@backend/*`, `@tui/*`, `@contracts` (registered in `tsconfig.base.json`). Example: `@harness/core/loop`.
 - The frontend (browser) imports the wire contract by package name: `@agent-loop/contracts`.
 - Do not use relative imports for project-internal modules unless there is a strong reason.
 - Do not add `.js` suffixes to TypeScript source imports.
@@ -42,7 +45,7 @@ Bun workspaces — `packages/*` (libraries) and `apps/*` (runnable surfaces). Cr
 
 ```bash
 bun install
-bun run start "read src/session/prompt.ts and explain the loop"
+bun run start "read packages/harness/src/core/loop.ts and explain the loop"
 ```
 
 The project is now bun-first for local development:
@@ -92,7 +95,7 @@ SSE server example:
 bun run sse
 curl -N -X POST http://localhost:4444/api/chat \
   -H 'content-type: application/json' \
-  -d '{"text":"read packages/harness/src/session/prompt.ts and explain the loop"}'
+  -d '{"text":"read packages/harness/src/core/loop.ts and explain the loop"}'
 ```
 
 If port `4444` is occupied, the server now automatically tries the next ports. You can also pin a port explicitly:
@@ -161,7 +164,7 @@ bun run tui
 You can also open the TUI and immediately submit a prompt:
 
 ```bash
-bun run tui "read packages/harness/src/session/prompt.ts and explain the loop"
+bun run tui "read packages/harness/src/core/loop.ts and explain the loop"
 ```
 
 Available built-in tools now include `read`, `grep`, `bash`, `batch`, `task`, and `skill`.
@@ -181,19 +184,19 @@ For the board analysis workflow, the final `board_write` stage now saves the gen
 Example with the simple CLI display:
 
 ```bash
-bun run start "Use the available tools when helpful. Read packages/harness/src/session/prompt.ts and explain SessionPrompt.loop."
+bun run start "Use the available tools when helpful. Read packages/harness/src/core/loop.ts and explain runLoop."
 ```
 
 Streaming mode prints the answer as it arrives and keeps tool activity readable:
 
 ```bash
-bun run start --output stream "Use the available tools when helpful. Read packages/harness/src/session/prompt.ts and explain SessionPrompt.loop."
+bun run start --output stream "Use the available tools when helpful. Read packages/harness/src/core/loop.ts and explain runLoop."
 ```
 
 Buffered mode waits until the turn completes, then prints compact thinking/answer blocks:
 
 ```bash
-bun run start --output buffered "Use the available tools when helpful. Read packages/harness/src/session/prompt.ts and explain SessionPrompt.loop."
+bun run start --output buffered "Use the available tools when helpful. Read packages/harness/src/core/loop.ts and explain runLoop."
 ```
 
 The split-pane TUI now uses `@opentui/solid` components, keeps the current session transcript on the right and session/status navigation on the left, and renders user/assistant/thinking/tool content in separate cards. It supports:
@@ -247,8 +250,8 @@ bun run smoke:tui
 
 ## Notes
 
-- The Qwen implementation now uses DashScope SSE directly so `reasoning_content` can be mapped into internal reasoning events reliably.
+- The DashScope (qwen) provider streams over the OpenAI-compatible endpoint and maps `reasoning_content` into internal reasoning events via the provider's `readReasoning` hook.
 - The renderer borrows from OpenCode's CLI presentation approach, but stays compact and event-driven around this repo's own runtime events.
 - The renderer is intentionally mode-based: `stream` prints model output deltas in real time, while `buffered` prints complete reasoning/final blocks after each turn.
-- `TaskTool` creates a child session and recursively re-enters `SessionPrompt.prompt()`, which mirrors the core orchestration pattern in `opencode`.
-- In fake mode the demo still exercises subagents, invalid tool args, nested batched tools, structured output capture, and compaction.
+- The `task` tool creates a child session and recursively re-enters `runSession`, which mirrors the core orchestration pattern in `opencode`.
+- Tests exercise subagents, invalid tool args, nested batched tools, structured output capture, and compaction against a stubbed `Model` (`tests/support/fake-model.ts`), with no network calls.
