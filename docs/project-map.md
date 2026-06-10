@@ -16,13 +16,13 @@
 packages/
 ├── harness/                  # agent harness（引擎），别名 @harness
 │   └── src/
-│       ├── core/             # 编排引擎：loop、turn、context、policy、retry、stream-sink、tool-call、outcome
+│       ├── core/             # 编排引擎：loop、turn、context、policy、retry、stream-sink、tool-call、tool-part、outcome
 │       ├── hooks/            # middleware 契约与执行栈（生命周期 hook）
 │       ├── middleware/       # 内置中间件：compaction、budget、doom-loop、structured-output、view-image 等
 │       ├── agent/            # agent 模块：lead/、general/、shared/、registry、types
 │       ├── llm/              # Model 抽象 + providers（openai-compat 底座、dashscope）
 │       ├── tool/             # defineTool harness + 内置工具
-│       ├── session/          # 状态持久化：store/、tool-part（稳定 ToolPart 协议）
+│       ├── session/          # 状态持久化：store/（ISessionStore + memory/file 实现）
 │       ├── runtime/          # bootstrap、context、events、logger、trace
 │       ├── skill/、plugin/   # runtime skill registry；plugin 契约与装配
 │       ├── module.ts         # corePlugin（通用 agents + tools）

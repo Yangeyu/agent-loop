@@ -17,7 +17,8 @@
 - `@harness/hooks/types.ts` — `Middleware` 契约与 `HookContext`。
 - `@harness/core/policy.ts` — 把 config 与 agent 约束解析成 turn 级执行策略（retry / timeout / budgets）。
 - `@harness/session/store/` — `ISessionStore` 接口、memory/file 实现、factory。
-- `@harness/session/tool-part.ts` — 把运行中的工具调用归一化成稳定的 `ToolPart` 协议。
+- `@harness/core/tool-part.ts` — 工具调用生命周期：纯状态转换（reducer）+ `ToolPartTracker`，
+  后者持有内存中的活体快照、单一写者地写穿到 store。
 
 ## 数据流
 
@@ -33,8 +34,10 @@ resolveOutcome ──(break)──► 返回 ; 否则下一步
 
 - **stream 消费**：`core/turn.ts` 把 reasoning/text 增量写入 parts，把 tool-call chunk 校验后执行，
   finish/error/abort 收口。retry 在此层包住 `model.stream`，是 turn 级关注点（Model 抽象保持薄）。
-- **工具结果**：经 `tool-part.ts` 归一化成稳定 `ToolPart`（`state.status/input/title/metadata/output/error/time`）
-  再落进 session，供 replay、compaction、board 等消费者依赖一个稳定边界。
+- **工具结果**：`core/tool-call.ts` 经 `ToolPartTracker` 把调用归一化成稳定 `ToolPart`
+  （`state.status/input/title/metadata/output/error/time`）。tracker 是该 part 的唯一写者，持有内存
+  活体快照、每步写穿到 session——并发的 metadata patch 与终态转换共用同一份内存真值，无需回读 store 对账。
+  落进 session 后供 replay、compaction、board 等消费者依赖一个稳定边界。
 - **outcome**：middleware 的 `resolveOutcome` 决定 `continue | break`；budget、doom-loop、repeated-failure
   在这里收口。
 - **状态事实来源**：`session_store` 维护 `messages` 与 `parts`，是项目里最核心的状态来源。

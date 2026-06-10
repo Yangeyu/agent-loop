@@ -8,13 +8,7 @@ import type { TurnContext } from "@harness/core/context"
 import type { MiddlewareStack } from "@harness/hooks/stack"
 import type { ToolCall } from "@harness/hooks/types"
 import { isAbortError } from "@harness/core/retry"
-import {
-  createRunningToolPart,
-  toCompletedToolPart,
-  toErroredToolPart,
-  toMetadataPatchedToolPart,
-  toRunningToolPart,
-} from "@harness/core/tool-part"
+import { ToolPartTracker } from "@harness/core/tool-part"
 import { toToolExecutionErrorInfo } from "@harness/tool/tool"
 import {
   createID,
@@ -22,7 +16,6 @@ import {
   type SessionHistoryMessage,
   type ToolContext,
   type ToolExecuteResult,
-  type ToolPart,
 } from "@harness/types"
 
 type GuardedToolResult =
@@ -78,23 +71,19 @@ async function runGuardedTool(ctx: TurnContext, stack: MiddlewareStack, call: To
   ctx.reasoningPart = undefined
   ctx.textPart = undefined
 
-  const part = ctx.session_store.startToolPart(
-    ctx.sessionID,
-    ctx.assistant.id,
-    createRunningToolPart({
-      id: createID(),
-      toolName: call.toolName,
-      toolCallId: call.toolCallId,
-      input: call.args,
-      startedAt: Date.now(),
-    }),
-  )
+  const tracker = new ToolPartTracker(ctx.session_store, ctx.sessionID, ctx.assistant.id, {
+    id: createID(),
+    toolName: call.toolName,
+    toolCallId: call.toolCallId,
+    input: call.args,
+    startedAt: Date.now(),
+  })
 
   ctx.toolCalls += 1
 
   const gate = await stack.beforeToolCall(ctx, call)
   if (gate.action === "deny") {
-    markToolPartError(ctx, part, call.args, gate.error)
+    markToolPartError(ctx, tracker, call.args, gate.error)
     return { status: "stop", error: gate.error, note: gate.note }
   }
   const args = gate.args ?? call.args
@@ -102,23 +91,23 @@ async function runGuardedTool(ctx: TurnContext, stack: MiddlewareStack, call: To
   const tool = ctx.tools.find((item) => item.id === call.toolName)
   if (!tool) {
     const error: ErrorInfo = { message: `Tool not available: ${call.toolName}`, retryable: false, code: "tool_not_available" }
-    markToolPartError(ctx, part, call.args, error)
+    markToolPartError(ctx, tracker, call.args, error)
     return resolveToolError(ctx, stack, call, error)
   }
 
   const parsed = tool.validate(args)
   if (!parsed.success) {
-    markToolPartError(ctx, part, args, parsed.error)
+    markToolPartError(ctx, tracker, args, parsed.error)
     return resolveToolError(ctx, stack, call, parsed.error)
   }
 
   const validatedArgs = parsed.data
-  updateRunningToolPart(ctx, part, validatedArgs)
+  tracker.toRunning(validatedArgs)
 
   try {
-    const raw = await tool.execute(validatedArgs, createToolContext(ctx, stack, part))
+    const raw = await tool.execute(validatedArgs, createToolContext(ctx, stack, tracker))
     const result = await stack.afterToolCall(ctx, { ...call, args: validatedArgs }, raw)
-    completeToolPart(ctx, part, validatedArgs, result)
+    tracker.toCompleted(validatedArgs, result)
     ctx.events.emit({
       type: "tool-result",
       ...base,
@@ -131,18 +120,12 @@ async function runGuardedTool(ctx: TurnContext, stack: MiddlewareStack, call: To
   } catch (error) {
     if (isAbortError(error)) {
       const aborted: ErrorInfo = { message: "Aborted", retryable: false, code: "aborted" }
-      ctx.session_store.updatePart(
-        ctx.sessionID,
-        ctx.assistant.id,
-        part.id,
-        toErroredToolPart(getLatestToolPart(ctx, part) ?? part, validatedArgs, aborted),
-      )
-      ctx.events.emit({ type: "tool-error", ...base, error: "Aborted", errorInfo: aborted })
+      markToolPartError(ctx, tracker, validatedArgs, aborted)
       return { status: "abort" }
     }
 
     const errorInfo = toToolExecutionErrorInfo(call.toolName, error)
-    markToolPartError(ctx, part, validatedArgs, errorInfo)
+    markToolPartError(ctx, tracker, validatedArgs, errorInfo)
     return resolveToolError(ctx, stack, call, errorInfo)
   }
 }
@@ -169,33 +152,17 @@ function toolEventBase(ctx: TurnContext, tool: string, toolCallId: string) {
   }
 }
 
-function markToolPartError(ctx: TurnContext, part: ToolPart, input: unknown, error: ErrorInfo) {
-  const latest = getLatestToolPart(ctx, part) ?? part
-  ctx.session_store.updatePart(ctx.sessionID, ctx.assistant.id, part.id, toErroredToolPart(latest, input, error))
+function markToolPartError(ctx: TurnContext, tracker: ToolPartTracker, input: unknown, error: ErrorInfo) {
+  const part = tracker.toErrored(input, error)
   ctx.events.emit({
     type: "tool-error",
-    ...toolEventBase(ctx, latest.toolName, latest.toolCallId),
+    ...toolEventBase(ctx, part.toolName, part.toolCallId),
     error: error.message,
     errorInfo: error,
   })
 }
 
-function updateRunningToolPart(ctx: TurnContext, part: ToolPart, input: unknown) {
-  ctx.session_store.updatePart(ctx.sessionID, ctx.assistant.id, part.id, toRunningToolPart(part, input))
-}
-
-function completeToolPart(ctx: TurnContext, part: ToolPart, input: unknown, result: ToolExecuteResult) {
-  const latest = getLatestToolPart(ctx, part) ?? part
-  ctx.session_store.updatePart(ctx.sessionID, ctx.assistant.id, part.id, toCompletedToolPart(latest, input, result))
-}
-
-function getLatestToolPart(ctx: TurnContext, part: ToolPart) {
-  return ctx.session_store
-    .getParts(ctx.sessionID, ctx.assistant.id)
-    .find((item): item is ToolPart => item.id === part.id && item.type === "tool")
-}
-
-function createToolContext(ctx: TurnContext, stack: MiddlewareStack, part: ToolPart): ToolContext {
+function createToolContext(ctx: TurnContext, stack: MiddlewareStack, tracker: ToolPartTracker): ToolContext {
   return {
     config: ctx.config,
     agent_registry: ctx.agent_registry,
@@ -208,24 +175,16 @@ function createToolContext(ctx: TurnContext, stack: MiddlewareStack, part: ToolP
     turnID: ctx.assistant.id,
     agent: ctx.agent.name,
     abort: ctx.abort,
-    toolCallId: part.toolCallId,
+    toolCallId: tracker.part.toolCallId,
     format: ctx.user.format,
     messages: collectSessionHistory(ctx),
     extra: { model: ctx.user.model },
     metadata: async (metadataUpdate: { title?: string; metadata?: Record<string, unknown> }) => {
-      const latest = getLatestToolPart(ctx, part)
-      if (!latest) return
-
-      ctx.session_store.updatePart(
-        ctx.sessionID,
-        ctx.assistant.id,
-        part.id,
-        toMetadataPatchedToolPart(latest, { title: metadataUpdate.title, metadata: metadataUpdate.metadata }),
-      )
+      const part = tracker.patchMetadata({ title: metadataUpdate.title, metadata: metadataUpdate.metadata })
 
       ctx.events.emit({
         type: "tool-metadata",
-        ...toolEventBase(ctx, latest.toolName, latest.toolCallId),
+        ...toolEventBase(ctx, part.toolName, part.toolCallId),
         title: metadataUpdate.title,
         metadata: metadataUpdate.metadata,
       })
