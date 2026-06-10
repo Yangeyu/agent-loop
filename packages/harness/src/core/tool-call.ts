@@ -14,7 +14,7 @@ import {
   toErroredToolPart,
   toMetadataPatchedToolPart,
   toRunningToolPart,
-} from "@harness/session/tool-part"
+} from "@harness/core/tool-part"
 import { toToolExecutionErrorInfo } from "@harness/tool/tool"
 import {
   createID,
