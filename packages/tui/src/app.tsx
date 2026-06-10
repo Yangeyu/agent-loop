@@ -1,7 +1,7 @@
 import { runPrompt } from "@harness"
-import { ComposerCard, CrashView, Sidebar, TraceEntryBlock, WelcomeCard } from "@tui/components"
+import { ComposerCard, CrashView, TraceEntryBlock, WelcomeCard } from "@tui/components"
 import { handleTraceEvent } from "@tui/trace"
-import { COLORS, belongsToSessionTree, buildSessionTitle, moveSession, resolveInitialAgent } from "@tui/theme"
+import { COLORS, belongsToSessionTree, buildSessionTitle, resolveInitialAgent } from "@tui/theme"
 import type { ActivityState, ComposerHandle, ComposerSubmitInput, TraceEntry, TuiOptions } from "@tui/types"
 import { render, useKeyboard, useRenderer, useTerminalDimensions, useSelectionHandler } from "@opentui/solid"
 import { ErrorBoundary, For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js"
@@ -38,7 +38,6 @@ function App(props: TuiOptions) {
     status: "Ready",
     busy: false,
   })
-  const [notice, setNotice] = createSignal<string>()
   const [revision, setRevision] = createSignal(0)
   const [traceEntries, setTraceEntries] = createSignal<TraceEntry[]>([])
 
@@ -55,11 +54,6 @@ function App(props: TuiOptions) {
       entry.id === id ? { ...entry, expanded: !entry.expanded } : entry
     )))
   }
-
-  const sessions = createMemo(() => {
-    revision()
-    return store.list().slice().reverse()
-  })
 
   const session = () => {
     revision()
@@ -88,7 +82,6 @@ function App(props: TuiOptions) {
   const cancelTurn = () => {
     if (!abort) return
     abort.abort()
-    setNotice("Cancelled current turn")
   }
 
   const cycleAgent = (delta: number) => {
@@ -97,7 +90,6 @@ function App(props: TuiOptions) {
     const currentIndex = Math.max(primary.findIndex((agent) => agent.name === selectedAgent()), 0)
     const nextIndex = (currentIndex + delta + primary.length) % primary.length
     setSelectedAgent(primary[nextIndex].name)
-    setNotice(`Agent: ${primary[nextIndex].name}`)
   }
 
   const submitPrompt = async (input: ComposerSubmitInput) => {
@@ -106,7 +98,6 @@ function App(props: TuiOptions) {
 
     const nextSession = session() ?? createSession(text || "Image prompt")
     abort = new AbortController()
-    setNotice(undefined)
     setActivity({
       phase: "starting",
       status: `Running ${selectedAgent()}`,
@@ -129,7 +120,6 @@ function App(props: TuiOptions) {
         status: message,
         busy: false,
       })
-      setNotice(message)
       abort = undefined
     } finally {
       refresh()
@@ -143,7 +133,6 @@ function App(props: TuiOptions) {
         cancelTurn()
       } else if ((composerRef?.value() ?? "").length > 0) {
         composerRef?.clear()
-        setNotice("Cleared draft")
         composerRef?.focus()
       } else {
         renderer.destroy()
@@ -156,22 +145,7 @@ function App(props: TuiOptions) {
     if (event.ctrl && event.name === "n") {
       createSession()
       composerRef?.clear()
-      setNotice("Started a new session")
       composerRef?.focus()
-      event.preventDefault()
-      event.stopPropagation()
-      return
-    }
-
-    if (event.ctrl && event.name === "j") {
-      moveSession(1, sessions(), currentSessionID(), setCurrentSessionID)
-      event.preventDefault()
-      event.stopPropagation()
-      return
-    }
-
-    if (event.ctrl && event.name === "k") {
-      moveSession(-1, sessions(), currentSessionID(), setCurrentSessionID)
       event.preventDefault()
       event.stopPropagation()
       return
@@ -207,7 +181,6 @@ function App(props: TuiOptions) {
         const proc = spawn("pbcopy")
         proc.stdin.write(text)
         proc.stdin.end()
-        setNotice("Text copied to clipboard")
       }
     })
 
@@ -263,51 +236,48 @@ function App(props: TuiOptions) {
 
   return (
     <ErrorBoundary fallback={(error, reset) => <CrashView error={error} onReset={reset} />}>
-      <box width={term().width} height={term().height} backgroundColor={COLORS.app} flexDirection="row">
-        <box flexGrow={1} flexDirection="column" paddingLeft={2} paddingTop={1} paddingBottom={1}>
-          <scrollbox
-            flexGrow={1}
-            stickyScroll
-            stickyStart="bottom"
-            backgroundColor={COLORS.app}
-          >
-            <Show when={visibleTranscript().length > 0} fallback={<WelcomeCard />}>
-              <box flexDirection="column" gap={1}>
-                <For each={visibleTranscript()}>
-                  {(entry) => (
-                    <TraceEntryBlock 
-                      store={store} 
-                      entry={entry} 
-                      expanded={Boolean(entry.expanded)} 
-                      onToggle={() => toggleExpanded(entry.id)} 
-                    />
-                  )}
-                </For>
-              </box>
-            </Show>
-          </scrollbox>
-          <box height={1} />
-          <ComposerCard
-            ref={(value) => {
-              composerRef = value as ComposerHandle
-            }}
-            busy={activity().busy}
-            onSubmit={submitPrompt}
-            onNotice={setNotice}
-            selectedAgent={selectedAgent()}
-            model={selectedModel()}
-            activityStatus={activity().status}
-            initialValue={props.autoSubmitInitial ? "" : props.initialPrompt ?? ""}
-          />
-        </box>
-        <Sidebar
-          width={32}
-          sessions={sessions()}
-          currentSessionID={currentSessionID()}
+      <box
+        width={term().width}
+        height={term().height}
+        backgroundColor={COLORS.app}
+        flexDirection="column"
+        paddingLeft={2}
+        paddingRight={2}
+        paddingTop={1}
+        paddingBottom={1}
+      >
+        <scrollbox
+          flexGrow={1}
+          stickyScroll
+          stickyStart="bottom"
+          backgroundColor={COLORS.app}
+        >
+          <Show when={visibleTranscript().length > 0} fallback={<WelcomeCard />}>
+            <box flexDirection="column" gap={1}>
+              <For each={visibleTranscript()}>
+                {(entry) => (
+                  <TraceEntryBlock
+                    store={store}
+                    entry={entry}
+                    expanded={Boolean(entry.expanded)}
+                    onToggle={() => toggleExpanded(entry.id)}
+                  />
+                )}
+              </For>
+            </box>
+          </Show>
+        </scrollbox>
+        <box height={1} />
+        <ComposerCard
+          ref={(value) => {
+            composerRef = value as ComposerHandle
+          }}
+          busy={activity().busy}
+          onSubmit={submitPrompt}
           selectedAgent={selectedAgent()}
-          activity={activity()}
-          notice={notice()}
-          onSelectSession={setCurrentSessionID}
+          model={selectedModel()}
+          activityStatus={activity().status}
+          initialValue={props.autoSubmitInitial ? "" : props.initialPrompt ?? ""}
         />
       </box>
     </ErrorBoundary>

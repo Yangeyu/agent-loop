@@ -278,8 +278,9 @@ export function ComposerCard(props: {
   return (
     <box height={composerTotalHeight()} flexDirection="column">
       <box height={composerBodyHeight()} flexDirection="column" flexShrink={0}>
-        <box flexDirection="column">
+        <box flexDirection="row">
           <box
+            flexGrow={1}
             paddingLeft={2}
             paddingRight={2}
             paddingTop={1}

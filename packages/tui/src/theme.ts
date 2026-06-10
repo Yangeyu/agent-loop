@@ -1,8 +1,7 @@
-import type { RuntimeContext, SessionInfo } from "@harness"
+import type { RuntimeContext } from "@harness"
 
 export const COLORS = {
   app: "#0a0a0a",
-  sidebar: "#141414",
   panel: "#1e1e1e",
   panelSoft: "#282828",
   panelAccent: "#323232",
@@ -75,21 +74,6 @@ export function resolveInitialAgent(agentRegistry: RuntimeContext["agent_registr
   } catch {
     return agentRegistry.defaultAgent().name
   }
-}
-
-export function moveSession(
-  delta: number,
-  sessions: SessionInfo[],
-  currentSessionID: string | undefined,
-  setCurrentSessionID: (sessionID: string) => void,
-) {
-  if (sessions.length === 0) return
-  const currentIndex = currentSessionID
-    ? sessions.findIndex((session) => session.id === currentSessionID)
-    : -1
-  const baseIndex = currentIndex === -1 ? 0 : currentIndex
-  const nextIndex = (baseIndex + delta + sessions.length) % sessions.length
-  setCurrentSessionID(sessions[nextIndex].id)
 }
 
 export function buildSessionTitle(text?: string) {
