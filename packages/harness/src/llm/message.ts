@@ -40,7 +40,7 @@ export function toModelMessages(session: SessionInfo): ModelMessage[] {
   return messages
 }
 
-function buildUserMessage(message: UserMessage, parts: MessagePart[], index: number): ModelMessage | undefined {
+function buildUserMessage(message: UserMessage, parts: readonly MessagePart[], index: number): ModelMessage | undefined {
   const textParts = parts.filter((part): part is TextPart => part.type === "text")
   const content: ModelContentBlock[] = []
 
@@ -65,7 +65,7 @@ function buildUserMessage(message: UserMessage, parts: MessagePart[], index: num
   }
 }
 
-function buildCompactionMessages(parts: MessagePart[]): ModelMessage[] {
+function buildCompactionMessages(parts: readonly MessagePart[]): ModelMessage[] {
   return parts
     .filter((part): part is CompactionPart => part.type === "compaction")
     .map((part) => ({
@@ -75,7 +75,7 @@ function buildCompactionMessages(parts: MessagePart[]): ModelMessage[] {
     .filter((message) => message.content[0]?.type === "context-summary" && message.content[0].text)
 }
 
-function buildAssistantMessages(message: AssistantMessage, parts: MessagePart[]): ModelMessage[] {
+function buildAssistantMessages(message: AssistantMessage, parts: readonly MessagePart[]): ModelMessage[] {
   const results: ModelMessage[] = []
   const content = buildAssistantContent(message, parts)
 
@@ -104,7 +104,7 @@ function buildAssistantMessages(message: AssistantMessage, parts: MessagePart[])
   return results
 }
 
-function buildAssistantContent(message: AssistantMessage, parts: MessagePart[]): ModelContentBlock[] {
+function buildAssistantContent(message: AssistantMessage, parts: readonly MessagePart[]): ModelContentBlock[] {
   const content: ModelContentBlock[] = []
 
   for (const part of parts) {

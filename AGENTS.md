@@ -12,9 +12,10 @@ This file is the entry point: the core constraints below are non-negotiable; the
 - **Aliases, not relative paths.** Cross-package and internal imports use per-package
   aliases (`@harness/*`, `@backend/*`, `@tui/*`, `@contracts`), registered in
   `tsconfig.base.json`. Never reintroduce a shared `@/` alias; never add `.js` suffixes.
-- **One-way dependencies.** Surfaces (cli/backend/tui/frontend) depend on the harness,
-  never the reverse. The browser frontend only imports `@agent-loop/contracts`. Enforced
-  by `bun run check:boundaries`.
+- **One-way dependencies.** `contracts <- harness <- surfaces` (cli/backend/tui).
+  Contracts is the pure shared leaf (data model + event vocabulary) and imports nothing;
+  the engine never depends on a surface; the browser frontend only imports
+  `@agent-loop/contracts`. Enforced by `bun run check:boundaries`.
 - **The engine is agent-agnostic.** `core/` drives the loop; behavior enters through an
   agent's middleware and tools, never by branching on agent identity in the engine.
 - **Explicit dependencies, no new globals.** Runtime collaborators flow through
@@ -43,7 +44,7 @@ then confirm details in code.
 | **harness** — agents, agent middleware, tools, delegation | [`docs/modules/harness/agents-and-tools.md`](docs/modules/harness/agents-and-tools.md) |
 | **backend** — HTTP/SSE transport & composition | [`docs/modules/backend/http-and-sse.md`](docs/modules/backend/http-and-sse.md) |
 | **backend** — board report domain & PostgreSQL | [`docs/modules/backend/board.md`](docs/modules/backend/board.md) |
-| **contracts** — shared wire/SSE protocol | [`docs/modules/contracts.md`](docs/modules/contracts.md) |
+| **contracts** — shared vocabulary: data model, events, reducer | [`docs/modules/contracts.md`](docs/modules/contracts.md) |
 | **tui** / **cli** / **frontend** — a surface | [`docs/modules/tui.md`](docs/modules/tui.md) · [`cli.md`](docs/modules/cli.md) · [`frontend.md`](docs/modules/frontend.md) |
 
 [`docs/README.md`](docs/README.md) explains how the docs are organized and how to write them.

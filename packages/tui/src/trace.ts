@@ -1,4 +1,8 @@
-import type { RuntimeContext, RuntimeEvent } from "@harness"
+// Folds the two harness event channels into the TUI's flat trace timeline.
+// Entirely self-contained: session lineage comes from session.created /
+// session.start events and content joins on partID — the folder never reads
+// the session store.
+import type { LoopEvent, StateEvent } from "@harness"
 import type { Setter } from "solid-js"
 import type { TraceEntry } from "@tui/types"
 import { COLORS, asRecord, preview, safeJson, shouldCollapse } from "@tui/theme"
@@ -49,197 +53,200 @@ function formatTraceToolLabel(tool: string, args: unknown) {
   return `subagent(${subagent})`
 }
 
-export function handleTraceEvent(
-  event: RuntimeEvent,
-  store: RuntimeContext["session_store"],
-  sessionPaths: Map<string, string[]>,
-  activeTurns: Map<string, { turnID: string; agent: string; reasoningEntryID?: string; answerEntryID?: string }>,
-  activeTools: Map<string, string[]>,
-  createTraceID: () => string,
-  setTraceEntries: Setter<TraceEntry[]>,
-) {
+/** The trace folder: subscribe `handleState` / `handleLoop` to the runtime bus. */
+export type TraceFolder = {
+  handleState(event: StateEvent): void
+  handleLoop(event: LoopEvent): void
+}
+
+/**
+ * Creates the trace folder feeding the transcript signal. All lineage and
+ * content bookkeeping is internal; entries carry rootID/topLevel so the view
+ * can scope and style without further lookups.
+ *
+ * @param input.createTraceID - id factory for new entries
+ * @param input.setTraceEntries - the transcript signal setter
+ * @returns handlers for the state and loop channels
+ */
+export function createTraceFolder(input: {
+  createTraceID: () => string
+  setTraceEntries: Setter<TraceEntry[]>
+}): TraceFolder {
+  // sessionID → display path (agent chain), parent path + this session's agent.
+  const sessionPaths = new Map<string, string[]>()
+  // sessionID → parentID, from session.created (arrives before any content).
+  const sessionParents = new Map<string, string | undefined>()
+  // messageID → role/agent, so part events know whose content they carry.
+  const messages = new Map<string, { role: "user" | "assistant"; agent: string }>()
+  // partID → entryID for streaming text/reasoning and tool parts.
+  const entryByPart = new Map<string, string>()
+
   const appendEntry = (entry: TraceEntry) => {
-    setTraceEntries((current) => [...current, entry])
+    input.setTraceEntries((current) => [...current, entry])
   }
 
   const updateEntry = (entryID: string, updater: (entry: TraceEntry) => TraceEntry) => {
-    setTraceEntries((current) => current.map((entry) => (entry.id === entryID ? updater(entry) : entry)))
+    input.setTraceEntries((current) => current.map((entry) => (entry.id === entryID ? updater(entry) : entry)))
   }
 
-  const pathForSession = (sessionID: string, fallbackAgent?: string) => {
+  const pathFor = (sessionID: string, fallbackAgent?: string) => {
     const existing = sessionPaths.get(sessionID)
     if (existing) return existing
-
-    try {
-      const session = store.get(sessionID)
-      const parentPath = session?.parentID ? sessionPaths.get(session.parentID) ?? [] : []
-      return fallbackAgent ? [...parentPath, fallbackAgent] : parentPath
-    } catch {
-      return fallbackAgent ? [] : []
-    }
+    return fallbackAgent ? [fallbackAgent] : []
   }
 
-  const pushToolID = (sessionID: string, entryID: string) => {
-    const ids = activeTools.get(sessionID) ?? []
-    ids.push(entryID)
-    activeTools.set(sessionID, ids)
-  }
+  const baseEntry = (event: { sessionID: string; rootID: string }) => ({
+    sessionID: event.sessionID,
+    rootID: event.rootID,
+    topLevel: event.sessionID === event.rootID,
+  })
 
-  const popToolID = (sessionID: string, tool: string) => {
-    const ids = activeTools.get(sessionID) ?? []
-    for (let index = ids.length - 1; index >= 0; index -= 1) {
-      const entryID = ids[index]
-      ids.splice(index, 1)
-      activeTools.set(sessionID, ids)
-      return entryID
-    }
-    void tool
-    return undefined
-  }
+  const handleLoop = (event: LoopEvent) => {
+    if (event.type === "session.start") {
+      const parentID = sessionParents.get(event.sessionID)
+      const parentPath = parentID ? sessionPaths.get(parentID) ?? [] : []
+      const path = [...parentPath, event.agent]
+      sessionPaths.set(event.sessionID, path)
 
-  if (event.type === "session-start") {
-    let parentPath: string[] = []
-    try {
-      const session = store.get(event.sessionID)
-      parentPath = session?.parentID ? sessionPaths.get(session.parentID) ?? [] : []
-    } catch {}
-    const path = [...parentPath, event.agent]
-    sessionPaths.set(event.sessionID, path)
-    appendEntry({
-      id: createTraceID(),
-      sessionID: event.sessionID,
-      kind: "user",
-      title: `${path.join(" > ")} > user`,
-      text: event.text,
-      color: COLORS.accent,
-    })
-    return
-  }
-
-  if (event.type === "turn-start") {
-    activeTurns.set(event.sessionID, { turnID: event.turnID, agent: event.agent })
-    return
-  }
-
-  if (event.type === "reasoning") {
-    const turn = activeTurns.get(event.sessionID)
-    if (!turn) return
-    const title = `${pathForSession(event.sessionID, turn.agent).join(" > ")} > thinking`
-    if (!turn.reasoningEntryID) {
-      const entryID = createTraceID()
-      turn.reasoningEntryID = entryID
-      appendEntry({ id: entryID, sessionID: event.sessionID, kind: "reasoning", title, text: preview(event.textDelta, 240), detail: shouldCollapse(event.textDelta, 240) ? event.textDelta : undefined, color: COLORS.warning })
-      return
-    }
-    updateEntry(turn.reasoningEntryID, (entry) => {
-      const detail = `${entry.detail ?? entry.text}${event.textDelta}`
-      return { ...entry, detail: shouldCollapse(detail, 240) ? detail : undefined, text: preview(detail, 240) }
-    })
-    return
-  }
-
-  if (event.type === "text") {
-    const turn = activeTurns.get(event.sessionID)
-    if (!turn) return
-    const path = pathForSession(event.sessionID, turn.agent)
-    const title = `${path.join(" > ")} > answer`
-    if (!turn.answerEntryID) {
-      const entryID = createTraceID()
-      turn.answerEntryID = entryID
       appendEntry({
-        id: entryID,
-        sessionID: event.sessionID,
-        kind: "answer",
-        title,
-        text: path.length > 1 ? preview(event.textDelta, 240) : event.textDelta,
-        detail: path.length > 1 && shouldCollapse(event.textDelta, 240) ? event.textDelta : undefined,
-        color: COLORS.text,
+        id: input.createTraceID(),
+        ...baseEntry(event),
+        kind: "user",
+        title: `${path.join(" > ")} > user`,
+        text: event.text,
+        color: COLORS.accent,
       })
       return
     }
-    updateEntry(turn.answerEntryID, (entry) => {
-      if (path.length > 1) {
-        const detail = `${entry.detail ?? entry.text}${event.textDelta}`
-        return { ...entry, text: preview(detail, 240), detail: shouldCollapse(detail, 240) ? detail : undefined }
+
+    if (event.type === "turn.end" && event.reason === "error" && event.error) {
+      appendEntry({
+        id: input.createTraceID(),
+        ...baseEntry(event),
+        kind: "error",
+        title: `${pathFor(event.sessionID, event.agent).join(" > ")} > error`,
+        text: preview(event.error, 220),
+        detail: shouldCollapse(event.error, 220) ? event.error : undefined,
+        color: COLORS.danger,
+        status: "Execution failed",
+      })
+    }
+  }
+
+  const handleState = (event: StateEvent) => {
+    if (event.type === "session.created") {
+      sessionParents.set(event.session.id, event.session.parentID)
+      return
+    }
+
+    if (event.type === "message.created") {
+      messages.set(event.message.id, { role: event.message.role, agent: event.message.agent })
+      return
+    }
+
+    if (event.type === "message.updated") {
+      if (event.message.role === "assistant" && event.message.structured !== undefined) {
+        appendEntry({
+          id: input.createTraceID(),
+          ...baseEntry(event),
+          kind: "result",
+          title: `${pathFor(event.sessionID).join(" > ")} > structured`,
+          text: preview(event.message.structured, 220),
+          color: COLORS.info,
+          status: "Structured output",
+        })
       }
-      const full = `${entry.text}${event.textDelta}`
-      return { ...entry, text: full }
-    })
-    return
+      return
+    }
+
+    if (event.type === "part.created") {
+      const message = messages.get(event.messageID)
+      if (message?.role !== "assistant") return
+
+      const path = pathFor(event.sessionID, message.agent)
+      const topLevel = event.sessionID === event.rootID
+
+      if (event.part.type === "tool") {
+        const entryID = input.createTraceID()
+        entryByPart.set(event.part.id, entryID)
+        appendEntry({
+          id: entryID,
+          ...baseEntry(event),
+          kind: "tool",
+          title: `${path.join(" > ")} > ${formatTraceToolLabel(event.part.toolName, event.part.state.input)}`,
+          text: summarizeToolInput(event.part.toolName, event.part.state.input),
+          detail: shouldCollapse(safeJson(event.part.state.input), 220) ? safeJson(event.part.state.input) : undefined,
+          color: COLORS.warning,
+          status: event.part.toolName === "task" ? "Subagent running" : "Tool running",
+        })
+        return
+      }
+
+      if (event.part.type === "reasoning" || event.part.type === "text") {
+        const kind = event.part.type === "reasoning" ? ("reasoning" as const) : ("answer" as const)
+        const label = kind === "reasoning" ? "thinking" : "answer"
+        const entryID = input.createTraceID()
+        entryByPart.set(event.part.id, entryID)
+
+        const full = event.part.text
+        const clip = kind === "reasoning" || !topLevel
+        appendEntry({
+          id: entryID,
+          ...baseEntry(event),
+          kind,
+          title: `${path.join(" > ")} > ${label}`,
+          text: clip ? preview(full, 240) : full,
+          detail: clip && shouldCollapse(full, 240) ? full : undefined,
+          color: kind === "reasoning" ? COLORS.warning : COLORS.text,
+        })
+      }
+      return
+    }
+
+    if (event.type === "part.delta") {
+      const entryID = entryByPart.get(event.partID)
+      if (!entryID) return
+
+      const topLevel = event.sessionID === event.rootID
+      const clip = event.partType === "reasoning" || !topLevel
+      updateEntry(entryID, (entry) => {
+        const full = `${entry.detail ?? entry.text}${event.delta}`
+        if (!clip) return { ...entry, text: `${entry.text}${event.delta}` }
+        return { ...entry, text: preview(full, 240), detail: shouldCollapse(full, 240) ? full : undefined }
+      })
+      return
+    }
+
+    if (event.type === "part.updated" && event.part.type === "tool") {
+      const entryID = entryByPart.get(event.part.id)
+      if (!entryID) return
+      const part = event.part
+      const isTask = part.toolName === "task"
+
+      if (part.state.status === "completed") {
+        const output = part.state.output
+        updateEntry(entryID, (entry) => ({
+          ...entry,
+          status: isTask ? "Subagent completed" : "Tool completed",
+          text: summarizeToolOutput(part.toolName, output),
+          detail: shouldCollapse(output, 220) ? output : undefined,
+          color: COLORS.success,
+        }))
+        return
+      }
+
+      if (part.state.status === "error") {
+        const message = part.state.error.message
+        updateEntry(entryID, (entry) => ({
+          ...entry,
+          status: isTask ? "Subagent failed" : "Tool failed",
+          text: preview(message, 220),
+          detail: shouldCollapse(message, 220) ? message : undefined,
+          color: COLORS.danger,
+        }))
+      }
+    }
   }
 
-  if (event.type === "tool-call") {
-    const path = pathForSession(event.sessionID, event.agent)
-    const toolLabel = formatTraceToolLabel(event.tool, event.args)
-    const entryID = createTraceID()
-    appendEntry({
-      id: entryID,
-      sessionID: event.sessionID,
-      kind: "tool",
-      title: `${path.join(" > ")} > ${toolLabel}`,
-      text: summarizeToolInput(event.tool, event.args),
-      detail: shouldCollapse(safeJson(event.args), 220) ? safeJson(event.args) : undefined,
-      color: COLORS.warning,
-      status: event.tool === "task" ? "Subagent starting" : "Tool queued",
-    })
-    pushToolID(event.sessionID, entryID)
-    return
-  }
-
-  if (event.type === "tool-start") {
-    const entryID = popToolID(event.sessionID, event.tool)
-    if (!entryID) return
-    updateEntry(entryID, (entry) => ({ ...entry, status: event.tool === "task" ? "Subagent running" : "Tool running" }))
-    pushToolID(event.sessionID, entryID)
-    return
-  }
-
-  if (event.type === "tool-result") {
-    const entryID = popToolID(event.sessionID, event.tool)
-    if (!entryID) return
-    updateEntry(entryID, (entry) => ({
-      ...entry,
-      status: event.tool === "task" ? "Subagent completed" : "Tool completed",
-      text: summarizeToolOutput(event.tool, event.output),
-      detail: shouldCollapse(typeof event.output === "string" ? event.output : safeJson(event.output), 220)
-        ? typeof event.output === "string" ? event.output : safeJson(event.output)
-        : undefined,
-      color: COLORS.success,
-    }))
-    return
-  }
-
-  if (event.type === "tool-error") {
-    const entryID = popToolID(event.sessionID, event.tool)
-    if (!entryID) return
-    updateEntry(entryID, (entry) => ({ ...entry, status: event.tool === "task" ? "Subagent failed" : "Tool failed", text: preview(event.error, 220), detail: shouldCollapse(event.error, 220) ? event.error : undefined, color: COLORS.danger }))
-    return
-  }
-
-  if (event.type === "structured-output") {
-    appendEntry({
-      id: createTraceID(),
-      sessionID: event.sessionID,
-      kind: "result",
-      title: `${pathForSession(event.sessionID, event.agent).join(" > ")} > structured`,
-      text: preview(event.output, 220),
-      detail: undefined,
-      color: COLORS.info,
-      status: "Structured output",
-    })
-    return
-  }
-
-  if (event.type === "error") {
-    appendEntry({
-      id: createTraceID(),
-      sessionID: event.sessionID,
-      kind: "error",
-      title: `${pathForSession(event.sessionID, event.agent).join(" > ")} > error`,
-      text: preview(event.error, 220),
-      detail: shouldCollapse(event.error, 220) ? event.error : undefined,
-      color: COLORS.danger,
-      status: "Execution failed",
-    })
-  }
+  return { handleState, handleLoop }
 }

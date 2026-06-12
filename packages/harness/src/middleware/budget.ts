@@ -11,9 +11,10 @@ export const budget: MiddlewareFactory = () => {
 
     beforeTurn(ctx) {
       if (ctx.policy.budget.maxSteps <= 0) {
-        ctx.events.emit({
-          type: "budget-hit",
+        ctx.events.loop.emit({
+          type: "budget.hit",
           sessionID: ctx.sessionID,
+          rootID: ctx.rootID,
           agent: ctx.agent.name,
           budget: "session_steps",
           detail: "Total session step budget reached",
@@ -32,9 +33,10 @@ export const budget: MiddlewareFactory = () => {
     beforeToolCall(ctx) {
       toolCalls += 1
       if (toolCalls > ctx.policy.budget.maxToolCalls) {
-        ctx.events.emit({
-          type: "budget-hit",
+        ctx.events.loop.emit({
+          type: "budget.hit",
           sessionID: ctx.sessionID,
+          rootID: ctx.rootID,
           agent: ctx.agent.name,
           budget: "tool_calls",
           detail: "Tool call budget exceeded for turn",
@@ -59,7 +61,7 @@ export const budget: MiddlewareFactory = () => {
       if (ctx.step < ctx.policy.budget.maxSteps) return outcome
 
       emitStepBudgetHit(ctx)
-      ctx.session_store.updateMessage(ctx.sessionID, ctx.turnID, { finish: "stop" })
+      ctx.sessions.updateMessage(ctx.sessionID, ctx.messageID, { finish: "stop" })
 
       const stopReason = resolveStepBudgetStopReason(ctx.policy)
       if (outcome.reason === "empty_assistant") {
@@ -76,9 +78,10 @@ export const budget: MiddlewareFactory = () => {
 
 function emitStepBudgetHit(ctx: HookContext) {
   const event = resolveStepBudgetEvent(ctx.policy)
-  ctx.events.emit({
-    type: "budget-hit",
+  ctx.events.loop.emit({
+    type: "budget.hit",
     sessionID: ctx.sessionID,
+    rootID: ctx.rootID,
     agent: ctx.agent.name,
     budget: event.kind,
     detail: event.detail,

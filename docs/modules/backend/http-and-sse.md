@@ -4,8 +4,8 @@
 
 ## 职责
 
-把 harness 包成一个薄 HTTP/SSE 服务：接收聊天请求，把 runtime 事件流式推给前端。只做传输与
-事件映射，不持有 session 状态（状态归 harness 的 `session_store`）。
+把 harness 包成一个薄 HTTP/SSE 服务：接收聊天请求，把 runtime 事件流式推给前端。只做传输，
+不持有 session 状态（状态归 harness 的 `Sessions` 聚合）。
 
 ## 关键入口
 
@@ -19,10 +19,10 @@
 
 - `compose.ts` 装配 runtime（core + board 插件）。
 - `POST /api/chat` 接收 `text` + 可选 `agent` / `sessionID`，发起一次 session。
-- 为每个请求订阅 `runtime.events`，把内部事件映射成 `@agent-loop/contracts` 的 `StreamEvent` 帧
-  推给前端（协议定义见 `../contracts.md`）。
-- 每帧带 `messageID`（整次回复）+ `turnID`（回复内的 step）；子 agent 事件透传到同一条流，
-  保留 runtime 的 session tree 语义。
+- 为每个请求订阅 `runtime.events` 的 state 与 loop 两个通道，按 `event.rootID === 请求会话.rootID`
+  做 O(1) 过滤后**原样透传**为 `state` / `loop` SSE 帧（协议即 `@agent-loop/contracts` 的事件词汇，
+  见 `../contracts.md`）；没有翻译层。
+- 子 agent 事件天然在同一棵 rootID 树下，透传到同一条流。
 - 端口被占用时自动顺延；可用 `--port` 或 `PORT` 固定。
 
 ## 扩展点
@@ -32,5 +32,6 @@
 
 ## 约束与经验
 
-- backend 是**薄传输层**：只映射事件、不复制 session 状态、不写业务逻辑（业务走插件，如 board）。
-- 对外事件形状以 `@agent-loop/contracts` 为唯一真相；新增事件先改 contracts，再同步 backend 与 frontend。
+- backend 是**薄传输层**：只过滤+透传、不复制 session 状态、不写业务逻辑（业务走插件，如 board）。
+- 对外事件形状以 `@agent-loop/contracts` 为唯一真相；新增事件改 contracts + harness 发射端即可，
+  backend 不需要随之改动。

@@ -1,102 +1,46 @@
-import type { ErrorInfo, ToolAttachment, ToolMetadata, TurnOutcomeReason, TurnPhase } from "@harness/types"
+// The runtime event bus: two channels with one shape.
+//
+// `state` carries StateEvents and is fed exclusively by the Sessions aggregate —
+// engine code never emits state by hand. `loop` carries LoopEvents, the engine's
+// telemetry about the turn loop itself. Consumers subscribe per channel, so an
+// observer of loop health never has to filter content traffic and vice versa.
+//
+// Listeners are isolated: a throwing subscriber is reported and skipped, never
+// allowed to break the engine turn that emitted the event.
+import type { LoopEvent, StateEvent } from "@contracts"
 
-type TurnScopedEvent = {
-  sessionID: string
-  agent: string
-  messageID: string
-  turnID: string
+/** One typed pub/sub channel of the runtime bus. */
+export type EventChannel<E> = {
+  emit(event: E): void
+  subscribe(listener: (event: E) => void): () => void
 }
 
-type RuntimeEvent =
-  | { type: "session-start"; sessionID: string; agent: string; text: string }
-  | { type: "loop-step"; sessionID: string; step: number; agent: string }
-  | (TurnScopedEvent & {
-      type: "turn-input"
-      step: number
-      system: string[]
-      tools: string[]
-      messageCount: number
-    })
-  | {
-      type: "budget-hit"
-      sessionID: string
-      agent: string
-      budget: "session_steps" | "agent_steps" | "subagent_depth" | "tool_calls" | "tool_failures"
-      detail: string
-      limit: number
-      used?: number
-    }
-  | (TurnScopedEvent & { type: "turn-start"; step: number })
-  | (TurnScopedEvent & {
-      type: "retry"
-      attempt: number
-      delayMs: number
-      category: "abort" | "timeout" | "network" | "availability" | "rate_limit" | "unknown"
-      reason?: string
-      error: string
-    })
-  | (TurnScopedEvent & {
-      type: "turn-phase"
-      phase: TurnPhase
-    })
-  | (TurnScopedEvent & { type: "reasoning"; textDelta: string })
-  | (TurnScopedEvent & { type: "text"; textDelta: string })
-  | (TurnScopedEvent & { type: "tool-call"; tool: string; toolCallId: string; args: unknown })
-  | (TurnScopedEvent & { type: "tool-start"; tool: string; toolCallId: string })
-  | (TurnScopedEvent & {
-      type: "tool-metadata"
-      tool: string
-      toolCallId: string
-      title?: string
-      metadata?: ToolMetadata
-    })
-  | (TurnScopedEvent & {
-      type: "tool-result"
-      tool: string
-      toolCallId: string
-      output: string
-      title?: string
-      metadata?: ToolMetadata
-      attachments?: ToolAttachment[]
-    })
-  | (TurnScopedEvent & {
-      type: "tool-error"
-      tool: string
-      toolCallId: string
-      error: string
-      errorInfo?: ErrorInfo
-    })
-  | (TurnScopedEvent & { type: "structured-output"; output: unknown })
-  | { type: "compaction"; sessionID: string; summary: string }
-  | (TurnScopedEvent & { type: "finish"; finishReason: string })
-  | (TurnScopedEvent & {
-      type: "turn-outcome"
-      step: number
-      outcome: "continue" | "compact" | "break"
-      reason: TurnOutcomeReason
-    })
-  | (TurnScopedEvent & {
-      type: "turn-complete"
-      finishReason: string
-      durationMs: number
-      toolCalls: number
-    })
-  | (TurnScopedEvent & { type: "turn-abort"; durationMs: number })
-  | (TurnScopedEvent & { type: "error"; error: string })
-
-type Listener = (event: RuntimeEvent) => void
-
+/** The runtime bus: the state channel (session content) and the loop channel (telemetry). */
 export type RuntimeEventBus = {
-  emit(event: RuntimeEvent): void
-  subscribe(listener: Listener): () => void
+  state: EventChannel<StateEvent>
+  loop: EventChannel<LoopEvent>
 }
 
 export function createRuntimeEvents(): RuntimeEventBus {
-  const listeners = new Set<Listener>()
+  return {
+    state: createChannel<StateEvent>("state"),
+    loop: createChannel<LoopEvent>("loop"),
+  }
+}
+
+function createChannel<E>(name: string): EventChannel<E> {
+  const listeners = new Set<(event: E) => void>()
 
   return {
     emit(event) {
-      for (const listener of listeners) listener(event)
+      for (const listener of listeners) {
+        try {
+          listener(event)
+        } catch (error) {
+          // A subscriber must never be able to crash the engine mid-turn.
+          console.error(`[events] ${name} listener failed:`, error)
+        }
+      }
     },
 
     subscribe(listener) {
@@ -106,4 +50,4 @@ export function createRuntimeEvents(): RuntimeEventBus {
   }
 }
 
-export type { Listener, RuntimeEvent }
+export type { LoopEvent, StateEvent }

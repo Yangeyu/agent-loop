@@ -23,7 +23,6 @@ export const BoardAnalysisBundleReadTool = defineTool({
   },
   async execute(args, ctx) {
     const bundle = readBoardAnalysisBundle({
-      store: ctx.session_store,
       analysisId: args.analysisId,
       bundleType: args.bundleType,
     })

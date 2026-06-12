@@ -1,4 +1,8 @@
-import { runSession, type RuntimeContext, type RuntimeEvent } from "@harness"
+// SSE chat endpoint. The wire protocol *is* the harness event vocabulary
+// (contracts StateEvent / LoopEvent), so forwarding is a rootID filter plus a
+// verbatim passthrough — no translation layer. Consumers reconstruct session
+// state with the shared `applyStateEvent` reducer from @agent-loop/contracts.
+import { runSession, type LoopEvent, type RuntimeContext, type StateEvent } from "@harness"
 import { corsHeaders, jsonResponse } from "@backend/http/responses"
 import { z } from "zod"
 
@@ -91,155 +95,6 @@ function createStreamWriter(controller: ReadableStreamDefaultController<Uint8Arr
   }
 }
 
-function belongsToSessionTree(runtime: RuntimeContext, sessionID: string, rootSessionID: string) {
-  let currentID: string | undefined = sessionID
-
-  while (currentID) {
-    if (currentID === rootSessionID) return true
-
-    try {
-      currentID = runtime.session_store.get(currentID).parentID
-    } catch {
-      return false
-    }
-  }
-
-  return false
-}
-
-function createEventForwarder(input: {
-  runtime: RuntimeContext
-  rootSessionID: string
-  writer: ReturnType<typeof createStreamWriter>
-}) {
-  const textStarted = new Set<string>()
-
-  return (event: RuntimeEvent) => {
-    if (!belongsToSessionTree(input.runtime, event.sessionID, input.rootSessionID)) return
-
-    if (event.type === "turn-start") {
-      input.writer.send("message-metadata", {
-        sessionID: event.sessionID,
-        messageID: event.messageID,
-        turnID: event.turnID,
-        agent: event.agent,
-        step: event.step,
-      })
-      return
-    }
-
-    if (event.type === "reasoning") {
-      input.writer.send("reasoning-delta", {
-        sessionID: event.sessionID,
-        messageID: event.messageID,
-        turnID: event.turnID,
-        delta: event.textDelta,
-      })
-      return
-    }
-
-    if (event.type === "text") {
-      if (!textStarted.has(event.turnID)) {
-        textStarted.add(event.turnID)
-        input.writer.send("text-start", {
-          sessionID: event.sessionID,
-          messageID: event.messageID,
-          turnID: event.turnID,
-        })
-      }
-
-      input.writer.send("text-delta", {
-        sessionID: event.sessionID,
-        messageID: event.messageID,
-        turnID: event.turnID,
-        delta: event.textDelta,
-      })
-      return
-    }
-
-    if (event.type === "tool-call") {
-      input.writer.send("tool-call", {
-        sessionID: event.sessionID,
-        messageID: event.messageID,
-        turnID: event.turnID,
-        toolCall: {
-          toolCallId: event.toolCallId,
-          toolName: event.tool,
-          args: event.args,
-        },
-      })
-      return
-    }
-
-    if (event.type === "tool-metadata") {
-      input.writer.send("tool-call", {
-        sessionID: event.sessionID,
-        messageID: event.messageID,
-        turnID: event.turnID,
-        toolCall: {
-          toolCallId: event.toolCallId,
-          toolName: event.tool,
-          title: event.title,
-          metadata: event.metadata,
-        },
-      })
-      return
-    }
-
-    if (event.type === "tool-result") {
-      input.writer.send("tool-result", {
-        sessionID: event.sessionID,
-        messageID: event.messageID,
-        turnID: event.turnID,
-        toolResult: {
-          toolCallId: event.toolCallId,
-          toolName: event.tool,
-          output: event.output,
-          title: event.title,
-          metadata: event.metadata,
-          attachments: event.attachments,
-        },
-      })
-      return
-    }
-
-    if (event.type === "tool-error") {
-      input.writer.send("tool-result", {
-        sessionID: event.sessionID,
-        messageID: event.messageID,
-        turnID: event.turnID,
-        toolResult: {
-          toolCallId: event.toolCallId,
-          toolName: event.tool,
-          error: event.errorInfo ?? {
-            message: event.error,
-          },
-        },
-      })
-      return
-    }
-
-    if (event.type === "finish") {
-      input.writer.send("finish", {
-        sessionID: event.sessionID,
-        messageID: event.messageID,
-        turnID: event.turnID,
-        finishReason: event.finishReason,
-      })
-      return
-    }
-
-    if (event.type === "error") {
-      input.writer.send("error", {
-        sessionID: event.sessionID,
-        messageID: event.messageID,
-        turnID: event.turnID,
-        error: event.error,
-      })
-    }
-  }
-}
-
 export async function handleChatRequest(request: Request, runtime: RuntimeContext) {
   let payload: unknown
 
@@ -261,8 +116,8 @@ export async function handleChatRequest(request: Request, runtime: RuntimeContex
 
   try {
     rootSession = parsed.data.sessionID
-      ? runtime.session_store.get(parsed.data.sessionID)
-      : runtime.session_store.create({ title: "SSE session" })
+      ? runtime.sessions.get(parsed.data.sessionID)
+      : runtime.sessions.create({ title: "SSE session" })
   } catch (error) {
     return jsonResponse({
       error: error instanceof Error ? error.message : String(error),
@@ -285,11 +140,20 @@ export async function handleChatRequest(request: Request, runtime: RuntimeContex
         }
       }, 15000)
 
-      const unsubscribe = runtime.events.subscribe(createEventForwarder({
-        runtime,
-        rootSessionID: rootSession.id,
-        writer,
-      }))
+      // Every event carries its delegation tree's rootID, so scoping to this
+      // request is a constant-time comparison — no parent-chain walking.
+      const rootID = rootSession.rootID
+      const forwardState = (event: StateEvent) => {
+        if (event.rootID !== rootID) return
+        writer.send("state", event)
+      }
+      const forwardLoop = (event: LoopEvent) => {
+        if (event.rootID !== rootID) return
+        writer.send("loop", event)
+      }
+
+      const unsubscribeState = runtime.events.state.subscribe(forwardState)
+      const unsubscribeLoop = runtime.events.loop.subscribe(forwardLoop)
 
       const cleanup = (options?: { abortPrompt?: boolean; closeStream?: boolean }) => {
         if (cleanedUp) return
@@ -300,7 +164,8 @@ export async function handleChatRequest(request: Request, runtime: RuntimeContex
         }
 
         clearInterval(heartbeat)
-        unsubscribe()
+        unsubscribeState()
+        unsubscribeLoop()
 
         if (options?.closeStream) {
           writer.close()
@@ -313,14 +178,6 @@ export async function handleChatRequest(request: Request, runtime: RuntimeContex
       request.signal.addEventListener("abort", () => {
         cleanup({ abortPrompt: true })
       }, { once: true })
-
-      if (!writer.send("session-metadata", {
-        sessionID: rootSession.id,
-        agent,
-      })) {
-        cleanup({ abortPrompt: true })
-        return
-      }
 
       void runSession(runtime, {
         sessionID: rootSession.id,

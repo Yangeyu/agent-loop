@@ -24,9 +24,10 @@ export const repeatedFailure: MiddlewareFactory = () => {
       const signature = JSON.stringify(first)
       if (!rest.every((failure) => JSON.stringify(failure) === signature)) return { action: "continue" }
 
-      ctx.events.emit({
-        type: "budget-hit",
+      ctx.events.loop.emit({
+        type: "budget.hit",
         sessionID: ctx.sessionID,
+        rootID: ctx.rootID,
         agent: ctx.agent.name,
         budget: "tool_failures",
         detail: `Repeated identical tool failures detected for ${call.toolName}`,

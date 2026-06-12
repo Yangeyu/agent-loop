@@ -16,13 +16,13 @@
 packages/
 ├── harness/                  # agent harness（引擎），别名 @harness
 │   └── src/
-│       ├── core/             # 编排引擎：loop、turn、context、policy、retry、stream-sink、tool-call、tool-part、outcome
+│       ├── core/             # 编排引擎：loop、turn、recorder、context、policy、retry、tool-call、tool-part、outcome
 │       ├── hooks/            # middleware 契约与执行栈（生命周期 hook）
 │       ├── middleware/       # 内置中间件：compaction、budget、doom-loop、structured-output、view-image 等
 │       ├── agent/            # agent 模块：lead/、general/、shared/、registry、types
 │       ├── llm/              # Model 抽象 + providers（openai-compat 底座、dashscope）
 │       ├── tool/             # defineTool harness + 内置工具
-│       ├── session/          # 状态持久化：store/（ISessionStore + memory/file 实现）
+│       ├── session/          # Sessions 聚合（唯一写入者）+ SessionPersistence（memory/file）
 │       ├── runtime/          # bootstrap、context、events、logger、trace
 │       ├── skill/、plugin/   # runtime skill registry；plugin 契约与装配
 │       ├── module.ts         # corePlugin（通用 agents + tools）
@@ -32,7 +32,7 @@ packages/
 ├── backend/                  # 薄 HTTP/SSE 传输 + board 领域插件，别名 @backend
 │   └── src/{http,board,compose.ts,server.ts}
 ├── tui/                      # 交互式终端 UI（opentui/solid），别名 @tui
-└── contracts/                # 前后端共享 wire 类型（SSE StreamEvent），别名 @contracts
+└── contracts/                # 全链路共享词汇：数据模型 + StateEvent/LoopEvent + reducer，别名 @contracts
 apps/
 ├── cli/src/index.ts          # CLI 入口
 └── frontend/                 # Vite + React Web 客户端（import @agent-loop/contracts）
@@ -41,15 +41,15 @@ apps/
 ## 主执行链路
 
 1. `apps/cli/src/index.ts` 解析参数，选择 CLI 或 TUI；`runPrompt()`（`@harness` 出口）发起一次 session。
-2. `runtime/context.ts` 通过 `config.ts` 解析配置，组装 `RuntimeContext`（session_store、registries、events）。
+2. `runtime/context.ts` 通过 `config.ts` 解析配置，组装 `RuntimeContext`（sessions、registries、events）。
 3. `runtime/bootstrap.ts` 装配 runtime plugins，注册 agents / tools / skills。
 4. `core/loop.ts` 的 `runSession` 追加 user message，进入 `runLoop`。
 5. 每一步（一个 turn）按生命周期推进：
    `beforeTurn` → `contributeSystem` → `transformMessages` → `runTurn`（stream + 工具派发 + `onTurnFinish`）→ `resolveOutcome`。
-6. `core/turn.ts` 调用 `ctx.model.stream()`（带 retry），把 text/reasoning/tool-call 写回 session。
+6. `core/turn.ts` 调用 `ctx.model.stream()`（带 retry），经 `TurnRecorder` 把 text/reasoning/tool-call 写进 Sessions（状态事件随写入自动发出）。
 7. 工具经 `tool/tool.ts` 的 `defineTool` 统一校验/执行/归一化；`task` 创建 child session 并递归回 `runSession`。
 8. middleware 塑形结果：compaction 在 `beforeTurn` 压缩超长上下文，budget/doom-loop 等收口 outcome。
-9. `runtime/events` 广播事件，由 `runtime/logger.ts`（CLI）或 `tui/app.tsx`（TUI）订阅渲染。
+9. `runtime/events` 分 state/loop 两通道广播，由 `runtime/logger.ts`（CLI）或 `tui/app.tsx`（TUI）订阅渲染。
 
 > 主链路的完整生命周期注释以 `core/loop.ts` 顶部为准。
 
@@ -72,5 +72,5 @@ apps/
 
 - `config.ts` 只做配置解析与校验，不创建运行时对象。
 - `runtime/context.ts` 是运行时依赖的唯一组合根。
-- `session/store/` 只提供接口、实现与工厂；不在其中维护启动型单例。
+- `session/` 中 `Sessions` 是状态唯一写入者；持久化后端只实现 read/persist/list 三方法，不维护启动型单例。
 - 新的跨模块运行时依赖优先挂到 `RuntimeContext`，避免扩散隐式全局状态。

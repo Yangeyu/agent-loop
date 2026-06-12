@@ -10,7 +10,7 @@ export {
   runPrompt,
 } from "@harness/runtime/bootstrap"
 export type { RuntimeContext, RuntimeDeps } from "@harness/runtime/context"
-export type { RuntimeEvent } from "@harness/runtime/events"
+export type { EventChannel, RuntimeEventBus } from "@harness/runtime/events"
 export { attachConsoleLogger } from "@harness/runtime/logger"
 export type { OutputMode } from "@harness/runtime/logger"
 
@@ -52,8 +52,9 @@ export type {
   FinishDecision,
 } from "@harness/hooks/types"
 
-// Session store
-export type { ISessionStore } from "@harness/session/store/types"
+// Sessions: the aggregate (single writer of session state) + persistence contract
+export { Sessions } from "@harness/session"
+export type { SessionPersistence } from "@harness/session"
 
 // Tools
 export { defineTool } from "@harness/tool/tool"

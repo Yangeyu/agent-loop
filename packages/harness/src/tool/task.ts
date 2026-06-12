@@ -1,6 +1,6 @@
 import { getDelegationDepthInfo, resolveSessionDepth } from "@harness/core/policy"
 import { runSession } from "@harness/core/loop"
-import type { ISessionStore } from "@harness/session/store"
+import type { Sessions } from "@harness/session"
 import { defineTool } from "@harness/tool/tool"
 import type {
   AssistantMessage,
@@ -108,17 +108,18 @@ function createTaskTool<P extends z.ZodTypeAny>(input: {
         throw new Error(`Agent ${args.subagent_type} is not available for task delegation`)
       }
 
-      const store = ctx.session_store
+      const sessions = ctx.sessions
       const depth = getDelegationDepthInfo({
-        store,
+        sessions,
         sessionID: ctx.sessionID,
         maxDepth: ctx.config.subagent_max_depth,
       })
 
       if (!depth.allowed) {
-        ctx.events.emit({
-          type: "budget-hit",
+        ctx.events.loop.emit({
+          type: "budget.hit",
           sessionID: ctx.sessionID,
+          rootID: sessions.get(ctx.sessionID).rootID,
           agent: ctx.agent,
           budget: "subagent_depth",
           detail: `Subagent depth limit reached at depth ${depth.nextDepth}`,
@@ -132,20 +133,21 @@ function createTaskTool<P extends z.ZodTypeAny>(input: {
         ? getChildSession({
             taskId: (args as TaskResumeArgs).task_id,
             parentSessionId: ctx.sessionID,
-            store,
+            sessions,
           })
         : createChildSession({
             parentSessionId: ctx.sessionID,
             description: args.description,
             agentName: agent.name,
-            store,
+            sessions,
           })
 
-      const childDepth = resolveSessionDepth(store, child.id)
+      const childDepth = resolveSessionDepth(sessions, child.id)
       if (childDepth > ctx.config.subagent_max_depth) {
-        ctx.events.emit({
-          type: "budget-hit",
+        ctx.events.loop.emit({
+          type: "budget.hit",
           sessionID: ctx.sessionID,
+          rootID: sessions.get(ctx.sessionID).rootID,
           agent: ctx.agent,
           budget: "subagent_depth",
           detail: `Subagent depth limit reached at depth ${childDepth}`,
@@ -172,7 +174,7 @@ function createTaskTool<P extends z.ZodTypeAny>(input: {
         config: ctx.config,
         agent_registry: ctx.agent_registry,
         skill_registry: ctx.skill_registry,
-        session_store: ctx.session_store,
+        sessions: ctx.sessions,
         tool_registry: ctx.tool_registry,
         events: ctx.events,
       }, {
@@ -183,7 +185,7 @@ function createTaskTool<P extends z.ZodTypeAny>(input: {
         abort: ctx.abort,
       })
 
-      const completedChild = store.get(child.id)
+      const completedChild = sessions.get(child.id)
 
       const lastAssistant = [...completedChild.messages].reverse().find((message) => message.role === "assistant") as
         | AssistantMessage
@@ -191,7 +193,7 @@ function createTaskTool<P extends z.ZodTypeAny>(input: {
       const result = extractTaskResult({
         childSessionId: completedChild.id,
         lastAssistant,
-        store,
+        sessions,
       })
 
       return {
@@ -218,16 +220,16 @@ function createTaskTool<P extends z.ZodTypeAny>(input: {
 function extractTaskResult(input: {
   childSessionId: string
   lastAssistant: AssistantMessage | undefined
-  store: ISessionStore
+  sessions: Sessions
 }) {
   const toolResult = input.lastAssistant
-    ? extractDeliverableFromToolParts(input.store.getParts(input.childSessionId, input.lastAssistant.id))
+    ? extractDeliverableFromToolParts(input.sessions.parts(input.childSessionId, input.lastAssistant.id))
     : undefined
   const finalText = input.lastAssistant
-    ? input.store.getMessageText(input.childSessionId, input.lastAssistant.id, { includeSynthetic: false }).trim()
+    ? input.sessions.messageText(input.childSessionId, input.lastAssistant.id, { includeSynthetic: false }).trim()
     : ""
   const synthesizedText = input.lastAssistant
-    ? input.store.getMessageText(input.childSessionId, input.lastAssistant.id).trim()
+    ? input.sessions.messageText(input.childSessionId, input.lastAssistant.id).trim()
     : ""
   const structuredText =
     input.lastAssistant?.structured !== undefined
@@ -237,7 +239,7 @@ function extractTaskResult(input: {
   return { text }
 }
 
-function extractDeliverableFromToolParts(parts: MessagePart[]) {
+function extractDeliverableFromToolParts(parts: readonly MessagePart[]) {
   for (let index = parts.length - 1; index >= 0; index -= 1) {
     const part = parts[index]
     if (!part || part.type !== "tool") continue
@@ -273,9 +275,9 @@ function formatTaskToolOutput(input: {
 function getChildSession(input: {
   taskId: string
   parentSessionId: string
-  store: ISessionStore
+  sessions: Sessions
 }) {
-  const session = input.store.get(input.taskId)
+  const session = input.sessions.get(input.taskId)
   if (session.parentID !== input.parentSessionId) {
     throw new Error(`Task ${input.taskId} does not belong to session ${input.parentSessionId}`)
   }
@@ -286,9 +288,9 @@ function createChildSession(input: {
   parentSessionId: string
   description: string
   agentName: string
-  store: ISessionStore
+  sessions: Sessions
 }) {
-  return input.store.create({
+  return input.sessions.create({
     parentID: input.parentSessionId,
     title: `${input.description} (@${input.agentName} subagent)`,
   })

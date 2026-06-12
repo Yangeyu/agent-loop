@@ -1,5 +1,5 @@
 import { z } from "zod"
-import type { SessionStoreConfig } from "@harness/session/store/factory"
+import type { SessionPersistenceConfig } from "@harness/session/persistence"
 
 const ConfigSchema = z.object({
   session_store: z.enum(["memory", "file"]).default("memory"),
@@ -16,7 +16,7 @@ const ConfigSchema = z.object({
   compaction_retain_ratio: z.coerce.number().gt(0).lt(1).default(0.5),
 })
 
-export type Config = z.infer<typeof ConfigSchema> & SessionStoreConfig
+export type Config = z.infer<typeof ConfigSchema> & SessionPersistenceConfig
 
 let cachedConfig: Config | undefined
 

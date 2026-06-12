@@ -1,8 +1,10 @@
 /// <reference types="bun" />
 
-// Enforces the monorepo dependency direction (see docs/monorepo-migration-plan.md):
-//   surfaces -> harness (one-way). The engine never depends on a surface, and the
-//   browser frontend never imports server/engine runtime code.
+// Enforces the monorepo dependency direction:
+//   contracts <- harness <- surfaces (one-way). Contracts is the pure shared
+//   leaf (data model + event vocabulary); the harness builds on it; surfaces
+//   build on the harness. The engine never depends on a surface, and the
+//   browser frontend only imports @agent-loop/contracts.
 import { Glob } from "bun"
 import { readFileSync } from "node:fs"
 
@@ -17,8 +19,8 @@ const rules: Rule[] = [
   {
     pkg: "harness",
     dir: "packages/harness/src",
-    forbid: /from\s+["']@(backend|tui|contracts)(\/|["'])/,
-    why: "harness is the engine: it must not depend on any surface (backend/tui) or contracts",
+    forbid: /from\s+["']@(backend|tui)(\/|["'])/,
+    why: "harness is the engine: it must not depend on any surface (backend/tui)",
   },
   {
     pkg: "contracts",

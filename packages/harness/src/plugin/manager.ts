@@ -24,7 +24,7 @@ function runtimeDepsFor(runtime: RuntimeContext) {
     config: runtime.config,
     agent_registry: runtime.agent_registry,
     skill_registry: runtime.skill_registry,
-    session_store: runtime.session_store,
+    sessions: runtime.sessions,
     tool_registry: runtime.tool_registry,
     events: runtime.events,
   }

@@ -6,7 +6,7 @@ import type {
   BoardAnalysisContext,
   BoardAnalysisDatasetSummary,
 } from "@backend/board/types"
-import { createID, type ISessionStore } from "@harness"
+import { createID } from "@harness"
 
 export const BOARD_ANALYSIS_STORE_DIR = resolve(process.cwd(), "data", "board-analysis-store")
 
@@ -21,7 +21,6 @@ type StoredBoardAnalysisDataset = {
 const datasetCache = new Map<string, StoredBoardAnalysisDataset>()
 
 export function createBoardAnalysisDataset(input: {
-  store: ISessionStore
   sessionId: string
   context: BoardAnalysisContext
 }) {
@@ -38,7 +37,6 @@ export function createBoardAnalysisDataset(input: {
 }
 
 export function getBoardAnalysisDataset(input: {
-  store: ISessionStore
   analysisId: string
 }) {
   const dataset = loadBoardAnalysisDataset(input.analysisId)
@@ -75,12 +73,10 @@ export function summarizeBoardAnalysisDataset(dataset: StoredBoardAnalysisDatase
 }
 
 export function readBoardAnalysisBundle(input: {
-  store: ISessionStore
   analysisId: string
   bundleType: BoardAnalysisBundleType
 }) {
   const dataset = getBoardAnalysisDataset({
-    store: input.store,
     analysisId: input.analysisId,
   })
 
@@ -93,7 +89,6 @@ export function readBoardAnalysisBundle(input: {
 }
 
 export function upsertBoardAnalysisAsset(input: {
-  store: ISessionStore
   analysisId: string
   name: string
   content: string
@@ -101,7 +96,6 @@ export function upsertBoardAnalysisAsset(input: {
   sourceBundleTypes: BoardAnalysisBundleType[]
 }) {
   const dataset = getBoardAnalysisDataset({
-    store: input.store,
     analysisId: input.analysisId,
   })
   const now = new Date().toISOString()
@@ -135,12 +129,10 @@ export function getBoardAnalysisDatasetJsonPath(analysisId: string) {
 }
 
 export function readBoardAnalysisAssets(input: {
-  store: ISessionStore
   analysisId: string
   names?: string[]
 }) {
   const dataset = getBoardAnalysisDataset({
-    store: input.store,
     analysisId: input.analysisId,
   })
   const wanted = input.names ? new Set(input.names) : undefined

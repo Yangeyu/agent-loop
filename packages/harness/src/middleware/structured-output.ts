@@ -23,9 +23,9 @@ export const structuredOutput: MiddlewareFactory = () => ({
   },
 
   resolveOutcome(ctx, outcome) {
-    const assistant = ctx.session_store
+    const assistant = ctx.sessions
       .get(ctx.sessionID)
-      .messages.find((message) => message.id === ctx.turnID) as AssistantMessage | undefined
+      .messages.find((message): message is AssistantMessage => message.id === ctx.messageID && message.role === "assistant")
     if (assistant?.structured !== undefined) {
       return { kind: "break", reason: "structured_output" }
     }

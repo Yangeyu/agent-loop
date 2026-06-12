@@ -1,45 +1,50 @@
 /**
  * runTurn: a single model turn. Wraps the stream in retry, accumulates output
- * via StreamSink, dispatches tool calls, and finalizes via the onTurnFinish hook.
+ * through the TurnRecorder, dispatches tool calls, and finalizes via the
+ * onTurnFinish hook. Aborts and stream failures are absorbed into the recorder
+ * (its terminal transition) so the loop can decide what to do next.
  */
 import type { TurnContext } from "@harness/core/context"
+import type { TurnRecorder } from "@harness/core/recorder"
 import { dispatchToolCall } from "@harness/core/tool-call"
-import { StreamSink } from "@harness/core/stream-sink"
 import type { MiddlewareStack } from "@harness/hooks/stack"
-import type { LLMInput } from "@harness/llm/types"
+import type { LLMInput, ModelMessage } from "@harness/llm/types"
 import { classifyRetry, isAbortError, retry, retryDelay, toErrorInfo } from "@harness/core/retry"
 import type { FinishReason } from "@harness/types"
 
+/** The assembled model input for one turn: system fragments + transformed messages. */
+export type TurnInput = {
+  system: string[]
+  messages: ModelMessage[]
+}
+
 /**
- * Runs one model turn: streams (with retry) into the StreamSink, dispatching tool
- * calls and finalizing on finish. Aborts and stream failures are absorbed into the
- * sink so the loop can decide what to do next.
+ * Runs one model turn: streams (with retry) into the recorder, dispatching tool
+ * calls and finalizing on finish.
  *
- * @param ctx - the turn context (model caller, policy, session ids, abort)
+ * @param ctx - the immutable turn context
  * @param stack - the agent's middleware stack, for the per-turn hooks
+ * @param recorder - the turn recorder owning accumulation and terminal state
+ * @param input - the assembled system fragments and model messages
  * @returns whether the turn issued at least one tool call
  */
-export async function runTurn(ctx: TurnContext, stack: MiddlewareStack): Promise<{ sawToolCall: boolean }> {
-  const sink = new StreamSink(ctx)
-  sink.start()
-
+export async function runTurn(
+  ctx: TurnContext,
+  stack: MiddlewareStack,
+  recorder: TurnRecorder,
+  input: TurnInput,
+): Promise<{ sawToolCall: boolean }> {
   try {
     const result = await retry({
       abort: ctx.abort,
       maxRetries: ctx.policy.retry.maxRetries,
       shouldRetry(error: unknown) {
-        return classifyRetry(error).retryable && ctx.retryCount < ctx.policy.retry.maxRetries
+        return classifyRetry(error).retryable && recorder.retries < ctx.policy.retry.maxRetries
       },
       getDelay: (attempt) => retryDelay(attempt, ctx.policy.retry),
       onRetry(error: unknown, attempt: number) {
-        ctx.retryCount += 1
         const info = classifyRetry(error)
-        ctx.events.emit({
-          type: "retry",
-          sessionID: ctx.sessionID,
-          agent: ctx.agent.name,
-          messageID: ctx.assistant.parentID,
-          turnID: ctx.assistant.id,
+        recorder.recordRetry({
           attempt,
           delayMs: retryDelay(attempt, ctx.policy.retry),
           category: info.category,
@@ -47,16 +52,16 @@ export async function runTurn(ctx: TurnContext, stack: MiddlewareStack): Promise
           error: error instanceof Error ? error.message : String(error),
         })
       },
-      run: () => runStreamOnce(ctx, stack, sink),
+      run: () => runStreamOnce(ctx, stack, recorder, input),
     })
 
     return { sawToolCall: result.kind === "completed" ? result.sawToolCall : false }
   } catch (error) {
     if (isAbortError(error)) {
-      sink.abort()
+      recorder.abort()
       return { sawToolCall: false }
     }
-    sink.fail(toErrorInfo(error, classifyRetry(error).retryable))
+    recorder.fail(toErrorInfo(error, classifyRetry(error).retryable))
     return { sawToolCall: false }
   }
 }
@@ -64,55 +69,61 @@ export async function runTurn(ctx: TurnContext, stack: MiddlewareStack): Promise
 async function runStreamOnce(
   ctx: TurnContext,
   stack: MiddlewareStack,
-  sink: StreamSink,
+  recorder: TurnRecorder,
+  input: TurnInput,
 ): Promise<{ kind: "completed"; sawToolCall: boolean } | { kind: "stop" }> {
   let sawToolCall = false
-  const stream = ctx.model.stream(buildLLMInput(ctx))
+  const stream = ctx.model.stream(buildLLMInput(ctx, input))
 
-  sink.enterPhase("streaming")
+  recorder.enterPhase("streaming")
 
   for await (const chunk of stream.fullStream) {
     ctx.abort.throwIfAborted()
 
     if (chunk.type === "tool-call") {
       sawToolCall = true
-      const dispatch = await dispatchToolCall(ctx, stack, sink, chunk)
+      const dispatch = await dispatchToolCall(ctx, stack, recorder, chunk)
       if (dispatch.kind === "stop") return { kind: "stop" }
-      sink.enterPhase("streaming")
+      recorder.enterPhase("streaming")
       continue
     }
 
     if (chunk.type === "error") throw chunk.error
     if (chunk.type === "reasoning") {
-      sink.appendReasoning(chunk.textDelta)
+      recorder.appendReasoning(chunk.textDelta)
       continue
     }
     if (chunk.type === "text-delta") {
-      sink.appendText(chunk.textDelta)
+      recorder.appendText(chunk.textDelta)
       continue
     }
     if (chunk.type === "finish") {
-      await finalizeTurn(ctx, stack, sink, chunk.finishReason as FinishReason)
+      await finalizeTurn(ctx, stack, recorder, chunk.finishReason as FinishReason)
     }
   }
 
   return { kind: "completed", sawToolCall }
 }
 
-async function finalizeTurn(ctx: TurnContext, stack: MiddlewareStack, sink: StreamSink, finishReason: FinishReason) {
-  const text = ctx.session_store.getMessageText(ctx.sessionID, ctx.assistant.id, { includeSynthetic: false })
+async function finalizeTurn(
+  ctx: TurnContext,
+  stack: MiddlewareStack,
+  recorder: TurnRecorder,
+  finishReason: FinishReason,
+) {
+  const text = ctx.sessions.messageText(ctx.sessionID, ctx.messageID, { includeSynthetic: false })
   const decision = await stack.onTurnFinish(ctx, { finishReason, text })
   if (!decision.ok) {
-    sink.fail(decision.error)
+    recorder.fail(decision.error)
     return
   }
-  sink.finish(finishReason, decision.structured)
+  recorder.finish(finishReason, decision.structured)
 }
 
-function buildLLMInput(ctx: TurnContext): LLMInput {
+function buildLLMInput(ctx: TurnContext, input: TurnInput): LLMInput {
   return {
-    system: ctx.system,
-    messages: ctx.messages,
+    system: input.system,
+    messages: input.messages,
     tools: ctx.tools,
     abort: ctx.abort,
   }

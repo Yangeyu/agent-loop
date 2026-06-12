@@ -56,8 +56,8 @@ describe("compaction middleware (integration)", () => {
     const { runtime, summarizerCalls } = await buildRuntime()
 
     const compactions: unknown[] = []
-    runtime.events.subscribe((event) => {
-      if (event.type === "compaction") compactions.push(event)
+    runtime.events.state.subscribe((event) => {
+      if (event.type === "history.replaced") compactions.push(event)
     })
 
     const first = await runPrompt({ runtime, agent: "lead", text: "first question" })
@@ -75,9 +75,9 @@ describe("compaction middleware (integration)", () => {
       compaction_retain_ratio: 0.5,
     })
 
-    const compactions: { summary: string }[] = []
-    runtime.events.subscribe((event) => {
-      if (event.type === "compaction") compactions.push(event)
+    const compactions: { parts: Record<string, readonly unknown[]> }[] = []
+    runtime.events.state.subscribe((event) => {
+      if (event.type === "history.replaced") compactions.push({ parts: event.parts })
     })
 
     const first = await runPrompt({ runtime, agent: "lead", text: "first question" })
@@ -92,9 +92,9 @@ describe("compaction middleware (integration)", () => {
     const boundaryParts = second.parts[boundary.id]
     expect(boundaryParts[0].type).toBe("compaction")
 
-    // A compaction event fired exactly once.
+    // A history.replaced state event fired exactly once, carrying the new state.
     expect(compactions).toHaveLength(1)
-    expect(compactions[0].summary.length).toBeGreaterThan(0)
+    expect(compactions[0].parts[boundary.id]?.[0]).toMatchObject({ type: "compaction" })
 
     // The summary ran on the dedicated summarizer model, not the main model.
     expect(summarizerCalls).toEqual(["qwen3.6-flash"])

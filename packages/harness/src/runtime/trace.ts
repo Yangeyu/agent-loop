@@ -1,10 +1,14 @@
-import type { RuntimeEvent, RuntimeEventBus } from "@harness/runtime/events"
-import type { TurnOutcomeReason } from "@harness/types"
+// RuntimeTrace: an in-memory debugging projection of the loop, keyed by turn
+// (assistant message id). Loop telemetry fills the turn skeleton; tool activity
+// is folded from the state channel's tool parts, with partID as the join key —
+// no heuristic "last pending call" matching.
+import type { RuntimeEventBus } from "@harness/runtime/events"
+import type { BudgetKind, RetryCategory, ToolPart, TurnOutcomeReason } from "@harness/types"
 
 export type ToolCallTrace = {
   tool: string
   args?: unknown
-  status: "pending" | "completed" | "error"
+  status: "running" | "completed" | "error"
   output?: string
   error?: string
 }
@@ -12,13 +16,13 @@ export type ToolCallTrace = {
 export type RetryTrace = {
   attempt: number
   delayMs: number
-  category: "abort" | "timeout" | "network" | "availability" | "rate_limit" | "unknown"
+  category: RetryCategory
   reason?: string
   error: string
 }
 
 export type BudgetHitTrace = {
-  budget: "session_steps" | "agent_steps" | "subagent_depth" | "tool_calls" | "tool_failures"
+  budget: BudgetKind
   detail: string
   limit: number
   used?: number
@@ -28,7 +32,6 @@ export type TurnTrace = {
   sessionID: string
   agent: string
   messageID: string
-  turnID: string
   step: number
   system?: string[]
   tools?: string[]
@@ -37,7 +40,7 @@ export type TurnTrace = {
   retries: RetryTrace[]
   budgetHits: BudgetHitTrace[]
   outcome?: {
-    kind: "continue" | "compact" | "break"
+    kind: "continue" | "break"
     reason: TurnOutcomeReason
   }
   finishReason?: string
@@ -54,76 +57,40 @@ export type RuntimeTrace = {
 export function createRuntimeTrace(events: RuntimeEventBus): RuntimeTrace {
   const turns = new Map<string, TurnTrace>()
   const order: string[] = []
-  const activeBySessionAgent = new Map<string, string>()
+  // partID -> its tool trace entry; partID -> owning turn resolves via messageID.
+  const toolTraces = new Map<string, ToolCallTrace>()
+  // budget.hit carries no messageID; attribute it to the session's latest turn.
+  const lastTurnBySession = new Map<string, string>()
 
-  events.subscribe((event) => {
-    if (event.type === "turn-start") {
-      const key = toTurnKey(event.sessionID, event.turnID)
-      if (!turns.has(key)) {
-        turns.set(key, {
-          sessionID: event.sessionID,
-          agent: event.agent,
-          messageID: event.messageID,
-          turnID: event.turnID,
-          step: event.step,
-          toolCalls: [],
-          retries: [],
-          budgetHits: [],
-        })
-        order.push(key)
-      }
-      activeBySessionAgent.set(toSessionAgentKey(event.sessionID, event.agent), key)
+  const getTurn = (messageID: string) => turns.get(messageID)
+
+  events.loop.subscribe((event) => {
+    if (event.type === "turn.start") {
+      turns.set(event.messageID, {
+        sessionID: event.sessionID,
+        agent: event.agent,
+        messageID: event.messageID,
+        step: event.step,
+        toolCalls: [],
+        retries: [],
+        budgetHits: [],
+      })
+      order.push(event.messageID)
+      lastTurnBySession.set(event.sessionID, event.messageID)
       return
     }
 
-    if (event.type === "turn-input") {
-      const turn = getOrCreateTurn(turns, order, event.sessionID, event.agent, event.messageID, event.turnID, event.step)
+    if (event.type === "turn.input") {
+      const turn = getTurn(event.messageID)
+      if (!turn) return
       turn.system = [...event.system]
       turn.tools = [...event.tools]
       turn.messageCount = event.messageCount
       return
     }
 
-    if (event.type === "tool-call") {
-      const turn = getActiveTurn(turns, activeBySessionAgent, event.sessionID, event.agent)
-      if (!turn) return
-      turn.toolCalls.push({
-        tool: event.tool,
-        args: event.args,
-        status: "pending",
-      })
-      return
-    }
-
-    if (event.type === "tool-result") {
-      const turn = getActiveTurn(turns, activeBySessionAgent, event.sessionID, event.agent)
-      if (!turn) return
-      const call = findLastPendingToolCall(turn, event.tool)
-      if (call) {
-        call.status = "completed"
-        call.output = event.output
-        return
-      }
-      turn.toolCalls.push({ tool: event.tool, status: "completed", output: event.output })
-      return
-    }
-
-    if (event.type === "tool-error") {
-      const turn = getActiveTurn(turns, activeBySessionAgent, event.sessionID, event.agent)
-      if (!turn) return
-      const call = findLastPendingToolCall(turn, event.tool)
-      if (call) {
-        call.status = "error"
-        call.error = event.error
-        return
-      }
-      turn.toolCalls.push({ tool: event.tool, status: "error", error: event.error })
-      return
-    }
-
-    if (event.type === "retry") {
-      const turn = getOrCreateTurn(turns, order, event.sessionID, event.agent, event.messageID, event.turnID)
-      turn.retries.push({
+    if (event.type === "turn.retry") {
+      getTurn(event.messageID)?.retries.push({
         attempt: event.attempt,
         delayMs: event.delayMs,
         category: event.category,
@@ -133,10 +100,10 @@ export function createRuntimeTrace(events: RuntimeEventBus): RuntimeTrace {
       return
     }
 
-    if (event.type === "budget-hit") {
-      const turn = getActiveTurn(turns, activeBySessionAgent, event.sessionID, event.agent)
-      if (!turn) return
-      turn.budgetHits.push({
+    if (event.type === "budget.hit") {
+      const messageID = lastTurnBySession.get(event.sessionID)
+      const turn = messageID ? getTurn(messageID) : undefined
+      turn?.budgetHits.push({
         budget: event.budget,
         detail: event.detail,
         limit: event.limit,
@@ -145,42 +112,41 @@ export function createRuntimeTrace(events: RuntimeEventBus): RuntimeTrace {
       return
     }
 
-    if (event.type === "turn-outcome") {
-      const turn = getOrCreateTurn(turns, order, event.sessionID, event.agent, event.messageID, event.turnID, event.step)
-      turn.outcome = {
-        kind: event.outcome,
-        reason: event.reason,
+    if (event.type === "turn.outcome") {
+      const turn = getTurn(event.messageID)
+      if (!turn) return
+      turn.outcome = { kind: event.outcome, reason: event.reason }
+      return
+    }
+
+    if (event.type === "turn.end") {
+      const turn = getTurn(event.messageID)
+      if (!turn) return
+      turn.durationMs = event.durationMs
+      if (event.reason === "abort") turn.aborted = true
+      if (event.reason === "error") turn.error = event.error
+      if (event.finishReason) turn.finishReason = event.finishReason
+    }
+  })
+
+  events.state.subscribe((event) => {
+    if (event.type === "part.created" && event.part.type === "tool") {
+      const turn = getTurn(event.messageID)
+      if (!turn) return
+      const trace: ToolCallTrace = {
+        tool: event.part.toolName,
+        args: event.part.state.input,
+        status: "running",
       }
+      toolTraces.set(event.part.id, trace)
+      turn.toolCalls.push(trace)
       return
     }
 
-    if (event.type === "finish") {
-      const turn = getActiveTurn(turns, activeBySessionAgent, event.sessionID, event.agent)
-      if (!turn) return
-      turn.finishReason = event.finishReason
-      return
-    }
-
-    if (event.type === "turn-complete") {
-      const turn = getOrCreateTurn(turns, order, event.sessionID, event.agent, event.messageID, event.turnID)
-      turn.finishReason = event.finishReason
-      turn.durationMs = event.durationMs
-      activeBySessionAgent.delete(toSessionAgentKey(event.sessionID, event.agent))
-      return
-    }
-
-    if (event.type === "turn-abort") {
-      const turn = getOrCreateTurn(turns, order, event.sessionID, event.agent, event.messageID, event.turnID)
-      turn.aborted = true
-      turn.durationMs = event.durationMs
-      activeBySessionAgent.delete(toSessionAgentKey(event.sessionID, event.agent))
-      return
-    }
-
-    if (event.type === "error") {
-      const turn = getActiveTurn(turns, activeBySessionAgent, event.sessionID, event.agent)
-      if (!turn) return
-      turn.error = event.error
+    if (event.type === "part.updated" && event.part.type === "tool") {
+      const trace = toolTraces.get(event.part.id)
+      if (!trace) return
+      applyToolState(trace, event.part)
     }
   })
 
@@ -201,63 +167,19 @@ export function createRuntimeTrace(events: RuntimeEventBus): RuntimeTrace {
   }
 }
 
-function toTurnKey(sessionID: string, turnID: string) {
-  return `${sessionID}:${turnID}`
-}
-
-function toSessionAgentKey(sessionID: string, agent: string) {
-  return `${sessionID}:${agent}`
-}
-
-function getActiveTurn(
-  turns: Map<string, TurnTrace>,
-  activeBySessionAgent: Map<string, string>,
-  sessionID: string,
-  agent: string,
-) {
-  const key = activeBySessionAgent.get(toSessionAgentKey(sessionID, agent))
-  if (!key) return undefined
-  return turns.get(key)
-}
-
-function getOrCreateTurn(
-  turns: Map<string, TurnTrace>,
-  order: string[],
-  sessionID: string,
-  agent: string,
-  messageID: string,
-  turnID: string,
-  step?: number,
-) {
-  const key = toTurnKey(sessionID, turnID)
-  const existing = turns.get(key)
-  if (existing) {
-    if (step !== undefined) existing.step = step
-    return existing
+function applyToolState(trace: ToolCallTrace, part: ToolPart) {
+  trace.args = part.state.input
+  if (part.state.status === "completed") {
+    trace.status = "completed"
+    trace.output = part.state.output
+    return
   }
-
-  const created: TurnTrace = {
-    sessionID,
-    agent,
-    messageID,
-    turnID,
-    step: step ?? 0,
-    toolCalls: [],
-    retries: [],
-    budgetHits: [],
+  if (part.state.status === "error") {
+    trace.status = "error"
+    trace.error = part.state.error.message
+    return
   }
-  turns.set(key, created)
-  order.push(key)
-  return created
-}
-
-function findLastPendingToolCall(turn: TurnTrace, tool: string) {
-  for (let index = turn.toolCalls.length - 1; index >= 0; index -= 1) {
-    const call = turn.toolCalls[index]
-    if (call.tool === tool && call.status === "pending") return call
-  }
-
-  return undefined
+  trace.status = "running"
 }
 
 function cloneTurnTrace(turn: TurnTrace): TurnTrace {

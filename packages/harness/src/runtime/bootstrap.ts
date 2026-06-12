@@ -40,8 +40,8 @@ export async function runPrompt(options: {
 }) {
   const { runtime } = options
   const session = options.sessionID
-    ? runtime.session_store.get(options.sessionID)
-    : runtime.session_store.create({ title: "CLI session" })
+    ? runtime.sessions.get(options.sessionID)
+    : runtime.sessions.create({ title: "CLI session" })
 
   await runSession(runtime, {
     sessionID: session.id,
@@ -52,7 +52,7 @@ export async function runPrompt(options: {
     abort: options.abort,
   })
 
-  const current = runtime.session_store.get(session.id)
+  const current = runtime.sessions.get(session.id)
   if (options.printSessionJson) {
     console.log(JSON.stringify(current, null, 2))
   }

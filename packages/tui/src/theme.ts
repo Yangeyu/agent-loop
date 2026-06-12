@@ -106,24 +106,3 @@ export function asRecord(value: unknown) {
   if (!value || typeof value !== "object") return undefined
   return value as Record<string, unknown>
 }
-
-export function belongsToSessionTree(
-  store: RuntimeContext["session_store"],
-  sessionID: string,
-  rootSessionID: string | undefined,
-) {
-  if (!rootSessionID) return true
-
-  let current: string | undefined = sessionID
-  while (current) {
-    if (current === rootSessionID) return true
-    try {
-      const session = store.get(current)
-      current = session?.parentID
-    } catch {
-      break
-    }
-  }
-
-  return false
-}

@@ -13,11 +13,14 @@
 
 ## 数据流
 
-- 浏览器 `fetch` + SSE 解析消费 `POST /api/chat`，逐帧消费 `StreamEvent`（协议见 `contracts.md`）。
-- 每次用户提交只渲染**一条** assistant 消息，把该请求内多个 turn 折叠进去。
+- 浏览器 `fetch` + SSE 解析消费 `POST /api/chat`，逐帧消费 `StreamEvent`（`state` / `loop` /
+  `done` / `error`，协议见 `contracts.md`）。
+- 内容全部来自 `state` 帧（与 harness 存储同一词汇）：`message.created` 开 turn、`part.delta`
+  累积 reasoning/text、tool part 快照驱动工具卡片；`loop` 帧只用于 sessionID 等元信息。
+- 每次用户提交只渲染**一条** assistant 消息，把该请求内多个 turn（= assistant message）折叠进去。
 - 消息内部按输出顺序交错两类区块：`CoT` 承载 reasoning / tool / subagent 轨迹，`build answer` 承载正文；
-  `CoT` 按 task / session 聚合，delegated task 优先用 `task.description` 作标题。
-- 用 `messageID`（整次回复）/ `turnID`（回复内 step）区分层级。
+  `CoT` 按 session 聚合，delegated task 优先用 `task.description` 作标题。
+- turn 的标识就是 assistant message 的 id（没有独立 turnID 概念）。
 - 默认开发地址 `http://localhost:5173`，后端默认 `http://localhost:4444`，可用 `VITE_API_BASE_URL` 覆盖。
 
 ## 扩展点

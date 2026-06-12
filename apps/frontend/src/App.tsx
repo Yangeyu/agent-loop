@@ -4,6 +4,7 @@ import { fetchArtifactContent } from "./lib/files"
 import { AssistantMessage } from "./components/AssistantMessage"
 import { DetailDrawer } from "./components/DetailDrawer"
 import { Header } from "./components/Header"
+import { toToolCallState } from "./types"
 import type {
   ArtifactFile,
   AssistantBubble,
@@ -11,6 +12,7 @@ import type {
   AssistantTurn,
   ChatBubble,
   DetailState,
+  StateEvent,
   StreamEvent,
   ToolCallState,
   UserBubble,
@@ -32,7 +34,6 @@ function createAssistantBubble(id: string): AssistantBubble {
     id,
     role: "assistant",
     sessionID: "",
-    messageID: undefined,
     agent: DEFAULT_AGENT,
     turns: [],
     blocks: [],
@@ -122,6 +123,9 @@ function patchAssistant(
   })
 }
 
+// Folds one SSE frame into the transcript. State frames carry the canonical
+// session content (the same vocabulary the harness stores); the fold here only
+// arranges that content into the bubble view-model — it never reinterprets it.
 function applyStreamEvent(
   bubbles: ChatBubble[],
   assistantID: string,
@@ -131,30 +135,7 @@ function applyStreamEvent(
     setError: React.Dispatch<React.SetStateAction<string>>
   },
 ) {
-  if (event.event === "session-metadata") {
-    setters.setSessionID(event.data.sessionID)
-    return bubbles
-  }
-
-  if (event.event === "message-metadata") {
-    return patchAssistant(bubbles, assistantID, (bubble) => ({
-      ...bubble,
-      sessionID: bubble.sessionID || event.data.sessionID,
-      messageID: bubble.messageID ?? event.data.messageID,
-      agent: bubble.turns.length === 0 ? event.data.agent : bubble.agent,
-      turns: upsertTurn(bubble.turns, {
-        sessionID: event.data.sessionID,
-        messageID: event.data.messageID,
-        turnID: event.data.turnID,
-        agent: event.data.agent,
-        reasoning: "",
-        text: "",
-        toolCalls: [],
-      }),
-    }))
-  }
-
-  if (event.event === "error" && !event.data.messageID) {
+  if (event.event === "error") {
     setters.setError(event.data.error)
     return patchAssistant(bubbles, assistantID, (bubble) => ({
       ...bubble,
@@ -162,168 +143,138 @@ function applyStreamEvent(
     }))
   }
 
-  if (
-    event.event !== "reasoning-delta" &&
-    event.event !== "text-start" &&
-    event.event !== "text-delta" &&
-    event.event !== "tool-call" &&
-    event.event !== "tool-result" &&
-    event.event !== "finish" &&
-    event.event !== "error"
-  ) {
+  if (event.event === "loop") {
+    const data = event.data
+    if (data.type === "session.start" && data.sessionID === data.rootID) {
+      setters.setSessionID(data.sessionID)
+      return patchAssistant(bubbles, assistantID, (bubble) => ({
+        ...bubble,
+        sessionID: bubble.sessionID || data.sessionID,
+      }))
+    }
     return bubbles
   }
 
-  if (event.event === "error") {
-    const turnID = event.data.turnID
+  if (event.event !== "state") return bubbles
+  return applyStateFrame(bubbles, assistantID, event.data)
+}
 
-    if (!turnID) {
-      return patchAssistant(bubbles, assistantID, (bubble) => ({
-        ...bubble,
-        errored: event.data.error,
-      }))
-    }
+function applyStateFrame(bubbles: ChatBubble[], assistantID: string, data: StateEvent) {
+  if (data.type === "message.created" && data.message.role === "assistant") {
+    const message = data.message
+    return patchAssistant(bubbles, assistantID, (bubble) => ({
+      ...bubble,
+      agent: bubble.turns.length === 0 ? message.agent : bubble.agent,
+      turns: upsertTurn(bubble.turns, {
+        sessionID: data.sessionID,
+        turnID: message.id,
+        agent: message.agent,
+        reasoning: "",
+        text: "",
+        toolCalls: [],
+      }),
+    }))
+  }
 
+  if (data.type === "message.updated" && data.message.role === "assistant") {
+    const message = data.message
     return patchAssistant(bubbles, assistantID, (bubble) => {
-      const turns = bubble.turns.some((turn) => turn.turnID === turnID)
-        ? bubble.turns
-        : [...bubble.turns, {
-            sessionID: event.data.sessionID,
-            messageID: event.data.messageID ?? bubble.messageID ?? "",
-            turnID,
-            agent: bubble.agent,
-            reasoning: "",
-            text: "",
-            toolCalls: [],
-          }]
-
+      if (!bubble.turns.some((turn) => turn.turnID === message.id)) return bubble
       return {
         ...bubble,
-        messageID: bubble.messageID ?? event.data.messageID,
-        turns: patchTurn(turns, turnID, (turn) => ({
+        turns: patchTurn(bubble.turns, message.id, (turn) => ({
           ...turn,
-          errored: event.data.error,
+          finishReason: message.finish ?? turn.finishReason,
+          errored: message.error?.message ?? turn.errored,
         })),
-        blocks: appendCoTBlock(bubble.blocks, {
-          sessionID: turns.find((turn) => turn.turnID === turnID)?.sessionID ?? bubble.sessionID,
-          turnID,
-        }),
-        errored: event.data.error,
+        finishReason: message.finish ?? bubble.finishReason,
+        errored: message.error?.message ?? bubble.errored,
       }
     })
   }
 
-  return patchAssistant(bubbles, assistantID, (bubble) => {
-    const turnID = event.data.turnID
-    const fallbackTurn: AssistantTurn = {
-      sessionID: event.data.sessionID,
-      messageID: event.data.messageID,
-      turnID,
-      agent: bubble.agent,
-      reasoning: "",
-      text: "",
-      toolCalls: [],
-    }
-    const turns = bubble.turns.some((turn) => turn.turnID === turnID)
-      ? bubble.turns
-      : [...bubble.turns, fallbackTurn]
+  if (data.type === "part.created") {
+    const part = data.part
+    return patchAssistant(bubbles, assistantID, (bubble) => {
+      const turn = bubble.turns.find((item) => item.turnID === data.messageID)
+      if (!turn) return bubble
 
-    if (event.event === "reasoning-delta") {
-      return {
-        ...bubble,
-        messageID: bubble.messageID ?? event.data.messageID,
-        turns: patchTurn(turns, turnID, (turn) => ({
-          ...turn,
-          reasoning: turn.reasoning + event.data.delta,
-        })),
-        blocks: appendCoTBlock(bubble.blocks, {
-          sessionID: turns.find((turn) => turn.turnID === turnID)?.sessionID ?? bubble.sessionID,
-          turnID,
-        }),
+      if (part.type === "reasoning" || part.type === "text") {
+        const isAnswer = part.type === "text"
+        return {
+          ...bubble,
+          turns: patchTurn(bubble.turns, turn.turnID, (item) =>
+            isAnswer
+              ? { ...item, text: item.text + part.text }
+              : { ...item, reasoning: item.reasoning + part.text },
+          ),
+          blocks: isAnswer
+            ? appendAnswerBlock(bubble.blocks, turn.turnID)
+            : appendCoTBlock(bubble.blocks, turn),
+        }
       }
-    }
 
-    if (event.event === "text-start") {
-      return {
-        ...bubble,
-        messageID: bubble.messageID ?? event.data.messageID,
-        turns,
-        blocks: appendAnswerBlock(bubble.blocks, turnID),
+      if (part.type === "tool") {
+        const toolCall = toToolCallState(part)
+        const titlePatch = readTaskTitle(toolCall)
+        return {
+          ...bubble,
+          turns: patchTurn(bubble.turns, turn.turnID, (item) => ({
+            ...item,
+            toolCalls: upsertToolCall(item.toolCalls, toolCall),
+          })),
+          blocks: appendCoTBlock(bubble.blocks, turn),
+          taskTitles: titlePatch
+            ? { ...bubble.taskTitles, [titlePatch.sessionID]: titlePatch.title }
+            : bubble.taskTitles,
+        }
       }
-    }
 
-    if (event.event === "text-delta") {
+      return bubble
+    })
+  }
+
+  if (data.type === "part.delta") {
+    return patchAssistant(bubbles, assistantID, (bubble) => {
+      const turn = bubble.turns.find((item) => item.turnID === data.messageID)
+      if (!turn) return bubble
+
+      const isAnswer = data.partType === "text"
       return {
         ...bubble,
-        messageID: bubble.messageID ?? event.data.messageID,
-        turns: patchTurn(turns, turnID, (turn) => ({
-          ...turn,
-          text: turn.text + event.data.delta,
-        })),
-        blocks: appendAnswerBlock(bubble.blocks, turnID),
+        turns: patchTurn(bubble.turns, turn.turnID, (item) =>
+          isAnswer
+            ? { ...item, text: item.text + data.delta }
+            : { ...item, reasoning: item.reasoning + data.delta },
+        ),
+        blocks: isAnswer
+          ? appendAnswerBlock(bubble.blocks, turn.turnID)
+          : appendCoTBlock(bubble.blocks, turn),
       }
-    }
+    })
+  }
 
-    if (event.event === "tool-call") {
-      const titlePatch = readTaskTitle(event.data.toolCall)
-
+  if (data.type === "part.updated" && data.part.type === "tool") {
+    const toolCall = toToolCallState(data.part)
+    const titlePatch = readTaskTitle(toolCall)
+    return patchAssistant(bubbles, assistantID, (bubble) => {
+      const turn = bubble.turns.find((item) => item.turnID === data.messageID)
+      if (!turn) return bubble
       return {
         ...bubble,
-        messageID: bubble.messageID ?? event.data.messageID,
-        turns: patchTurn(turns, turnID, (turn) => ({
-          ...turn,
-          toolCalls: upsertToolCall(turn.toolCalls, event.data.toolCall),
+        turns: patchTurn(bubble.turns, turn.turnID, (item) => ({
+          ...item,
+          toolCalls: upsertToolCall(item.toolCalls, toolCall),
         })),
-        blocks: appendCoTBlock(bubble.blocks, {
-          sessionID: turns.find((turn) => turn.turnID === turnID)?.sessionID ?? bubble.sessionID,
-          turnID,
-        }),
+        blocks: appendCoTBlock(bubble.blocks, turn),
         taskTitles: titlePatch
-          ? {
-              ...bubble.taskTitles,
-              [titlePatch.sessionID]: titlePatch.title,
-            }
+          ? { ...bubble.taskTitles, [titlePatch.sessionID]: titlePatch.title }
           : bubble.taskTitles,
       }
-    }
+    })
+  }
 
-    if (event.event === "tool-result") {
-      const titlePatch = readTaskTitle(event.data.toolResult)
-
-      return {
-        ...bubble,
-        messageID: bubble.messageID ?? event.data.messageID,
-        turns: patchTurn(turns, turnID, (turn) => ({
-          ...turn,
-          toolCalls: upsertToolCall(turn.toolCalls, event.data.toolResult),
-        })),
-        blocks: appendCoTBlock(bubble.blocks, {
-          sessionID: turns.find((turn) => turn.turnID === turnID)?.sessionID ?? bubble.sessionID,
-          turnID,
-        }),
-        taskTitles: titlePatch
-          ? {
-              ...bubble.taskTitles,
-              [titlePatch.sessionID]: titlePatch.title,
-            }
-          : bubble.taskTitles,
-      }
-    }
-
-    if (event.event === "finish") {
-      return {
-        ...bubble,
-        messageID: bubble.messageID ?? event.data.messageID,
-        turns: patchTurn(turns, turnID, (turn) => ({
-          ...turn,
-          finishReason: event.data.finishReason,
-        })),
-        finishReason: event.data.finishReason,
-      }
-    }
-
-    return bubble
-  })
+  return bubbles
 }
 
 export default function App() {

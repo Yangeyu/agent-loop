@@ -50,7 +50,6 @@ export const BoardAnalysisContextTool = defineTool({
       },
     })
     const dataset = createBoardAnalysisDataset({
-      store: ctx.session_store,
       sessionId: ctx.sessionID,
       context: analysis,
     })

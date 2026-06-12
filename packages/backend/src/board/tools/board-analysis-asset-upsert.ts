@@ -19,7 +19,6 @@ export const BoardAnalysisAssetUpsertTool = defineTool({
   },
   async execute(args, ctx) {
     const asset = upsertBoardAnalysisAsset({
-      store: ctx.session_store,
       analysisId: args.analysisId,
       name: args.name,
       content: args.content,

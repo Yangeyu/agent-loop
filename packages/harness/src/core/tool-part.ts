@@ -3,10 +3,12 @@
  * completed / error, plus metadata patches) each return a new ToolPart rather
  * than mutating — they are the reducer over a call's lifecycle facts.
  * `ToolPartTracker` is the stateful owner that threads those transitions over a
- * single in-memory snapshot and writes each result through to the store, so a
- * call has exactly one writer and never re-reads to reconcile.
+ * single in-memory snapshot and writes each result through the Sessions
+ * aggregate — so every transition lands in the store *and* on the state channel
+ * (part.created / part.updated) in one step, with no hand-written mirror events.
  */
-import type { ErrorInfo, MessagePart, ToolExecuteResult, ToolMetadata, ToolPart } from "@harness/types"
+import type { Sessions } from "@harness/session"
+import type { ErrorInfo, ToolExecuteResult, ToolMetadata, ToolPart } from "@harness/types"
 
 type ToolPartBase = {
   id: string
@@ -162,32 +164,26 @@ function mergeMetadata(base: ToolMetadata | undefined, patch: ToolMetadata | und
   }
 }
 
-// The store methods a tracker needs, named structurally so core does not depend
-// on the session-store interface directly.
-type ToolPartStore = {
-  startToolPart(sessionID: string, messageID: string, part: ToolPart): ToolPart
-  updatePart(sessionID: string, messageID: string, partID: string, patch: Partial<MessagePart>): MessagePart
-}
-
 /**
  * Owns one tool call's part across its lifecycle. It holds the live snapshot in
- * memory, applies a transition and writes the whole part through to the store on
- * each step, and hands the new snapshot back to the caller (for event emission).
+ * memory, applies a transition and writes the whole part through the aggregate
+ * on each step, and hands the new snapshot back to the caller.
  *
  * Being the sole writer of this part — and the sole reader of its own snapshot —
  * is what lets concurrent metadata patches and the terminal transition coexist
- * without re-reading the store to reconcile: the in-memory snapshot is the truth.
+ * without re-reading the store to reconcile. Every write doubles as the state
+ * event (part.created on open, part.updated per transition).
  */
 export class ToolPartTracker {
   private current: ToolPart
 
   constructor(
-    private readonly store: ToolPartStore,
+    private readonly sessions: Sessions,
     private readonly sessionID: string,
     private readonly messageID: string,
     input: RunningToolPartInput,
   ) {
-    this.current = store.startToolPart(sessionID, messageID, createRunningToolPart(input))
+    this.current = sessions.appendPart(sessionID, messageID, createRunningToolPart(input))
   }
 
   /** The live snapshot — identity and current state of the tracked part. */
@@ -216,8 +212,7 @@ export class ToolPartTracker {
   }
 
   private write(next: ToolPart): ToolPart {
-    this.current = next
-    this.store.updatePart(this.sessionID, this.messageID, next.id, next)
+    this.current = this.sessions.replacePart(this.sessionID, this.messageID, next)
     return this.current
   }
 }

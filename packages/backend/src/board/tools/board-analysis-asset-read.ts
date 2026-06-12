@@ -17,7 +17,6 @@ export const BoardAnalysisAssetReadTool = defineTool({
   },
   async execute(args, ctx) {
     const result = readBoardAnalysisAssets({
-      store: ctx.session_store,
       analysisId: args.analysisId,
       names: args.names,
     })

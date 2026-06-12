@@ -4,7 +4,7 @@
  */
 import type { Config } from "@harness/config"
 import type { AgentDefinition } from "@harness/agent/types"
-import type { ISessionStore } from "@harness/session/store"
+import type { Sessions } from "@harness/session"
 import type { SessionInfo } from "@harness/types"
 
 /** Retry backoff bounds for a single turn's model call. */
@@ -87,17 +87,17 @@ export function countAssistantTurns(session: SessionInfo) {
 /**
  * Walks the parent chain to compute a session's delegation depth.
  *
- * @param store - the session store, to resolve parent sessions
+ * @param sessions - the session aggregate, to resolve parent sessions
  * @param sessionID - the session whose depth to measure
  * @returns the depth (0 for a root session)
  */
-export function resolveSessionDepth(store: ISessionStore, sessionID: string) {
+export function resolveSessionDepth(sessions: Sessions, sessionID: string) {
   let depth = 0
-  let current = store.get(sessionID)
+  let current = sessions.get(sessionID)
 
   while (current.parentID) {
     depth += 1
-    current = store.get(current.parentID)
+    current = sessions.get(current.parentID)
   }
 
   return depth
@@ -107,15 +107,15 @@ export function resolveSessionDepth(store: ISessionStore, sessionID: string) {
  * Computes whether delegating one level deeper from a session is within the depth
  * cap, returning the current/next depth alongside the verdict.
  *
- * @param input - the store, the session id, and the max allowed depth
+ * @param input - the session aggregate, the session id, and the max allowed depth
  * @returns current/next depth, the cap, and whether delegation is allowed
  */
 export function getDelegationDepthInfo(input: {
-  store: ISessionStore
+  sessions: Sessions
   sessionID: string
   maxDepth: number
 }) {
-  const currentDepth = resolveSessionDepth(input.store, input.sessionID)
+  const currentDepth = resolveSessionDepth(input.sessions, input.sessionID)
   const nextDepth = currentDepth + 1
 
   return {

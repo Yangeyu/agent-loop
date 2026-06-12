@@ -6,12 +6,10 @@ function userSession(parts: MessagePart[]): SessionInfo {
   const user: UserMessage = {
     id: "u1",
     role: "user",
-    sessionID: "s1",
     agent: "lead",
-    model: { providerID: "dashscope", modelID: "qwen3.7-plus" },
     time: { created: 0 },
   }
-  return { id: "s1", title: "t", messages: [user], parts: { u1: parts } }
+  return { id: "s1", rootID: "s1", title: "t", messages: [user], parts: { u1: parts } }
 }
 
 function completedToolPart(toolCallId: string, toolName: string, input: unknown, output: string): ToolPart {
@@ -53,15 +51,12 @@ describe("toModelMessages tool-call projection", () => {
     const user: UserMessage = {
       id: "u1",
       role: "user",
-      sessionID: "s1",
       agent: "lead",
-      model: { providerID: "dashscope", modelID: "qwen3.7-plus" },
       time: { created: 0 },
     }
     const assistant: AssistantMessage = {
       id: "a1",
       role: "assistant",
-      sessionID: "s1",
       parentID: "u1",
       agent: "lead",
       model: { providerID: "dashscope", modelID: "qwen3.7-plus" },
@@ -69,6 +64,7 @@ describe("toModelMessages tool-call projection", () => {
     }
     return {
       id: "s1",
+      rootID: "s1",
       title: "t",
       messages: [user, assistant],
       parts: { u1: [{ id: "t1", type: "text", text: "go" }], a1: parts },

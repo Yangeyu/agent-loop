@@ -4,15 +4,15 @@ import { defineAgent } from "@harness/agent/types"
 import { loadConfigFromEnv } from "@harness/config"
 import { createTurnContext } from "@harness/core/context"
 import { resolveTurnExecutionPolicy } from "@harness/core/policy"
-import { StreamSink } from "@harness/core/stream-sink"
+import { TurnRecorder } from "@harness/core/recorder"
 import { dispatchToolCall } from "@harness/core/tool-call"
 import { MiddlewareStack } from "@harness/hooks/stack"
 import { createRuntimeEvents } from "@harness/runtime/events"
-import { MemorySessionStore } from "@harness/session/store"
+import { MemorySessionPersistence, Sessions } from "@harness/session"
 import { createSkillRegistry } from "@harness/skill/registry"
 import { defineTool } from "@harness/tool/tool"
 import { createToolRegistry } from "@harness/tool/registry"
-import type { AssistantMessage, ToolContext, ToolDefinition, UserMessage } from "@harness/types"
+import type { AssistantMessage, ToolContext, ToolDefinition, ToolPart, UserMessage } from "@harness/types"
 import { z } from "zod"
 import { createFakeModel } from "../support/fake-model"
 
@@ -75,10 +75,10 @@ describe("dispatchToolCall", () => {
       },
     })
 
-    const { dispatch, store, sessionID, assistantID } = createToolCallHarness(tool)
+    const { dispatch, sessions, sessionID, assistantID } = createToolCallHarness(tool)
     await dispatch({ toolCallId: "call-complete", toolName: tool.id, args: {} })
 
-    const part = store.getParts(sessionID, assistantID).find((item) => item.type === "tool")
+    const part = sessions.parts(sessionID, assistantID).find((item): item is ToolPart => item.type === "tool")
     expect(part?.state.status).toBe("completed")
     if (!part || part.state.status !== "completed") throw new Error("Expected completed tool part")
 
@@ -99,29 +99,53 @@ describe("dispatchToolCall", () => {
       },
     })
 
-    const { dispatch, store, sessionID, assistantID } = createToolCallHarness(tool)
+    const { dispatch, sessions, sessionID, assistantID } = createToolCallHarness(tool)
     await dispatch({ toolCallId: "call-error", toolName: tool.id, args: {} })
 
-    const part = store.getParts(sessionID, assistantID).find((item) => item.type === "tool")
+    const part = sessions.parts(sessionID, assistantID).find((item): item is ToolPart => item.type === "tool")
     expect(part?.state.status).toBe("error")
     if (!part || part.state.status !== "error") throw new Error("Expected errored tool part")
 
     expect(part.state.title).toBe("Prepared title")
     expect(part.state.metadata).toEqual({ fromBeforeExecute: true })
   })
+
+  it("emits part.created and part.updated state events for a completed call", async () => {
+    const tool = defineTool({
+      id: "state_events",
+      description: "Test state event emission",
+      parameters: z.object({}),
+      async execute() {
+        return { output: "done" }
+      },
+    })
+
+    const { dispatch, events } = createToolCallHarness(tool)
+    const seen: string[] = []
+    events.state.subscribe((event) => {
+      if (event.type === "part.created" && event.part.type === "tool") seen.push("created")
+      if (event.type === "part.updated" && event.part.type === "tool") {
+        seen.push(`updated:${event.part.state.status}`)
+      }
+    })
+
+    await dispatch({ toolCallId: "call-events", toolName: tool.id, args: {} })
+
+    expect(seen).toEqual(["created", "updated:running", "updated:completed"])
+  })
 })
 
 function createToolContextStub(): ToolContext {
+  const events = createRuntimeEvents()
   return {
     config: loadConfigFromEnv({}),
     agent_registry: createAgentRegistry(),
     skill_registry: createSkillRegistry(),
-    session_store: new MemorySessionStore(),
+    sessions: new Sessions(new MemorySessionPersistence(), events.state),
     tool_registry: createToolRegistry(),
-    events: createRuntimeEvents(),
+    events,
     sessionID: "session-1",
     messageID: "message-1",
-    turnID: "turn-1",
     agent: "lead",
     abort: new AbortController().signal,
     format: { type: "text" },
@@ -133,8 +157,9 @@ function createToolContextStub(): ToolContext {
 
 function createToolCallHarness(tool: ToolDefinition) {
   const config = loadConfigFromEnv({})
-  const store = new MemorySessionStore()
-  const session = store.create({ title: "Test session" })
+  const events = createRuntimeEvents()
+  const sessions = new Sessions(new MemorySessionPersistence(), events.state)
+  const session = sessions.create({ title: "Test session" })
 
   const agent = defineAgent({ name: "lead", mode: "primary", steps: 4, model: stubModel })
   const agent_registry = createAgentRegistry()
@@ -143,36 +168,30 @@ function createToolCallHarness(tool: ToolDefinition) {
   const skill_registry = createSkillRegistry()
   const tool_registry = createToolRegistry()
   tool_registry.register(tool)
-  const events = createRuntimeEvents()
 
-  const model = { providerID: "dashscope", modelID: "qwen3.7-plus" }
   const user: UserMessage = {
     id: "user-1",
     role: "user",
-    sessionID: session.id,
     agent: "lead",
-    model,
     format: { type: "text" },
     time: { created: Date.now() },
   }
-  store.appendUserMessage(session.id, user)
+  sessions.appendMessage(session.id, user)
 
   const assistant: AssistantMessage = {
     id: "assistant-1",
     role: "assistant",
-    sessionID: session.id,
     parentID: user.id,
     agent: "lead",
-    model,
+    model: { providerID: "fake", modelID: stubModel.spec.id },
     time: { created: Date.now() },
   }
-  store.appendAssistantMessage(session.id, assistant)
 
   const deps = {
     config,
     agent_registry,
     skill_registry,
-    session_store: store,
+    sessions,
     tool_registry,
     events,
   }
@@ -181,23 +200,35 @@ function createToolCallHarness(tool: ToolDefinition) {
     deps,
     agent,
     model: agent.model,
-    policy: resolveTurnExecutionPolicy(config, agent, store.get(session.id)),
+    policy: resolveTurnExecutionPolicy(config, agent, sessions.get(session.id)),
     sessionID: session.id,
+    rootID: session.rootID,
     user,
-    assistant,
+    messageID: assistant.id,
     tools: [tool],
     step: 1,
     abort: new AbortController().signal,
   })
-  ctx.phase = "streaming"
+
+  // Appends the assistant message and owns the turn lifecycle.
+  const recorder = new TurnRecorder({
+    sessions,
+    loop: events.loop,
+    sessionID: session.id,
+    rootID: session.rootID,
+    agent: agent.name,
+    step: 1,
+    assistant,
+  })
+  recorder.enterPhase("streaming")
 
   const stack = MiddlewareStack.build([])
-  const sink = new StreamSink(ctx)
 
   return {
     dispatch: (chunk: { toolCallId: string; toolName: string; args: unknown }) =>
-      dispatchToolCall(ctx, stack, sink, chunk),
-    store,
+      dispatchToolCall(ctx, stack, recorder, chunk),
+    sessions,
+    events,
     sessionID: session.id,
     assistantID: assistant.id,
   }

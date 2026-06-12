@@ -2,7 +2,7 @@
 // already-effectful pre-flight point — keeps transformMessages a pure fold).
 // When the estimated context exceeds contextWindow × compaction_trigger_ratio,
 // it keeps the recent half of the conversation (cut at a user-message boundary)
-// and replaces the older half with a single summary, persisted via replaceState.
+// and replaces the older half with a single summary, persisted via replaceHistory.
 //
 // Everything compaction needs is owned here: it builds its own cheap summarizer
 // Model in-module (createDashScopeModel on the flash model) and invokes it
@@ -46,7 +46,7 @@ export function createCompaction(opts?: { summarizer?: Model }): MiddlewareFacto
       name: "compaction",
 
       async beforeTurn(ctx) {
-        const session = ctx.session_store.get(ctx.sessionID)
+        const session = ctx.sessions.get(ctx.sessionID)
         const messages = toModelMessages(session)
         // ctx.system is not yet assembled at beforeTurn; the system prompt is small
         // relative to history, and the 0.75 ratio leaves headroom, so estimating
@@ -65,12 +65,12 @@ export function createCompaction(opts?: { summarizer?: Model }): MiddlewareFacto
         if (!summary) return { proceed: true }
 
         const compactionPart: CompactionPart = { id: createID(), type: "compaction", summary }
-        ctx.session_store.replaceState({
-          sessionID: ctx.sessionID,
+        // replaceHistory emits history.replaced on the state channel by itself —
+        // compaction needs no event of its own.
+        ctx.sessions.replaceHistory(ctx.sessionID, {
           messages: kept,
           parts: keptPartsWithSummaryOnBoundary(session, kept, compactionPart),
         })
-        ctx.events.emit({ type: "compaction", sessionID: ctx.sessionID, summary })
 
         return { proceed: true }
       },
@@ -85,7 +85,7 @@ export const compaction: MiddlewareFactory = createCompaction()
 // the next user message so the kept window starts on a clean user turn. Returns
 // the index where the kept window begins, or undefined when there is no older
 // half to summarize / no user boundary to snap to.
-export function resolveCutBoundary(messages: SessionMessage[], retainRatio: number): number | undefined {
+export function resolveCutBoundary(messages: readonly SessionMessage[], retainRatio: number): number | undefined {
   const targetKeep = Math.ceil(messages.length * retainRatio)
   const start = messages.length - targetKeep
   if (start <= 0) return undefined
@@ -100,7 +100,7 @@ async function summarizeOlderHalf(
   ctx: HookContext,
   summarizer: Model,
   session: SessionInfo,
-  older: SessionMessage[],
+  older: readonly SessionMessage[],
 ): Promise<string> {
   if (older.length === 0) return ""
 
@@ -127,8 +127,8 @@ async function summarizeOlderHalf(
   return text.trim()
 }
 
-function pickParts(session: SessionInfo, messages: SessionMessage[]): Record<string, MessagePart[]> {
-  const parts: Record<string, MessagePart[]> = {}
+function pickParts(session: SessionInfo, messages: readonly SessionMessage[]): Record<string, readonly MessagePart[]> {
+  const parts: Record<string, readonly MessagePart[]> = {}
   for (const message of messages) {
     const messageParts = session.parts[message.id]
     if (messageParts) parts[message.id] = messageParts
@@ -140,9 +140,9 @@ function pickParts(session: SessionInfo, messages: SessionMessage[]): Record<str
 // first (user) message so toModelMessages renders it as a leading context block.
 function keptPartsWithSummaryOnBoundary(
   session: SessionInfo,
-  kept: SessionMessage[],
+  kept: readonly SessionMessage[],
   compactionPart: CompactionPart,
-): Record<string, MessagePart[]> {
+): Record<string, readonly MessagePart[]> {
   const parts = pickParts(session, kept)
   const boundary = kept[0]
   if (boundary) {

@@ -1,7 +1,7 @@
 import { runPrompt } from "@harness"
 import { ComposerCard, CrashView, TraceEntryBlock, WelcomeCard } from "@tui/components"
-import { handleTraceEvent } from "@tui/trace"
-import { COLORS, belongsToSessionTree, buildSessionTitle, resolveInitialAgent } from "@tui/theme"
+import { createTraceFolder } from "@tui/trace"
+import { COLORS, buildSessionTitle, resolveInitialAgent } from "@tui/theme"
 import type { ActivityState, ComposerHandle, ComposerSubmitInput, TraceEntry, TuiOptions } from "@tui/types"
 import { render, useKeyboard, useRenderer, useTerminalDimensions, useSelectionHandler } from "@opentui/solid"
 import { ErrorBoundary, For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js"
@@ -23,7 +23,7 @@ export async function startTui(options: TuiOptions) {
 
 function App(props: TuiOptions) {
   const runtime = props.runtime
-  const store = runtime.session_store
+  const sessions = runtime.sessions
   const renderer = useRenderer()
   const term = useTerminalDimensions()
   const [selectedAgent, setSelectedAgent] = createSignal(resolveInitialAgent(runtime.agent_registry, props.agent))
@@ -44,9 +44,10 @@ function App(props: TuiOptions) {
   let abort: AbortController | undefined
   let composerRef: ComposerHandle | undefined
   let traceCount = 0
-  const sessionPaths = new Map<string, string[]>()
-  const activeTurns = new Map<string, { turnID: string; agent: string; reasoningEntryID?: string; answerEntryID?: string }>()
-  const activeTools = new Map<string, string[]>()
+  const trace = createTraceFolder({
+    createTraceID: () => `trace-${++traceCount}`,
+    setTraceEntries,
+  })
 
   const refresh = () => setRevision((value) => value + 1)
   const toggleExpanded = (id: string) => {
@@ -59,21 +60,18 @@ function App(props: TuiOptions) {
     revision()
     const sessionID = currentSessionID()
     if (!sessionID) return undefined
-    const current = store.get(sessionID)
-    return {
-      ...current,
-      messages: [...current.messages],
-      parts: { ...current.parts },
-    }
+    return sessions.get(sessionID)
   }
 
   const visibleTranscript = () => {
     const rootSessionID = currentSessionID()
-    return traceEntries().filter((entry) => belongsToSessionTree(store, entry.sessionID, rootSessionID))
+    if (!rootSessionID) return traceEntries()
+    // Entries carry their delegation tree's rootID; scoping is one comparison.
+    return traceEntries().filter((entry) => entry.rootID === rootSessionID)
   }
 
   const createSession = (text?: string) => {
-    const next = store.create({ title: buildSessionTitle(text) })
+    const next = sessions.create({ title: buildSessionTitle(text) })
     setCurrentSessionID(next.id)
     refresh()
     return next
@@ -184,45 +182,50 @@ function App(props: TuiOptions) {
       }
     })
 
-    const unsubscribe = runtime.events.subscribe((event) => {
+    const inCurrentTree = (event: { rootID: string }) => {
       const rootSessionID = currentSessionID()
+      return !rootSessionID || event.rootID === rootSessionID
+    }
 
-      if (!rootSessionID && event.type === "session-start") {
+    const unsubscribeState = runtime.events.state.subscribe((event) => {
+      trace.handleState(event)
+
+      if (inCurrentTree(event) && event.type === "part.created" && event.part.type === "tool") {
+        const tool = event.part.toolName
+        setActivity((current) => ({ ...current, phase: "executing-tool", status: `Tool ${tool}`, tool, busy: true }))
+      }
+
+      refresh()
+    })
+    onCleanup(unsubscribeState)
+
+    const unsubscribeLoop = runtime.events.loop.subscribe((event) => {
+      if (!currentSessionID() && event.type === "session.start") {
         setCurrentSessionID(event.sessionID)
       }
 
-      handleTraceEvent(
-        event,
-        store,
-        sessionPaths,
-        activeTurns,
-        activeTools,
-        () => `trace-${++traceCount}`,
-        setTraceEntries,
-      )
+      trace.handleLoop(event)
 
-      if (belongsToSessionTree(store, event.sessionID, currentSessionID())) {
-        if (event.type === "turn-phase") {
+      if (inCurrentTree(event)) {
+        if (event.type === "turn.phase") {
           setActivity((current) => ({ ...current, phase: event.phase, status: `Phase ${event.phase}`, busy: true }))
-        } else if (event.type === "tool-call") {
-          setActivity((current) => ({ ...current, phase: "executing-tool", status: `Tool ${event.tool}`, tool: event.tool, busy: true }))
-        } else if (event.type === "turn-start") {
+        } else if (event.type === "turn.start") {
           setActivity({ phase: "starting", status: `Step ${event.step}`, busy: true })
-        } else if (event.type === "turn-complete") {
+        } else if (event.type === "turn.end") {
           abort = undefined
-          setActivity({ phase: "done", status: `Done in ${event.durationMs}ms`, busy: false })
-        } else if (event.type === "turn-abort") {
-          abort = undefined
-          setActivity({ phase: "aborted", status: `Aborted in ${event.durationMs}ms`, busy: false })
-        } else if (event.type === "error") {
-          abort = undefined
-          setActivity({ phase: "error", status: event.error, busy: false })
+          if (event.reason === "abort") {
+            setActivity({ phase: "aborted", status: `Aborted in ${event.durationMs}ms`, busy: false })
+          } else if (event.reason === "error") {
+            setActivity({ phase: "error", status: event.error ?? "Turn failed", busy: false })
+          } else {
+            setActivity({ phase: "done", status: `Done in ${event.durationMs}ms`, busy: false })
+          }
         }
       }
 
       refresh()
     })
-    onCleanup(unsubscribe)
+    onCleanup(unsubscribeLoop)
 
     if (props.initialPrompt && props.autoSubmitInitial) {
       void submitPrompt({ text: props.initialPrompt, images: [] })
@@ -257,7 +260,6 @@ function App(props: TuiOptions) {
               <For each={visibleTranscript()}>
                 {(entry) => (
                   <TraceEntryBlock
-                    store={store}
                     entry={entry}
                     expanded={Boolean(entry.expanded)}
                     onToggle={() => toggleExpanded(entry.id)}

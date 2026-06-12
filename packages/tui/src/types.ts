@@ -22,6 +22,10 @@ export type ActivityState = {
 export type TraceEntry = {
   id: string
   sessionID: string
+  // The session's delegation-tree root — the transcript scopes on this.
+  rootID: string
+  // Whether the entry belongs to the root session itself (full-width answers).
+  topLevel: boolean
   kind: "user" | "reasoning" | "answer" | "tool" | "result" | "error"
   title: string
   text: string

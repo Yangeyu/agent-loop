@@ -1,48 +1,31 @@
 /**
- * Engine-internal per-turn context. Superset of HookContext: middleware see the
- * HookContext view; the engine additionally tracks streaming accumulation state.
+ * Engine-internal per-turn context: the immutable input bundle for one turn.
+ * Middleware see the HookContext view; the engine additionally knows the user
+ * message and the resolved tools. All turn-scoped *accumulation* (phase, open
+ * parts, counters, terminal state) lives in the TurnRecorder — context carries
+ * no mutable state, so nothing can hold a stale shadow of the store.
  */
-import type { Model, ModelMessage } from "@harness/llm/types"
+import type { Model } from "@harness/llm/types"
 import type { TurnExecutionPolicy } from "@harness/core/policy"
 import type { HookContext } from "@harness/hooks/types"
 import type { RuntimeDeps } from "@harness/runtime/context"
-import type {
-  AssistantMessage,
-  ReasoningPart,
-  TextPart,
-  ToolDefinition,
-  TurnPhase,
-  UserMessage,
-} from "@harness/types"
+import type { ToolDefinition, UserMessage } from "@harness/types"
 
 /** The engine's dependency surface is exactly the runtime's dependency surface. */
 export type EngineDeps = RuntimeDeps
 
-/** The engine-internal turn context: HookContext plus streaming accumulation state. */
+/** The engine-internal turn context: HookContext plus the turn's resolved inputs. */
 export type TurnContext = HookContext & {
-  user: UserMessage
-  assistant: AssistantMessage
-  tools: ToolDefinition[]
-  system: string[]
-  messages: ModelMessage[]
-  phase: TurnPhase
-  startedAt: number
-  retryCount: number
-  toolCalls: number
-  sawReasoning: boolean
-  sawText: boolean
-  reasoningPart?: ReasoningPart
-  textPart?: TextPart
+  readonly user: UserMessage
+  readonly tools: ToolDefinition[]
 }
 
 /**
- * Assembles the per-turn TurnContext from the engine deps and turn inputs. The
- * `system`/`messages` fields start empty and are filled by the contributeSystem /
- * transformMessages hooks before the turn streams.
+ * Assembles the per-turn TurnContext from the engine deps and turn inputs.
  *
- * @param input - engine deps plus this turn's agent, model caller, policy, ids,
- *   user/assistant messages, tools, step number, and abort signal
- * @returns the initialized turn context
+ * @param input - engine deps plus this turn's agent, model, policy, ids,
+ *   user message, assistant message id, tools, step number, and abort signal
+ * @returns the immutable turn context
  */
 export function createTurnContext(input: {
   deps: EngineDeps
@@ -50,38 +33,30 @@ export function createTurnContext(input: {
   model: Model
   policy: TurnExecutionPolicy
   sessionID: string
+  rootID: string
   user: UserMessage
-  assistant: AssistantMessage
+  messageID: string
   tools: ToolDefinition[]
   step: number
   abort: AbortSignal
 }): TurnContext {
   return {
     config: input.deps.config,
-    session_store: input.deps.session_store,
+    sessions: input.deps.sessions,
     events: input.deps.events,
     agent_registry: input.deps.agent_registry,
     skill_registry: input.deps.skill_registry,
     tool_registry: input.deps.tool_registry,
     agent: input.agent,
     sessionID: input.sessionID,
-    messageID: input.assistant.parentID,
-    turnID: input.assistant.id,
+    rootID: input.rootID,
+    messageID: input.messageID,
     step: input.step,
     policy: input.policy,
     abort: input.abort,
     format: input.user.format,
     model: input.model,
     user: input.user,
-    assistant: input.assistant,
     tools: input.tools,
-    system: [],
-    messages: [],
-    phase: "starting",
-    startedAt: Date.now(),
-    retryCount: 0,
-    toolCalls: 0,
-    sawReasoning: false,
-    sawText: false,
   }
 }

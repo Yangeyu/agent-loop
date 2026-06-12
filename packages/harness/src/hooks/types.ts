@@ -1,6 +1,11 @@
 // Lifecycle hook contracts. Middleware is the transform/decision layer that can
 // rewrite context, gate tool calls, and shape turn outcomes. It is distinct from
-// the read-only event bus (runtime/events.ts), which remains the observation layer.
+// the event bus (runtime/events.ts), which is observation only.
+//
+// HookContext is immutable from a middleware's point of view: state flows back
+// to the engine through hook return values, never by assigning context fields.
+// Session state is reached through `ctx.sessions` (the single-writer aggregate);
+// telemetry is emitted on `ctx.events.loop`.
 import type { AgentRegistry } from "@harness/agent/registry"
 import type { AgentDefinition } from "@harness/agent/types"
 import type { Config } from "@harness/config"
@@ -8,33 +13,32 @@ import type { Model, ModelMessage } from "@harness/llm/types"
 import type { TurnExecutionPolicy } from "@harness/core/policy"
 import type { RuntimeEventBus } from "@harness/runtime/events"
 import type { SkillRegistry } from "@harness/skill/registry"
-import type { ISessionStore } from "@harness/session/store"
+import type { Sessions } from "@harness/session"
 import type { ToolRegistry } from "@harness/tool/registry"
 import type { ErrorInfo, FinishReason, OutputFormat, ToolExecuteResult, TurnOutcomeReason } from "@harness/types"
 
 export type HookContext = {
-  config: Config
-  session_store: ISessionStore
-  events: RuntimeEventBus
-  agent_registry: AgentRegistry
-  skill_registry: SkillRegistry
-  tool_registry: ToolRegistry
-  agent: AgentDefinition
-  sessionID: string
-  messageID: string
-  turnID: string
-  step: number
-  policy: TurnExecutionPolicy
-  abort: AbortSignal
+  readonly config: Config
+  readonly sessions: Sessions
+  readonly events: RuntimeEventBus
+  readonly agent_registry: AgentRegistry
+  readonly skill_registry: SkillRegistry
+  readonly tool_registry: ToolRegistry
+  readonly agent: AgentDefinition
+  readonly sessionID: string
+  // The root of this session's delegation tree, for loop-event envelopes.
+  readonly rootID: string
+  // This turn's assistant message — the record every turn-scoped hook reads or patches.
+  readonly messageID: string
+  readonly step: number
+  readonly policy: TurnExecutionPolicy
+  readonly abort: AbortSignal
   // The structured-output format requested for this turn (from the user message).
-  format?: OutputFormat
-  // System fragments assembled for this turn. Populated before transformMessages
-  // runs, so transform middleware (e.g. compaction) can measure system + messages.
-  system: string[]
+  readonly format?: OutputFormat
   // The current agent's bound model instance. Read by gating middleware for its
   // spec (capabilities/contextWindow); also callable directly for out-of-band
   // single-shot calls that must bypass the stack to avoid re-entrancy.
-  model: Model
+  readonly model: Model
 }
 
 export type ToolCall = {
@@ -72,8 +76,6 @@ export type TurnOutcome =
 // Hooks are grouped below by phase, NOT by runtime order. The actual per-turn
 // firing sequence is beforeTurn → contributeSystem → transformMessages → (stream
 // + tool hooks) → onTurnFinish → resolveOutcome; see core/loop.ts for the map.
-// In particular beforeTurn runs before contributeSystem, so ctx.system is still
-// empty during beforeTurn.
 export type Middleware = {
   name: string
   // Context assembly (ordered)

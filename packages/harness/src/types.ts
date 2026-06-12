@@ -1,61 +1,55 @@
+// Engine-side types. The session data model and event vocabulary live in
+// @contracts (the shared leaf); this module re-exports them for harness code
+// and adds the engine-only types (tool contracts, runtime modules).
 import type { RuntimeDeps } from "@harness/runtime/context"
 import type { RuntimePlugin } from "@harness/plugin/types"
+import type {
+  ErrorInfo,
+  OutputFormat,
+  MessagePart,
+  SessionMessage,
+  ToolAttachment,
+  ToolMetadata,
+} from "@contracts"
 import type { z } from "zod"
 
-export type Role = "user" | "assistant"
-
-export type FinishReason = "stop" | "tool-calls" | "length" | "error"
-
-export type ProcessorResult = "continue" | "stop" | "compact"
-
-export type TurnPhase = "starting" | "streaming" | "reasoning" | "responding" | "executing-tool" | "finishing"
-
-export type TurnOutcomeReason =
-  | "tool_calls"
-  | "empty_assistant"
-  | "context_limit"
-  | "structured_output"
-  | "step_budget_reached"
-  | "step_budget_reached_without_answer"
-  | "assistant_error"
-  | "final_text"
-  | "completed_without_output"
+export type {
+  ArtifactFile,
+  AssistantMessage,
+  BudgetKind,
+  CompactionPart,
+  ErrorInfo,
+  FinishReason,
+  ImagePart,
+  ImageSource,
+  LoopEvent,
+  MessagePart,
+  OutputFormat,
+  PartsByMessage,
+  ProviderModel,
+  ReasoningPart,
+  RetryCategory,
+  SessionInfo,
+  SessionMessage,
+  SessionMeta,
+  SessionProjection,
+  StateEvent,
+  TextPart,
+  TimeInfo,
+  ToolAttachment,
+  ToolCompletedState,
+  ToolErrorState,
+  ToolMetadata,
+  ToolPart,
+  ToolRunningState,
+  ToolState,
+  TurnEndReason,
+  TurnOutcomeReason,
+  TurnPhase,
+  UserMessage,
+} from "@contracts"
 
 export type JsonObject = Record<string, unknown>
-
-export type ProviderModel = {
-  providerID: string
-  modelID: string
-}
-
-export type ErrorInfo = {
-  message: string
-  retryable?: boolean
-  code?: string
-}
-
-export type ToolMetadata = JsonObject
-
-export type ToolAttachment = {
-  mime: string
-  filename?: string
-  path?: string
-  bytes?: number
-}
-
-export type TimeInfo = {
-  created: number
-  completed?: number
-}
-
-export type OutputFormat =
-  | {
-      type: "text"
-    }
-  | {
-      type: "json_schema"
-      schema: Record<string, unknown>
-    }
 
 export type AgentInfo = {
   name: string
@@ -74,67 +68,20 @@ export type ToolExecuteResult = {
   attachments?: ToolAttachment[]
 }
 
-export type ToolRunningState = {
-  status: "pending" | "running"
-  input: unknown
-  title?: string
-  metadata?: ToolMetadata
-  time?: {
-    start: number
-  }
-}
-
-export type ToolCompletedState = {
-  status: "completed"
-  input: unknown
-  output: string
-  title?: string
-  metadata?: ToolMetadata
-  attachments?: ToolAttachment[]
-  time?: {
-    start: number
-    end: number
-  }
-}
-
-export type ToolErrorState = {
-  status: "error"
-  input: unknown
-  error: ErrorInfo
-  title?: string
-  metadata?: ToolMetadata
-  attachments?: ToolAttachment[]
-  time?: {
-    start: number
-    end: number
-  }
-}
-
-export type ToolState = ToolRunningState | ToolCompletedState | ToolErrorState
-
-export type ToolPart = {
-  id: string
-  type: "tool"
-  toolName: string
-  toolCallId: string
-  state: ToolState
-}
-
 export type SessionHistoryMessage = {
   info: SessionMessage
-  parts: MessagePart[]
+  parts: readonly MessagePart[]
 }
 
 export type ToolContext = RuntimeDeps & {
   sessionID: string
+  // The assistant message (turn record) this tool call belongs to.
   messageID: string
-  turnID: string
   agent: string
   abort: AbortSignal
   toolCallId?: string
   format?: OutputFormat
   messages: SessionHistoryMessage[]
-  extra?: JsonObject
   metadata(input: { title?: string; metadata?: ToolMetadata }): Promise<void>
   executeTool(input: { toolName: string; args: unknown; toolCallId?: string }): Promise<
     | {
@@ -167,75 +114,6 @@ export type ToolDefinition<TArgs = unknown> = {
 export type AnyToolDefinition = ToolDefinition<unknown>
 
 export type RuntimeModule = RuntimePlugin
-
-export type UserMessage = {
-  id: string
-  role: "user"
-  sessionID: string
-  agent: string
-  model: ProviderModel
-  format?: OutputFormat
-  time: TimeInfo
-}
-
-export type AssistantMessage = {
-  id: string
-  role: "assistant"
-  sessionID: string
-  parentID: string
-  agent: string
-  model: ProviderModel
-  finish?: FinishReason
-  error?: ErrorInfo
-  structured?: unknown
-  time: TimeInfo
-}
-
-export type TextPart = {
-  id: string
-  type: "text"
-  text: string
-  synthetic?: boolean
-}
-
-export type ReasoningPart = {
-  id: string
-  type: "reasoning"
-  text: string
-}
-
-export type CompactionPart = {
-  id: string
-  type: "compaction"
-  summary: string
-}
-
-// An image attached to a message, in one of three source forms. `file` is a
-// local path (resolved to base64 before reaching the provider), `base64` is
-// inline bytes (e.g. a pasted screenshot), `url` is a remote link passed to the
-// model as-is. See llm/image.ts for resolution and qwen image_url mapping.
-export type ImageSource =
-  | { kind: "file"; path: string; mime: string }
-  | { kind: "base64"; data: string; mime: string }
-  | { kind: "url"; url: string; mime?: string }
-
-export type ImagePart = {
-  id: string
-  type: "image"
-  source: ImageSource
-}
-
-export type MessagePart = TextPart | ReasoningPart | CompactionPart | ImagePart | ToolPart
-
-export type SessionMessage = UserMessage | AssistantMessage
-
-export type SessionInfo = {
-  id: string
-  parentID?: string
-  title: string
-  messages: SessionMessage[]
-  parts: Record<string, MessagePart[]>
-}
 
 export function createID() {
   return Math.random().toString(36).slice(2, 10)

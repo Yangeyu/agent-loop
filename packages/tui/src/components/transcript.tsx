@@ -1,4 +1,3 @@
-import type { RuntimeContext } from "@harness"
 import { COLORS } from "@tui/theme"
 import type { TraceEntry } from "@tui/types"
 import { TextAttributes } from "@opentui/core"
@@ -23,12 +22,11 @@ export function WelcomeCard() {
 }
 
 export function TraceEntryBlock(props: {
-  store: RuntimeContext["session_store"]
   entry: TraceEntry
   expanded: boolean
   onToggle: () => void
 }) {
-  const isTopLevelAnswer = props.entry.kind === "answer" && !props.store.get(props.entry.sessionID)?.parentID
+  const isTopLevelAnswer = props.entry.kind === "answer" && props.entry.topLevel
   const collapsible = Boolean(props.entry.detail) && !isTopLevelAnswer && props.entry.kind !== "result"
   const fg = props.entry.kind === "answer" || props.entry.kind === "result" ? COLORS.text : COLORS.muted
 

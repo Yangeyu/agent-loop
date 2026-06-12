@@ -1,5 +1,9 @@
+// Console renderer for CLI runs: folds the state channel (content) and the loop
+// channel (telemetry) into terminal output. Stream text is keyed by the turn's
+// assistant message id; `part.delta` carries the part type, so the renderer
+// needs no store access and no part bookkeeping beyond the turn header state.
 import type { RuntimeEventBus } from "@harness/runtime/events"
-import type { RuntimeEvent } from "@harness/runtime/events"
+import type { LoopEvent, StateEvent, ToolPart } from "@harness/types"
 
 export type OutputMode = "stream" | "buffered"
 
@@ -8,16 +12,12 @@ type RendererOptions = {
 }
 
 type TurnOutput = {
+  agent: string
   reasoning: string
   answer: string
 }
 
 const MAX_REASONING_LINES = 5
-
-type TurnKey = {
-  sessionID: string
-  agent: string
-}
 
 type StreamState = {
   reasoningOpen: boolean
@@ -25,9 +25,9 @@ type StreamState = {
 }
 
 type OutputRenderer = {
-  onReasoning(event: Extract<RuntimeEvent, { type: "reasoning" }>, output: TurnOutput): void
-  onText(event: Extract<RuntimeEvent, { type: "text" }>, output: TurnOutput): void
-  flush(event: TurnKey, output: TurnOutput): void
+  onReasoning(messageID: string, delta: string, output: TurnOutput): void
+  onText(messageID: string, delta: string, output: TurnOutput): void
+  flush(messageID: string, output: TurnOutput): void
   detach(outputs: Map<string, TurnOutput>): void
 }
 
@@ -78,10 +78,6 @@ function prettyStructuredOutput(value: unknown) {
   } catch {
     return String(value)
   }
-}
-
-function toTurnID(key: TurnKey) {
-  return `${key.sessionID}:${key.agent}`
 }
 
 function normalizePath(input: unknown) {
@@ -152,34 +148,27 @@ function printLogo() {
 }
 
 class BufferedOutputRenderer implements OutputRenderer {
-  onReasoning(_: Extract<RuntimeEvent, { type: "reasoning" }>, output: TurnOutput) {
-    void output
-  }
+  onReasoning() {}
 
-  onText(_: Extract<RuntimeEvent, { type: "text" }>, output: TurnOutput) {
-    void output
-  }
+  onText() {}
 
-  flush(event: TurnKey, output: TurnOutput) {
+  flush(_: string, output: TurnOutput) {
     if (output.reasoning.trim()) {
-      printLine(style(`Thinking - ${event.agent}`, ANSI.dim, ANSI.bold))
+      printLine(style(`Thinking - ${output.agent}`, ANSI.dim, ANSI.bold))
       printLine(clipLines(output.reasoning, MAX_REASONING_LINES))
       blankLine()
     }
 
     if (output.answer.trim()) {
-      printLine(style(`Answer - ${event.agent}`, ANSI.bold))
+      printLine(style(`Answer - ${output.agent}`, ANSI.bold))
       printLine(output.answer.trim())
       blankLine()
     }
   }
 
   detach(outputs: Map<string, TurnOutput>) {
-    for (const [turnID, output] of outputs.entries()) {
-      const [sessionID, agent] = turnID.split(":")
-      if (sessionID && agent) {
-        this.flush({ sessionID, agent }, output)
-      }
+    for (const [messageID, output] of outputs.entries()) {
+      this.flush(messageID, output)
     }
   }
 }
@@ -188,21 +177,19 @@ class StreamingOutputRenderer implements OutputRenderer {
   private states = new Map<string, StreamState>()
   private reasoningLines = new Map<string, number>()
 
-  onReasoning(event: Extract<RuntimeEvent, { type: "reasoning" }>, output: TurnOutput) {
-    void output
-    const turnID = toTurnID(event)
-    const state = this.getState(event)
+  onReasoning(messageID: string, delta: string, output: TurnOutput) {
+    const state = this.getState(messageID)
     if (!state.reasoningOpen) {
       this.closeAnswer(state)
       blankLine()
-      printLine(style(`Thinking - ${event.agent}`, ANSI.dim, ANSI.bold))
+      printLine(style(`Thinking - ${output.agent}`, ANSI.dim, ANSI.bold))
       state.reasoningOpen = true
     }
-    const nextCount = (this.reasoningLines.get(turnID) ?? 0) + event.textDelta.split("\n").length - 1
-    const currentCount = this.reasoningLines.get(turnID) ?? 0
+    const currentCount = this.reasoningLines.get(messageID) ?? 0
+    const nextCount = currentCount + delta.split("\n").length - 1
 
     if (currentCount < MAX_REASONING_LINES) {
-      const lines = event.textDelta.split("\n")
+      const lines = delta.split("\n")
       const remaining = MAX_REASONING_LINES - currentCount
       process.stdout.write(lines.slice(0, remaining).join("\n"))
       if (nextCount >= MAX_REASONING_LINES) {
@@ -210,49 +197,43 @@ class StreamingOutputRenderer implements OutputRenderer {
       }
     }
 
-    this.reasoningLines.set(turnID, Math.max(currentCount, nextCount))
+    this.reasoningLines.set(messageID, Math.max(currentCount, nextCount))
   }
 
-  onText(event: Extract<RuntimeEvent, { type: "text" }>, output: TurnOutput) {
-    void output
-    const state = this.getState(event)
+  onText(messageID: string, delta: string, output: TurnOutput) {
+    const state = this.getState(messageID)
     this.closeReasoning(state)
     if (!state.answerOpen) {
       blankLine()
-      printLine(style(`Answer - ${event.agent}`, ANSI.bold))
+      printLine(style(`Answer - ${output.agent}`, ANSI.bold))
       state.answerOpen = true
     }
-    process.stdout.write(event.textDelta)
+    process.stdout.write(delta)
   }
 
-  flush(event: TurnKey, _: TurnOutput) {
-    const state = this.states.get(toTurnID(event))
+  flush(messageID: string) {
+    const state = this.states.get(messageID)
     if (!state) return
     this.closeReasoning(state)
     this.closeAnswer(state)
-    this.states.delete(toTurnID(event))
-    this.reasoningLines.delete(toTurnID(event))
+    this.states.delete(messageID)
+    this.reasoningLines.delete(messageID)
   }
 
-  detach(outputs: Map<string, TurnOutput>) {
-    void outputs
-    for (const [turnID] of this.states.entries()) {
-      const [sessionID, agent] = turnID.split(":")
-      if (sessionID && agent) {
-        this.flush({ sessionID, agent }, { reasoning: "", answer: "" })
-      }
+  detach() {
+    for (const messageID of [...this.states.keys()]) {
+      this.flush(messageID)
     }
   }
 
-  private getState(key: TurnKey) {
-    const turnID = toTurnID(key)
-    const existing = this.states.get(turnID)
+  private getState(messageID: string) {
+    const existing = this.states.get(messageID)
     if (existing) return existing
     const created: StreamState = {
       reasoningOpen: false,
       answerOpen: false,
     }
-    this.states.set(turnID, created)
+    this.states.set(messageID, created)
     return created
   }
 
@@ -271,6 +252,7 @@ class StreamingOutputRenderer implements OutputRenderer {
 
 class ConsoleLogger {
   private outputs = new Map<string, TurnOutput>()
+  private agents = new Map<string, string>()
   private renderer: OutputRenderer
   private bannerShown = false
 
@@ -278,35 +260,45 @@ class ConsoleLogger {
     this.renderer = options.outputMode === "stream" ? new StreamingOutputRenderer() : new BufferedOutputRenderer()
   }
 
-  handle = (event: RuntimeEvent) => {
-    if (event.type === "reasoning") {
-      const output = this.getOutput(event)
-      output.reasoning += event.textDelta
-      this.renderer.onReasoning(event, output)
+  handleState = (event: StateEvent) => {
+    if (event.type === "part.delta") {
+      const output = this.getOutput(event.messageID)
+      if (event.partType === "reasoning") {
+        output.reasoning += event.delta
+        this.renderer.onReasoning(event.messageID, event.delta, output)
+      } else {
+        output.answer += event.delta
+        this.renderer.onText(event.messageID, event.delta, output)
+      }
       return
     }
 
-    if (event.type === "text") {
-      const output = this.getOutput(event)
-      output.answer += event.textDelta
-      this.renderer.onText(event, output)
+    if (event.type === "part.created" && event.part.type === "tool") {
+      this.flush(event.messageID)
+      printLine(`${style("->", ANSI.gray, ANSI.bold)} ${formatToolLabel(event.part.toolName, event.part.state.input)}`)
       return
     }
 
-    if ("agent" in event) {
-      this.flush(event)
+    if (event.type === "part.updated" && event.part.type === "tool") {
+      this.renderToolState(event.messageID, event.part)
+      return
     }
 
-    this.renderMeta(event)
+    if (event.type === "message.updated" && event.message.role === "assistant" && event.message.structured !== undefined) {
+      this.flush(event.message.id)
+      printLine(`${style("[ok]", ANSI.green, ANSI.bold)} structured output captured`)
+      printLine(prettyStructuredOutput(event.message.structured))
+      blankLine()
+      return
+    }
+
+    if (event.type === "history.replaced") {
+      printLine(`${style("[compact]", ANSI.yellow, ANSI.bold)} compact context`)
+    }
   }
 
-  detach() {
-    this.renderer.detach(this.outputs)
-    this.outputs.clear()
-  }
-
-  private renderMeta(event: RuntimeEvent) {
-    if (event.type === "session-start") {
+  handleLoop = (event: LoopEvent) => {
+    if (event.type === "session.start") {
       if (!this.bannerShown) {
         printLogo()
         this.bannerShown = true
@@ -318,117 +310,106 @@ class ConsoleLogger {
       return
     }
 
-    if (event.type === "loop-step") {
+    if (event.type === "turn.start") {
+      this.agents.set(event.messageID, event.agent)
       printLine(style(`Step ${event.step} - ${event.agent}`, ANSI.cyan, ANSI.bold))
       return
     }
 
-    if (event.type === "turn-input") {
+    if (event.type === "turn.input") {
       const tools = event.tools.length > 0 ? event.tools.join(", ") : "<none>"
       printLine(style(`Tools: ${tools}`, ANSI.dim))
       return
     }
 
-    if (event.type === "retry") {
+    if (event.type === "turn.retry") {
+      this.flush(event.messageID)
       const detail = [event.category, event.reason].filter(Boolean).join(" - ")
       printLine(style(`[retry ${event.attempt}] ${event.agent} in ${event.delayMs}ms`, ANSI.yellow, ANSI.bold))
       printLine(style(detail ? `${detail}: ${event.error}` : event.error, ANSI.dim))
       return
     }
 
-    if (event.type === "budget-hit") {
+    if (event.type === "budget.hit") {
       const usage = event.used !== undefined ? ` (${event.used}/${event.limit})` : ` (${event.limit})`
       printLine(style(`[budget] ${event.agent} ${event.budget}${usage}`, ANSI.yellow, ANSI.bold))
       printLine(style(event.detail, ANSI.dim))
       return
     }
 
-    if (event.type === "tool-start") {
-      printLine(`${style("[run]", ANSI.blue, ANSI.bold)} ${event.tool}`)
-      return
-    }
-
-    if (event.type === "tool-call") {
-      printLine(`${style("->", ANSI.gray, ANSI.bold)} ${formatToolLabel(event.tool, event.args)}`)
-      return
-    }
-
-    if (event.type === "tool-result") {
-      const suffix = preview(event.output, 80)
-      printLine(`${style("[ok]", ANSI.green, ANSI.bold)} ${event.tool}${suffix ? style(` - ${suffix}`, ANSI.dim) : ""}`)
-      return
-    }
-
-    if (event.type === "tool-error") {
-      printLine(`${style("[x]", ANSI.red, ANSI.bold)} ${event.tool}`)
-      printLine(style(event.error, ANSI.red))
-      return
-    }
-
-    if (event.type === "compaction") {
-      printLine(`${style("[compact]", ANSI.yellow, ANSI.bold)} compact context`)
-      printLine(style(preview(event.summary, 160), ANSI.dim))
-      return
-    }
-
-    if (event.type === "structured-output") {
-      printLine(`${style("[ok]", ANSI.green, ANSI.bold)} structured output captured`)
-      printLine(prettyStructuredOutput(event.output))
-      blankLine()
-      return
-    }
-
-    if (event.type === "turn-outcome") {
+    if (event.type === "turn.outcome") {
       printLine(style(`Outcome - ${event.outcome} - ${event.reason}`, ANSI.dim))
       return
     }
 
-    if (event.type === "turn-complete") {
-      printLine(style(`Done - ${event.finishReason} - ${event.durationMs}ms - tools ${event.toolCalls}`, ANSI.dim))
-      blankLine()
-      return
-    }
+    if (event.type === "turn.end") {
+      this.flush(event.messageID)
 
-    if (event.type === "turn-abort") {
-      printLine(style(`Aborted - ${event.durationMs}ms`, ANSI.red, ANSI.bold))
-      blankLine()
-      return
-    }
+      if (event.reason === "abort") {
+        printLine(style(`Aborted - ${event.durationMs}ms`, ANSI.red, ANSI.bold))
+        blankLine()
+        return
+      }
 
-    if (event.type === "error") {
-      printLine(style(`Error - ${event.agent}`, ANSI.red, ANSI.bold))
-      printLine(style(event.error, ANSI.red))
+      if (event.reason === "error") {
+        printLine(style(`Error - ${event.agent}`, ANSI.red, ANSI.bold))
+        if (event.error) printLine(style(event.error, ANSI.red))
+        blankLine()
+        return
+      }
+
+      printLine(style(`Done - ${event.finishReason ?? "stop"} - ${event.durationMs}ms - tools ${event.toolCalls}`, ANSI.dim))
       blankLine()
-      return
     }
   }
 
-  private flush(event: TurnKey) {
-    const turnID = toTurnID(event)
-    const output = this.outputs.get(turnID)
+  detach() {
+    this.renderer.detach(this.outputs)
+    this.outputs.clear()
+  }
+
+  private renderToolState(messageID: string, part: ToolPart) {
+    if (part.state.status === "completed") {
+      this.flush(messageID)
+      const suffix = preview(part.state.output, 80)
+      printLine(`${style("[ok]", ANSI.green, ANSI.bold)} ${part.toolName}${suffix ? style(` - ${suffix}`, ANSI.dim) : ""}`)
+      return
+    }
+
+    if (part.state.status === "error") {
+      this.flush(messageID)
+      printLine(`${style("[x]", ANSI.red, ANSI.bold)} ${part.toolName}`)
+      printLine(style(part.state.error.message, ANSI.red))
+    }
+  }
+
+  private flush(messageID: string) {
+    const output = this.outputs.get(messageID)
     if (!output) return
-    this.renderer.flush(event, output)
-    this.outputs.delete(turnID)
+    this.renderer.flush(messageID, output)
+    this.outputs.delete(messageID)
   }
 
-  private getOutput(key: TurnKey) {
-    const turnID = toTurnID(key)
-    const existing = this.outputs.get(turnID)
+  private getOutput(messageID: string) {
+    const existing = this.outputs.get(messageID)
     if (existing) return existing
     const created: TurnOutput = {
+      agent: this.agents.get(messageID) ?? "agent",
       reasoning: "",
       answer: "",
     }
-    this.outputs.set(turnID, created)
+    this.outputs.set(messageID, created)
     return created
   }
 }
 
 export function attachConsoleLogger(events: RuntimeEventBus, options: RendererOptions) {
   const logger = new ConsoleLogger(options)
-  const unsubscribe = events.subscribe(logger.handle)
+  const unsubscribeState = events.state.subscribe(logger.handleState)
+  const unsubscribeLoop = events.loop.subscribe(logger.handleLoop)
   return () => {
-    unsubscribe()
+    unsubscribeState()
+    unsubscribeLoop()
     logger.detach()
   }
 }

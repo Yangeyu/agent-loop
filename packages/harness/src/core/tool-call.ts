@@ -1,14 +1,18 @@
 /**
- * Tool dispatch: validate -> execute -> persist result/error -> emit events.
- * Contains NO business policy. Budgets, doom-loop and repeated-failure guards
- * are middleware (beforeToolCall / onToolError); rewriting is afterToolCall.
+ * Tool dispatch: validate -> execute -> persist result/error. Contains NO
+ * business policy — budgets, doom-loop and repeated-failure guards are
+ * middleware (beforeToolCall / onToolError); rewriting is afterToolCall.
+ *
+ * Dispatch emits no events of its own: every observable fact of a call is a
+ * tool-part state transition written through the tracker, and the state channel
+ * carries those automatically (part.created / part.updated).
  */
-import { appendStopNote, StreamSink } from "@harness/core/stream-sink"
 import type { TurnContext } from "@harness/core/context"
+import type { TurnRecorder } from "@harness/core/recorder"
 import type { MiddlewareStack } from "@harness/hooks/stack"
 import type { ToolCall } from "@harness/hooks/types"
 import { isAbortError } from "@harness/core/retry"
-import { ToolPartTracker } from "@harness/core/tool-part"
+import type { ToolPartTracker } from "@harness/core/tool-part"
 import { toToolExecutionErrorInfo } from "@harness/tool/tool"
 import {
   createID,
@@ -29,24 +33,24 @@ export type ToolDispatchResult = { kind: "continue" } | { kind: "stop" }
 
 /**
  * Dispatches a single tool call from the stream: runs it through the guard/execute
- * pipeline, drives the sink's phase, and translates a guard stop/abort into a turn
- * stop (failing the sink and appending a stop note).
+ * pipeline, drives the turn phase, and translates a guard stop/abort into a turn
+ * stop (failing the recorder and appending a stop note).
  *
  * @param ctx - the turn context
  * @param stack - the middleware stack (before/after/onError tool hooks)
- * @param sink - the stream sink for phase + terminal transitions
+ * @param recorder - the turn recorder (phase + tool parts + terminal transitions)
  * @param chunk - the tool-call chunk (name, call id, args)
  * @returns whether to continue the turn or stop it
  */
 export async function dispatchToolCall(
   ctx: TurnContext,
   stack: MiddlewareStack,
-  sink: StreamSink,
+  recorder: TurnRecorder,
   chunk: { toolName: string; toolCallId: string; args: unknown },
 ): Promise<ToolDispatchResult> {
-  sink.enterPhase("executing-tool")
+  recorder.enterPhase("executing-tool")
 
-  const outcome = await runGuardedTool(ctx, stack, {
+  const outcome = await runGuardedTool(ctx, stack, recorder, {
     toolName: chunk.toolName,
     toolCallId: chunk.toolCallId,
     args: chunk.args,
@@ -54,36 +58,26 @@ export async function dispatchToolCall(
 
   if (outcome.status === "completed" || outcome.status === "error") return { kind: "continue" }
   if (outcome.status === "abort") {
-    sink.abort()
+    recorder.abort()
     return { kind: "stop" }
   }
 
-  sink.fail(outcome.error)
-  appendStopNote(ctx, outcome.note ?? `\n\n[Stopped: ${outcome.error.message}]`)
+  recorder.fail(outcome.error)
+  recorder.appendNote(outcome.note ?? `\n\n[Stopped: ${outcome.error.message}]`)
   return { kind: "stop" }
 }
 
-async function runGuardedTool(ctx: TurnContext, stack: MiddlewareStack, call: ToolCall): Promise<GuardedToolResult> {
-  const base = toolEventBase(ctx, call.toolName, call.toolCallId)
-  ctx.events.emit({ type: "tool-call", ...base, args: call.args })
-  ctx.events.emit({ type: "tool-start", ...base })
-
-  ctx.reasoningPart = undefined
-  ctx.textPart = undefined
-
-  const tracker = new ToolPartTracker(ctx.session_store, ctx.sessionID, ctx.assistant.id, {
-    id: createID(),
-    toolName: call.toolName,
-    toolCallId: call.toolCallId,
-    input: call.args,
-    startedAt: Date.now(),
-  })
-
-  ctx.toolCalls += 1
+async function runGuardedTool(
+  ctx: TurnContext,
+  stack: MiddlewareStack,
+  recorder: TurnRecorder,
+  call: ToolCall,
+): Promise<GuardedToolResult> {
+  const tracker = recorder.trackToolCall(call)
 
   const gate = await stack.beforeToolCall(ctx, call)
   if (gate.action === "deny") {
-    markToolPartError(ctx, tracker, call.args, gate.error)
+    tracker.toErrored(call.args, gate.error)
     return { status: "stop", error: gate.error, note: gate.note }
   }
   const args = gate.args ?? call.args
@@ -91,13 +85,13 @@ async function runGuardedTool(ctx: TurnContext, stack: MiddlewareStack, call: To
   const tool = ctx.tools.find((item) => item.id === call.toolName)
   if (!tool) {
     const error: ErrorInfo = { message: `Tool not available: ${call.toolName}`, retryable: false, code: "tool_not_available" }
-    markToolPartError(ctx, tracker, call.args, error)
+    tracker.toErrored(call.args, error)
     return resolveToolError(ctx, stack, call, error)
   }
 
   const parsed = tool.validate(args)
   if (!parsed.success) {
-    markToolPartError(ctx, tracker, args, parsed.error)
+    tracker.toErrored(args, parsed.error)
     return resolveToolError(ctx, stack, call, parsed.error)
   }
 
@@ -105,27 +99,18 @@ async function runGuardedTool(ctx: TurnContext, stack: MiddlewareStack, call: To
   tracker.toRunning(validatedArgs)
 
   try {
-    const raw = await tool.execute(validatedArgs, createToolContext(ctx, stack, tracker))
+    const raw = await tool.execute(validatedArgs, createToolContext(ctx, stack, recorder, tracker))
     const result = await stack.afterToolCall(ctx, { ...call, args: validatedArgs }, raw)
     tracker.toCompleted(validatedArgs, result)
-    ctx.events.emit({
-      type: "tool-result",
-      ...base,
-      output: result.output,
-      title: result.title,
-      metadata: result.metadata,
-      attachments: result.attachments,
-    })
     return { status: "completed", result }
   } catch (error) {
     if (isAbortError(error)) {
-      const aborted: ErrorInfo = { message: "Aborted", retryable: false, code: "aborted" }
-      markToolPartError(ctx, tracker, validatedArgs, aborted)
+      tracker.toErrored(validatedArgs, { message: "Aborted", retryable: false, code: "aborted" })
       return { status: "abort" }
     }
 
     const errorInfo = toToolExecutionErrorInfo(call.toolName, error)
-    markToolPartError(ctx, tracker, validatedArgs, errorInfo)
+    tracker.toErrored(validatedArgs, errorInfo)
     return resolveToolError(ctx, stack, call, errorInfo)
   }
 }
@@ -141,56 +126,31 @@ async function resolveToolError(
   return { status: "error", error }
 }
 
-function toolEventBase(ctx: TurnContext, tool: string, toolCallId: string) {
-  return {
-    sessionID: ctx.sessionID,
-    agent: ctx.agent.name,
-    messageID: ctx.assistant.parentID,
-    turnID: ctx.assistant.id,
-    tool,
-    toolCallId,
-  }
-}
-
-function markToolPartError(ctx: TurnContext, tracker: ToolPartTracker, input: unknown, error: ErrorInfo) {
-  const part = tracker.toErrored(input, error)
-  ctx.events.emit({
-    type: "tool-error",
-    ...toolEventBase(ctx, part.toolName, part.toolCallId),
-    error: error.message,
-    errorInfo: error,
-  })
-}
-
-function createToolContext(ctx: TurnContext, stack: MiddlewareStack, tracker: ToolPartTracker): ToolContext {
+function createToolContext(
+  ctx: TurnContext,
+  stack: MiddlewareStack,
+  recorder: TurnRecorder,
+  tracker: ToolPartTracker,
+): ToolContext {
   return {
     config: ctx.config,
     agent_registry: ctx.agent_registry,
     skill_registry: ctx.skill_registry,
-    session_store: ctx.session_store,
+    sessions: ctx.sessions,
     tool_registry: ctx.tool_registry,
     events: ctx.events,
     sessionID: ctx.sessionID,
-    messageID: ctx.assistant.parentID,
-    turnID: ctx.assistant.id,
+    messageID: ctx.messageID,
     agent: ctx.agent.name,
     abort: ctx.abort,
     toolCallId: tracker.part.toolCallId,
     format: ctx.user.format,
     messages: collectSessionHistory(ctx),
-    extra: { model: ctx.user.model },
-    metadata: async (metadataUpdate: { title?: string; metadata?: Record<string, unknown> }) => {
-      const part = tracker.patchMetadata({ title: metadataUpdate.title, metadata: metadataUpdate.metadata })
-
-      ctx.events.emit({
-        type: "tool-metadata",
-        ...toolEventBase(ctx, part.toolName, part.toolCallId),
-        title: metadataUpdate.title,
-        metadata: metadataUpdate.metadata,
-      })
+    metadata: async (update: { title?: string; metadata?: Record<string, unknown> }) => {
+      tracker.patchMetadata({ title: update.title, metadata: update.metadata })
     },
     executeTool: async (input: { toolName: string; args: unknown; toolCallId?: string }) => {
-      const outcome = await runGuardedTool(ctx, stack, {
+      const outcome = await runGuardedTool(ctx, stack, recorder, {
         toolName: input.toolName,
         args: input.args,
         toolCallId: input.toolCallId ?? createID(),
@@ -206,9 +166,9 @@ function createToolContext(ctx: TurnContext, stack: MiddlewareStack, tracker: To
 }
 
 function collectSessionHistory(ctx: TurnContext): SessionHistoryMessage[] {
-  const session = ctx.session_store.get(ctx.sessionID)
+  const session = ctx.sessions.get(ctx.sessionID)
   return session.messages.map((message) => ({
     info: message,
-    parts: ctx.session_store.getParts(ctx.sessionID, message.id),
+    parts: ctx.sessions.parts(ctx.sessionID, message.id),
   }))
 }

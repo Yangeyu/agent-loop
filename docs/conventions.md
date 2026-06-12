@@ -19,10 +19,11 @@
 
 ## 依赖与边界
 
-- **跨包方向单向**：surfaces（cli/backend/tui/frontend）依赖 harness，harness 不反向依赖。
-  浏览器前端只 import `@agent-loop/contracts`。由 `bun run check:boundaries` 强制。
+- **跨包方向单向**：`contracts ← harness ← surfaces`（cli/backend/tui）。contracts 是纯叶子
+  （数据模型 + 事件词汇，零依赖）；harness 不反向依赖 surface；浏览器前端只 import
+  `@agent-loop/contracts`。由 `bun run check:boundaries` 强制。
 - **RuntimeContext vs RuntimeDeps**：`RuntimeContext` 是完整运行时，只由组合根（bootstrap、
-  CLI/TUI 入口）持有；执行链拿到的是依赖切片 `RuntimeDeps`（config / registries / session_store /
+  CLI/TUI 入口）持有；执行链拿到的是依赖切片 `RuntimeDeps`（config / registries / sessions /
   events）。能拿 `RuntimeDeps` 的地方就不要持有 `RuntimeContext`。
 - **显式注入，拒绝隐式全局**：registry、store、event bus 都属于某个 runtime 实例。
 

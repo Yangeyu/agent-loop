@@ -8,22 +8,25 @@
  *
  *   runSession ── append user message ──► runLoop
  *     per step (one turn):
- *       beforeTurn ──────────(gate stops)──► finish & return
- *       contributeSystem → transformMessages   (ctx.system filled here, after beforeTurn)
+ *       TurnRecorder created (appends assistant message, emits turn.start)
+ *       beforeTurn ──────────(gate stops)──► recorder.finish + outcome & return
+ *       contributeSystem → transformMessages   (assembled input, after beforeTurn)
  *       runTurn:
  *         stream ─► tool dispatch (beforeToolCall → execute → afterToolCall / onToolError)
- *                ─► onTurnFinish
+ *                ─► onTurnFinish ─► recorder terminal (exactly once)
  *       resolveOutcome ──────(break)────────► return ; else next step
  *
- * Note: the hook order above is the *runtime* order, which differs from the
- * field declaration order on the Middleware type (see hooks/types.ts).
+ * The loop emits only loop telemetry (session.start / turn.input / turn.outcome);
+ * all session content flows through the Sessions aggregate, which emits the
+ * state channel by itself.
  */
 import type { AgentDefinition } from "@harness/agent/types"
-import { createTurnContext, type EngineDeps } from "@harness/core/context"
+import { createTurnContext, type EngineDeps, type TurnContext } from "@harness/core/context"
 import { baseOutcome } from "@harness/core/outcome"
 import { createTurnAbortSignal, resolveTurnExecutionPolicy } from "@harness/core/policy"
-import { appendStopNote } from "@harness/core/stream-sink"
+import { TurnRecorder } from "@harness/core/recorder"
 import { runTurn } from "@harness/core/turn"
+import type { TurnOutcome } from "@harness/hooks/types"
 import { MiddlewareStack } from "@harness/hooks/stack"
 import { toModelMessages } from "@harness/llm/message"
 import {
@@ -31,7 +34,6 @@ import {
   type AssistantMessage,
   type ImageSource,
   type OutputFormat,
-  type ProviderModel,
   type SessionInfo,
   type UserMessage,
 } from "@harness/types"
@@ -41,7 +43,6 @@ export type RunSessionInput = {
   sessionID: string
   text: string
   agent?: string
-  model?: ProviderModel
   format?: OutputFormat
   // Images supplied with the user message (e.g. a TUI `@` file or a ctrl+v
   // screenshot). The multimodal model sees these directly; see view-image
@@ -51,33 +52,37 @@ export type RunSessionInput = {
 }
 
 /**
- * Appends a user message (text + images) to the session, emits session-start, and
+ * Appends a user message (text + images) to the session, emits session.start, and
  * drives the agent loop to completion.
  *
- * @param deps - the engine dependencies (store, registries, events, config)
- * @param input - the session id, user text, and optional agent/model/format/images
+ * @param deps - the engine dependencies (sessions, registries, events, config)
+ * @param input - the session id, user text, and optional agent/format/images
  * @returns the session after the loop breaks
  */
 export async function runSession(deps: EngineDeps, input: RunSessionInput): Promise<SessionInfo> {
-  const store = deps.session_store
+  const sessions = deps.sessions
+  const session = sessions.get(input.sessionID)
   const agent = deps.agent_registry.get(input.agent ?? deps.agent_registry.defaultAgent().name)
-  const user = createUserMessage({
-    sessionID: input.sessionID,
-    agent,
-    model: input.model,
+  const user: UserMessage = {
+    id: createID(),
+    role: "user",
+    agent: agent.name,
     format: input.format ?? agent.format,
-  })
-
-  store.appendUserMessage(input.sessionID, user)
-  store.appendTextPart(input.sessionID, user.id, { id: createID(), type: "text", text: input.text })
-  for (const source of input.images ?? []) {
-    store.addPart(input.sessionID, user.id, { id: createID(), type: "image", source })
+    time: { created: Date.now() },
   }
-  deps.events.emit({
-    type: "session-start",
+
+  sessions.appendMessage(input.sessionID, user)
+  sessions.appendPart(input.sessionID, user.id, { id: createID(), type: "text", text: input.text })
+  for (const source of input.images ?? []) {
+    sessions.appendPart(input.sessionID, user.id, { id: createID(), type: "image", source })
+  }
+
+  deps.events.loop.emit({
+    type: "session.start",
     sessionID: input.sessionID,
-    agent: user.agent,
-    text: store.getMessageText(input.sessionID, user.id),
+    rootID: session.rootID,
+    agent: agent.name,
+    text: input.text,
   })
 
   return runLoop(deps, { sessionID: input.sessionID, agent, abort: input.abort })
@@ -97,7 +102,7 @@ export async function runLoop(
   deps: EngineDeps,
   input: { sessionID: string; agent: AgentDefinition; abort?: AbortSignal },
 ): Promise<SessionInfo> {
-  const store = deps.session_store
+  const sessions = deps.sessions
   const model = input.agent.model
   const stack = MiddlewareStack.build(input.agent.assemble().middleware)
   const rootAbort = input.abort ?? new AbortController().signal
@@ -105,15 +110,19 @@ export async function runLoop(
   let step = 0
   while (true) {
     step += 1
-    const session = store.get(input.sessionID)
+    const session = sessions.get(input.sessionID)
     const user = resolveLastUserMessage(session)
     const policy = resolveTurnExecutionPolicy(deps.config, input.agent, session)
-
-    deps.events.emit({ type: "loop-step", sessionID: input.sessionID, step, agent: input.agent.name })
-
     const tools = [...(await deps.tool_registry.toolsForAgent(input.agent))]
-    const assistant = createAssistantMessage(input.sessionID, user, input.agent)
-    store.appendAssistantMessage(input.sessionID, assistant)
+
+    const assistant: AssistantMessage = {
+      id: createID(),
+      role: "assistant",
+      parentID: user.id,
+      agent: input.agent.name,
+      model: { providerID: model.providerID, modelID: model.spec.id },
+      time: { created: Date.now() },
+    }
 
     const turnAbort = createTurnAbortSignal({ parent: rootAbort, timeoutMs: policy.timeout.turnTimeoutMs })
     const ctx = createTurnContext({
@@ -122,97 +131,78 @@ export async function runLoop(
       model,
       policy,
       sessionID: input.sessionID,
+      rootID: session.rootID,
       user,
-      assistant,
+      messageID: assistant.id,
       tools,
       step,
       abort: turnAbort.signal,
     })
 
+    // Appends the assistant message and emits turn.start; from here the
+    // recorder owns the turn's accumulation and terminal transition.
+    const recorder = new TurnRecorder({
+      sessions,
+      loop: deps.events.loop,
+      sessionID: input.sessionID,
+      rootID: session.rootID,
+      agent: input.agent.name,
+      step,
+      assistant,
+    })
+
     try {
       const gate = await stack.beforeTurn(ctx)
       if (!gate.proceed) {
-        store.updateMessage(input.sessionID, assistant.id, { finish: "stop" })
-        if (gate.note) appendStopNote(ctx, gate.note)
+        recorder.finish("stop")
+        if (gate.note) recorder.appendNote(gate.note)
         emitTurnOutcome(ctx, { kind: "break", reason: gate.reason })
-        return store.get(input.sessionID)
+        return sessions.get(input.sessionID)
       }
 
-      ctx.system = await stack.contributeSystem(ctx)
-      ctx.messages = await stack.transformMessages(ctx, toModelMessages(store.get(input.sessionID)))
+      const system = await stack.contributeSystem(ctx)
+      const messages = await stack.transformMessages(ctx, toModelMessages(sessions.get(input.sessionID)))
 
-      deps.events.emit({
-        type: "turn-input",
+      deps.events.loop.emit({
+        type: "turn.input",
         sessionID: input.sessionID,
+        rootID: session.rootID,
         agent: input.agent.name,
-        messageID: assistant.parentID,
-        turnID: assistant.id,
+        messageID: assistant.id,
         step,
-        system: ctx.system,
+        system,
         tools: tools.map((tool) => tool.id),
-        messageCount: store.get(input.sessionID).messages.length,
+        messageCount: sessions.get(input.sessionID).messages.length,
       })
 
-      const { sawToolCall } = await runTurn(ctx, stack)
+      const { sawToolCall } = await runTurn(ctx, stack, recorder, { system, messages })
       const outcome = await stack.resolveOutcome(ctx, baseOutcome(ctx, sawToolCall))
 
-      if (outcome.kind === "break" && outcome.note) appendStopNote(ctx, outcome.note)
+      if (outcome.kind === "break" && outcome.note) recorder.appendNote(outcome.note)
       emitTurnOutcome(ctx, outcome)
 
-      if (outcome.kind === "break") return store.get(input.sessionID)
+      if (outcome.kind === "break") return sessions.get(input.sessionID)
     } finally {
       turnAbort.dispose()
     }
   }
 }
 
-function emitTurnOutcome(
-  ctx: ReturnType<typeof createTurnContext>,
-  outcome: { kind: "continue" | "break"; reason: string },
-) {
-  ctx.events.emit({
-    type: "turn-outcome",
+function emitTurnOutcome(ctx: TurnContext, outcome: TurnOutcome) {
+  ctx.events.loop.emit({
+    type: "turn.outcome",
     sessionID: ctx.sessionID,
+    rootID: ctx.rootID,
     agent: ctx.agent.name,
-    messageID: ctx.assistant.parentID,
-    turnID: ctx.assistant.id,
+    messageID: ctx.messageID,
     step: ctx.step,
     outcome: outcome.kind,
-    reason: outcome.reason as never,
+    reason: outcome.reason,
   })
 }
 
 function resolveLastUserMessage(session: SessionInfo): UserMessage {
   const user = [...session.messages].reverse().find((message) => message.role === "user")
   if (!user) throw new Error("No user message found")
-  return user as UserMessage
-}
-
-function createUserMessage(input: {
-  sessionID: string
-  agent: AgentDefinition
-  model?: ProviderModel
-  format?: OutputFormat
-}): UserMessage {
-  return {
-    id: createID(),
-    role: "user",
-    sessionID: input.sessionID,
-    agent: input.agent.name,
-    model: input.model ?? { providerID: input.agent.model.providerID, modelID: input.agent.model.spec.id },
-    format: input.format,
-    time: { created: Date.now() },
-  }
-}
-
-function createAssistantMessage(sessionID: string, user: UserMessage, agent: AgentDefinition): AssistantMessage {
-  return {
-    id: createID(),
-    role: "assistant",
-    sessionID,
-    parentID: user.id,
-    agent: agent.name,
-    model: user.model,
-    time: { created: Date.now() },
-  }
+  return user
 }
