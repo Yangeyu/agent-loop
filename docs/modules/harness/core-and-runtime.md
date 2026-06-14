@@ -59,14 +59,21 @@ TurnRecorder 构造（追加 assistant message，发 turn.start）
 beforeTurn ──(gate 拦截)──► recorder.finish + turn.outcome，返回
 contributeSystem → transformMessages      # 装配产物以参数传入 runTurn，不挂在 ctx 上
 runTurn:
-  stream ─► 工具派发(beforeToolCall → execute → afterToolCall / onToolError) ─► onTurnFinish
+  stream ─► 收集 tool-call ─► 批量并发执行(beforeToolCall → execute → afterToolCall / onToolError) ─► onTurnFinish
          ─► recorder 终态（恰好一次）
 resolveOutcome ──(break)──► 返回 ; 否则下一步
 ```
 
 - **stream 消费**：`core/turn.ts` 把 reasoning/text 增量交给 recorder（落 part + 自动发
-  `part.delta`），把 tool-call chunk 派发给 `core/tool-call.ts`，finish/error/abort 由 recorder 收口。
-  retry 在此层包住 `model.stream`，是 turn 级关注点（Model 抽象保持薄）。
+  `part.delta`），并把每个 tool-call chunk 收集到本 turn 的待执行集合。retry 在此层包住
+  `model.stream`，是 turn 级关注点（Model 抽象保持薄）。
+- **工具并发派发**：流耗尽后，`runToolCalls` 按发起顺序为每个 tool call 开好 tool part（part.created
+  确定性入场），再以有界并发整批执行——同时在飞至多 `policy.toolConcurrency` 个。这个界由每个
+  turn 独立持有，嵌套 subagent 的扇出各自成界、互不争用。一批全部 settle 后才进入下一 turn，保证每个
+  tool call 都有结果可供回放。
+- **终态归属**：`core/turn.ts` 是 turn 终态的唯一所有者，把这批 per-call outcome 归约成单一
+  continue/stop（首个 stop/abort 按发起顺序胜出）。`core/tool-call.ts` 是纯 per-call 执行单元：只经
+  tracker 写自己那一个 part，不触碰 recorder 终态，可安全并发。
 - **工具结果**：`core/tool-call.ts` 不发任何事件——一次调用的全部可观测事实就是 tool part 的状态
   转换（`part.created` 开场，`part.updated` 推进到 running/completed/error），由 tracker 写穿产生。
 - **outcome**：middleware 的 `resolveOutcome` 决定 `continue | break`；budget、doom-loop、repeated-failure

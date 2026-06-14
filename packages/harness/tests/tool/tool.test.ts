@@ -5,7 +5,7 @@ import { loadConfigFromEnv } from "@harness/config"
 import { createTurnContext } from "@harness/core/context"
 import { resolveTurnExecutionPolicy } from "@harness/core/policy"
 import { TurnRecorder } from "@harness/core/recorder"
-import { dispatchToolCall } from "@harness/core/tool-call"
+import { executeToolCall } from "@harness/core/tool-call"
 import { MiddlewareStack } from "@harness/hooks/stack"
 import { createRuntimeEvents } from "@harness/runtime/events"
 import { MemorySessionPersistence, Sessions } from "@harness/session"
@@ -38,7 +38,7 @@ describe("defineTool", () => {
   })
 })
 
-describe("dispatchToolCall", () => {
+describe("executeToolCall", () => {
   it("reuses validated args without parsing twice", async () => {
     let parseCount = 0
 
@@ -225,8 +225,10 @@ function createToolCallHarness(tool: ToolDefinition) {
   const stack = MiddlewareStack.build([])
 
   return {
-    dispatch: (chunk: { toolCallId: string; toolName: string; args: unknown }) =>
-      dispatchToolCall(ctx, stack, recorder, chunk),
+    dispatch: (chunk: { toolCallId: string; toolName: string; args: unknown }) => {
+      const tracker = recorder.trackToolCall(chunk)
+      return executeToolCall(ctx, stack, recorder, chunk, tracker)
+    },
     sessions,
     events,
     sessionID: session.id,

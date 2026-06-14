@@ -22,6 +22,11 @@ export type ModelCapabilities = {
   streaming: boolean
   // Whether the model accepts image content blocks (multimodal vision input).
   vision: boolean
+  // Whether the model can emit several tool calls in one turn. When true the
+  // provider requests parallel calls; the engine then dispatches them concurrently.
+  // Many OpenAI-compatible endpoints (DashScope included) default this off, so it
+  // must be opted in per model.
+  parallelToolCalls: boolean
 }
 
 /**

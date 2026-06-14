@@ -12,7 +12,6 @@ export const generalAgent = defineAgent({
   model: createDashScopeModel({ modelID: "qwen3.7-plus" }),
   instructions: [...BASE_AGENT_INSTRUCTIONS, ...GENERAL_INSTRUCTIONS],
   tools: {
-    batch: true,
     read: true,
     grep: true,
     present_files: true,

@@ -23,7 +23,7 @@ loop 自主组织分析与写作。它示范了“业务能力以 runtime 插件
 1. `lead` 用 `skill` 工具加载 `board-analysis` skill。
 2. 委派 `board_analysis_prepare`：调 `board_analysis_context` 创建已存储的 dataset，只回 `analysisId`、
    overview、aggregates、cleaning logs 与可用 bundle 目录；完整 dataset 落到 `data/board-analysis-store/<id>.json`。
-3. `lead` 按 skill 指南选 bundle，用 `task`（独立时可 `batch` 并行）委派 `board_bundle_analyze`。
+3. `lead` 按 skill 指南选 bundle，用 `task` 委派 `board_bundle_analyze`（同一 turn 发起多个 `task` 时由引擎并发执行）。
 4. 每个 `board_bundle_analyze` 只读一个 bundle，把高价值内容经 `board_analysis_asset_upsert` 写回 dataset store。
 5. `lead` 委派 `board_write` 读取已存资产、生成报告，写入项目数据目录，**只把 markdown 文件路径返回主对话**。
 

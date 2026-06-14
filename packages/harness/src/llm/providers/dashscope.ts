@@ -37,12 +37,12 @@ const resolveConnection = () =>
 const MODELS: Record<string, ProviderModelSpec> = {
   "qwen3.7-plus": {
     id: "qwen3.7-plus",
-    capabilities: { tools: true, reasoning: true, structuredOutput: true, streaming: true, vision: true },
+    capabilities: { tools: true, reasoning: true, structuredOutput: true, streaming: true, vision: true, parallelToolCalls: true },
     contextWindow: 262144,
   },
   "qwen3.6-flash": {
     id: "qwen3.6-flash",
-    capabilities: { tools: true, reasoning: true, structuredOutput: true, streaming: true, vision: false },
+    capabilities: { tools: true, reasoning: true, structuredOutput: true, streaming: true, vision: false, parallelToolCalls: true },
     contextWindow: 131072,
   },
 }

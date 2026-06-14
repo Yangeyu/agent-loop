@@ -122,11 +122,6 @@ function formatToolLabel(tool: string, args: unknown) {
     return taskID ? `Resume ${subagent}: ${taskID}` : `Resume ${subagent}`
   }
 
-  if (tool === "batch") {
-    const calls = Array.isArray(input.tool_calls) ? input.tool_calls.length : undefined
-    return calls ? `Run batch (${calls})` : "Run batch"
-  }
-
   return `${tool} ${preview(args, 80)}`
 }
 

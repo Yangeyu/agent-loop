@@ -35,6 +35,10 @@ export type TurnBudgetPolicy = {
 export type TurnExecutionPolicy = {
   retry: RetryPolicy
   timeout: TimeoutPolicy
+  // Max tool calls executed in parallel within one turn's fan-out. Resolved per
+  // turn (not a shared semaphore), so a parent turn delegating to subagents that
+  // themselves fan out cannot deadlock on one global counter.
+  toolConcurrency: number
   budget: TurnBudgetPolicy
 }
 
@@ -61,6 +65,7 @@ export function resolveTurnExecutionPolicy(config: Config, agent: AgentDefinitio
     timeout: {
       turnTimeoutMs: config.turn_timeout_ms,
     },
+    toolConcurrency: config.tool_max_concurrency,
     budget: {
       maxSteps: Math.min(maxAgentSteps, sessionStepsRemaining),
       maxAgentSteps,

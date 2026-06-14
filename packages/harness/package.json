@@ -10,7 +10,8 @@
     "./*": "./src/*"
   },
   "scripts": {
-    "test": "bun test tests"
+    "test": "bun test tests",
+    "test:e2e": "bun test e2e"
   },
   "dependencies": {
     "openai": "^6.42.0",

@@ -15,6 +15,7 @@
     "sse": "bun run packages/backend/src/server.ts",
     "tui": "bun run apps/cli/src/index.ts --tui",
     "test:harness": "bun run --cwd packages/harness test",
+    "test:harness:e2e": "bun run --cwd packages/harness test:e2e",
     "test:tui": "bun run --cwd packages/tui test",
     "check": "bunx tsc -p packages/contracts --noEmit && bunx tsc -p packages/harness --noEmit && bunx tsc -p packages/backend --noEmit && bunx tsc -p packages/tui --noEmit && bunx tsc -p apps/cli --noEmit && bunx tsc -p apps/frontend",
     "check:boundaries": "bun run scripts/check-boundaries.ts",

@@ -103,7 +103,9 @@ async function* runStream(
       {
         model: model.id,
         messages: buildMessages(input),
-        ...(tools.length > 0 ? { tools, tool_choice: "auto" as const } : {}),
+        ...(tools.length > 0
+          ? { tools, tool_choice: "auto" as const, parallel_tool_calls: model.capabilities.parallelToolCalls }
+          : {}),
         temperature: input.temperature ?? config.temperature ?? DEFAULT_TEMPERATURE,
         stream: true,
         stream_options: { include_usage: true },

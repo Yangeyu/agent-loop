@@ -23,6 +23,7 @@ export function createFakeModel(options: FakeModelOptions = {}): Model {
       structuredOutput: true,
       streaming: true,
       vision: true,
+      parallelToolCalls: true,
       ...options.spec?.capabilities,
     },
     contextWindow: options.spec?.contextWindow ?? 100_000,

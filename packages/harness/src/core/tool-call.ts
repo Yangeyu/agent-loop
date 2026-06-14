@@ -1,9 +1,13 @@
 /**
- * Tool dispatch: validate -> execute -> persist result/error. Contains NO
- * business policy — budgets, doom-loop and repeated-failure guards are
- * middleware (beforeToolCall / onToolError); rewriting is afterToolCall.
+ * Per-call tool execution: validate -> execute -> persist result/error, returning
+ * a per-call outcome. This is the concurrency-safe unit a turn fans out: it owns
+ * only its own tool part (via the injected tracker) and never touches the turn's
+ * terminal state — collecting outcomes and deciding the turn's continue/stop is
+ * the caller's job (see core/turn.ts). Contains NO business policy — budgets,
+ * doom-loop and repeated-failure guards are middleware (beforeToolCall /
+ * onToolError); rewriting is afterToolCall.
  *
- * Dispatch emits no events of its own: every observable fact of a call is a
+ * Execution emits no events of its own: every observable fact of a call is a
  * tool-part state transition written through the tracker, and the state channel
  * carries those automatically (part.created / part.updated).
  */
@@ -22,59 +26,39 @@ import {
   type ToolExecuteResult,
 } from "@harness/types"
 
-type GuardedToolResult =
+/**
+ * The result of running one tool call to completion: a successful result, a
+ * recoverable error (the turn continues), a stop signal (a guard/onToolError
+ * decided the turn must halt), or an abort. The caller reduces a batch of these
+ * into the turn's single terminal decision.
+ */
+export type ToolCallOutcome =
   | { status: "completed"; result: ToolExecuteResult }
   | { status: "error"; error: ErrorInfo }
   | { status: "stop"; error: ErrorInfo; note?: string }
   | { status: "abort" }
 
-/** Whether the loop should continue after a tool call, or stop the turn. */
-export type ToolDispatchResult = { kind: "continue" } | { kind: "stop" }
-
 /**
- * Dispatches a single tool call from the stream: runs it through the guard/execute
- * pipeline, drives the turn phase, and translates a guard stop/abort into a turn
- * stop (failing the recorder and appending a stop note).
+ * Runs a single tool call through the guard/execute pipeline against a
+ * pre-allocated tool part, returning its per-call outcome. Writes only this
+ * call's part state (via the tracker); it never mutates the turn's terminal
+ * state, so N calls can run concurrently and the caller decides the turn's fate
+ * once they all settle.
  *
  * @param ctx - the turn context
  * @param stack - the middleware stack (before/after/onError tool hooks)
- * @param recorder - the turn recorder (phase + tool parts + terminal transitions)
- * @param chunk - the tool-call chunk (name, call id, args)
- * @returns whether to continue the turn or stop it
+ * @param recorder - the turn recorder (used only to spawn nested tool parts)
+ * @param call - the tool name, call id, and raw args
+ * @param tracker - the tool part this call owns, pre-created by the caller
+ * @returns the per-call outcome
  */
-export async function dispatchToolCall(
-  ctx: TurnContext,
-  stack: MiddlewareStack,
-  recorder: TurnRecorder,
-  chunk: { toolName: string; toolCallId: string; args: unknown },
-): Promise<ToolDispatchResult> {
-  recorder.enterPhase("executing-tool")
-
-  const outcome = await runGuardedTool(ctx, stack, recorder, {
-    toolName: chunk.toolName,
-    toolCallId: chunk.toolCallId,
-    args: chunk.args,
-  })
-
-  if (outcome.status === "completed" || outcome.status === "error") return { kind: "continue" }
-  if (outcome.status === "abort") {
-    recorder.abort()
-    return { kind: "stop" }
-  }
-
-  recorder.fail(outcome.error)
-  recorder.appendNote(outcome.note ?? `\n\n[Stopped: ${outcome.error.message}]`)
-  return { kind: "stop" }
-}
-
-async function runGuardedTool(
+export async function executeToolCall(
   ctx: TurnContext,
   stack: MiddlewareStack,
   recorder: TurnRecorder,
   call: ToolCall,
-): Promise<GuardedToolResult> {
-  const tracker = recorder.trackToolCall(call)
-
+  tracker: ToolPartTracker,
+): Promise<ToolCallOutcome> {
   const gate = await stack.beforeToolCall(ctx, call)
   if (gate.action === "deny") {
     tracker.toErrored(call.args, gate.error)
@@ -120,7 +104,7 @@ async function resolveToolError(
   stack: MiddlewareStack,
   call: ToolCall,
   error: ErrorInfo,
-): Promise<GuardedToolResult> {
+): Promise<ToolCallOutcome> {
   const decision = await stack.onToolError(ctx, call, error)
   if (decision.action === "stop") return { status: "stop", error: decision.error, note: decision.note }
   return { status: "error", error }
@@ -150,11 +134,13 @@ function createToolContext(
       tracker.patchMetadata({ title: update.title, metadata: update.metadata })
     },
     executeTool: async (input: { toolName: string; args: unknown; toolCallId?: string }) => {
-      const outcome = await runGuardedTool(ctx, stack, recorder, {
+      const nestedCall: ToolCall = {
         toolName: input.toolName,
         args: input.args,
         toolCallId: input.toolCallId ?? createID(),
-      })
+      }
+      const nestedTracker = recorder.trackToolCall(nestedCall)
+      const outcome = await executeToolCall(ctx, stack, recorder, nestedCall, nestedTracker)
 
       if (outcome.status === "completed") return { status: "completed" as const, result: outcome.result }
       if (outcome.status === "error" || outcome.status === "stop") {

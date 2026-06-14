@@ -15,7 +15,6 @@ export const leadAgent = defineAgent({
   tools: {
     task: true,
     task_resume: true,
-    batch: true,
     read: true,
     grep: true,
     present_files: true,
