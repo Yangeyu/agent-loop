@@ -1,6 +1,9 @@
-# Minimal OpenCode-Like Agent Runtime
+# Agent Loop
 
-This project extracts a compact core of the `opencode` runtime shape, focused on:
+A compact TypeScript agent runtime built around an explicit agentic loop with tool
+execution, subagent delegation, session state, provider adaptation, and compaction.
+It is a from-scratch build of the core machinery an agent runtime needs — not a product
+clone — with these moving parts:
 
 - `runSession` / `runLoop` (`core/loop.ts`) as the outer agentic loop
 - `core/turn.ts` as the per-turn stream-and-tool executor
@@ -9,7 +12,7 @@ This project extracts a compact core of the `opencode` runtime shape, focused on
 - the `compaction` middleware as the context compaction path
 - `structured-output` middleware for JSON-schema-style final answers
 - reasoning parts emitted as a first-class event stream
-- a local split-pane CLI TUI inspired by OpenCode's terminal experience
+- a local split-pane CLI TUI for the interactive terminal experience
 
 > Architecture and module docs live under [`docs/`](docs/README.md); start at
 > [`AGENTS.md`](AGENTS.md). This README is the run guide.
@@ -212,7 +215,7 @@ The split-pane TUI now uses `@opentui/solid` components, keeps the current sessi
 
 The simple renderer still shows terminal output for:
 
-- a small startup banner inspired by OpenCode's CLI style
+- a small startup banner for the CLI
 - session metadata and loop step headings
 - streamed or buffered thinking/final answer sections
 - formatted tool activity lines for `read`, `grep`, `glob`, `bash`, `task`, and fallback tools
@@ -251,7 +254,7 @@ bun run smoke:tui
 ## Notes
 
 - The DashScope (qwen) provider streams over the OpenAI-compatible endpoint and maps `reasoning_content` into internal reasoning events via the provider's `readReasoning` hook.
-- The renderer borrows from OpenCode's CLI presentation approach, but stays compact and event-driven around this repo's own runtime events.
+- The renderer stays compact and event-driven, built around this repo's own runtime events.
 - The renderer is intentionally mode-based: `stream` prints model output deltas in real time, while `buffered` prints complete reasoning/final blocks after each turn.
-- The `task` tool creates a child session and recursively re-enters `runSession`, which mirrors the core orchestration pattern in `opencode`.
+- The `task` tool creates a child session and recursively re-enters `runSession`, which is the core subagent orchestration pattern.
 - Tests exercise subagents, invalid tool args, nested batched tools, structured output capture, and compaction against a stubbed `Model` (`tests/support/fake-model.ts`), with no network calls.
