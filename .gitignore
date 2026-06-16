@@ -4,3 +4,6 @@ data/*
 *.tsbuildinfo
 .gemini/*
 .codex/*
+.env
+.env.local
+.env.*.local

@@ -13,7 +13,9 @@ export const generalAgent = defineAgent({
   instructions: [...BASE_AGENT_INSTRUCTIONS, ...GENERAL_INSTRUCTIONS],
   tools: {
     read: true,
+    read_file: true,
     grep: true,
+    tavily: true,
     present_files: true,
     bash: true,
     skill: true,

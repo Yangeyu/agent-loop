@@ -38,7 +38,7 @@
   core/tool-part（ToolPartTracker）/budget/event 边界。
 - 同一 turn 内的多个 tool call 由引擎整批并发执行（见 core-and-runtime 的"工具并发派发"），工具自身
   只实现单次调用即可。
-- core 工具：`task`、`task_resume`、`bash`、`read`、`grep`、`present_files`、`skill`、`view_image`。
+- core 工具：`task`、`task_resume`、`bash`、`read`、`read_file`、`grep`、`tavily`、`present_files`、`skill`、`view_image`。
 - `task` 创建 child session、校验 `subagent_max_depth`、递归回 `runSession`，子 agent 结束后把最终文本
   作为普通 tool output 返回父上下文；`task_resume` 复用已有 child session。
 

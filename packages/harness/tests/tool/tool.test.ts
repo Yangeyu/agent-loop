@@ -10,6 +10,8 @@ import { MiddlewareStack } from "@harness/hooks/stack"
 import { createRuntimeEvents } from "@harness/runtime/events"
 import { MemorySessionPersistence, Sessions } from "@harness/session"
 import { createSkillRegistry } from "@harness/skill/registry"
+import { ReadFileTool } from "@harness/tool/read-file"
+import { normalizeTavilyResponse } from "@harness/tool/tavily"
 import { defineTool } from "@harness/tool/tool"
 import { createToolRegistry } from "@harness/tool/registry"
 import type { AssistantMessage, ToolContext, ToolDefinition, ToolPart, UserMessage } from "@harness/types"
@@ -35,6 +37,50 @@ describe("defineTool", () => {
     const result = await tool.execute({}, createToolContextStub())
 
     expect(result.metadata).toEqual({ fromExecute: true, fromAfterExecute: true })
+  })
+})
+
+describe("read_file", () => {
+  it("reads UTF-8 text files with metadata", async () => {
+    const file = new File(["hello\nworld"], "sample.txt", { type: "text/plain" })
+    const target = await Bun.write(Bun.file("/tmp/agent-loop-read-file-test.txt"), file)
+    expect(target).toBe(11)
+
+    const result = await ReadFileTool.execute({ filePath: "/tmp/agent-loop-read-file-test.txt" }, createToolContextStub())
+
+    expect(result.output).toBe("hello\nworld")
+    expect(result.metadata?.format).toBe("text")
+    expect(result.metadata?.truncated).toBe(false)
+  })
+})
+
+describe("tavily", () => {
+  it("normalizes Tavily search responses", () => {
+    expect(normalizeTavilyResponse({
+      query: "agent loops",
+      answer: "Agent loops run tools iteratively.",
+      results: [
+        {
+          title: "Agent Loop",
+          url: "https://example.com/agent-loop",
+          content: "A page about agent loops.",
+          score: 0.91,
+          ignored: true,
+        },
+      ],
+    }, "fallback")).toEqual({
+      query: "agent loops",
+      answer: "Agent loops run tools iteratively.",
+      totalResults: 1,
+      results: [
+        {
+          title: "Agent Loop",
+          url: "https://example.com/agent-loop",
+          content: "A page about agent loops.",
+          score: 0.91,
+        },
+      ],
+    })
   })
 })
 
