@@ -10,7 +10,8 @@
    reasoning / compaction / image / tool）。消息不携带 sessionID 回指；assistant message 即
    turn 的记录。
 2. **两类事件**：`StateEvent`（会话状态变更，由 harness 的 `Sessions` 聚合在写入时发出）与
-   `LoopEvent`（循环遥测）。事件信封自带 `sessionID/rootID`。
+   `LoopEvent`（活动协议：`session.start` / `turn.start` / `turn.phase` / `turn.end`，只回答
+   "循环现在在忙什么"；一切需要活过回放的事实必须走 state 通道）。事件信封自带 `sessionID/rootID`。
 3. **共享投影**：`applyStateEvent`（纯 reducer）+ `partsOf` / `messageText`。折叠一个会话的
    完整状态事件流可精确复原 store 中的会话——这是协议的核心不变量。
 
@@ -32,7 +33,8 @@
 
 - 新状态事实：在 `StateEvent` 加一支 + 在 `applyStateEvent` 加对应折叠 + 让 `Sessions` 的
   mutator 发出。三处同改，缺一不可。
-- 新循环遥测：在 `LoopEvent` 加一支，引擎/middleware 发出。
+- 新活动信号：在 `LoopEvent` 加一支，由引擎（loop/recorder）发出——middleware 不直接发遥测；
+  加分支前先确认它确实是"实况活动"而非可从 state 推导的事实，且有真实消费者。
 
 ## 约束与经验
 

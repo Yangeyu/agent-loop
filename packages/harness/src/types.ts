@@ -1,8 +1,7 @@
 // Engine-side types. The session data model and event vocabulary live in
 // @contracts (the shared leaf); this module re-exports them for harness code
-// and adds the engine-only types (tool contracts, runtime modules).
-import type { RuntimeDeps } from "@harness/runtime/context"
-import type { RuntimePlugin } from "@harness/plugin/types"
+// and adds the engine-only types (tool contracts).
+import type { EngineDeps } from "@harness/agent/context"
 import type {
   ErrorInfo,
   OutputFormat,
@@ -16,7 +15,6 @@ import type { z } from "zod"
 export type {
   ArtifactFile,
   AssistantMessage,
-  BudgetKind,
   CompactionPart,
   ErrorInfo,
   FinishReason,
@@ -28,7 +26,6 @@ export type {
   PartsByMessage,
   ProviderModel,
   ReasoningPart,
-  RetryCategory,
   SessionInfo,
   SessionMessage,
   SessionMeta,
@@ -44,7 +41,6 @@ export type {
   ToolRunningState,
   ToolState,
   TurnEndReason,
-  TurnOutcomeReason,
   TurnPhase,
   UserMessage,
 } from "@contracts"
@@ -73,7 +69,7 @@ export type SessionHistoryMessage = {
   parts: readonly MessagePart[]
 }
 
-export type ToolContext = RuntimeDeps & {
+export type ToolContext = EngineDeps & {
   sessionID: string
   // The assistant message (turn record) this tool call belongs to.
   messageID: string
@@ -112,8 +108,6 @@ export type ToolDefinition<TArgs = unknown> = {
 }
 
 export type AnyToolDefinition = ToolDefinition<unknown>
-
-export type RuntimeModule = RuntimePlugin
 
 export function createID() {
   return Math.random().toString(36).slice(2, 10)

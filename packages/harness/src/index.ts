@@ -6,30 +6,26 @@
 export {
   createRuntime,
   createTestRuntime,
-  disposeRuntime,
   runPrompt,
 } from "@harness/runtime/bootstrap"
+export type { RuntimeAssembly } from "@harness/runtime/bootstrap"
 export type { RuntimeContext, RuntimeDeps } from "@harness/runtime/context"
-export type { EventChannel, RuntimeEventBus } from "@harness/runtime/events"
-export { attachConsoleLogger } from "@harness/runtime/logger"
-export type { OutputMode } from "@harness/runtime/logger"
+export type { EventChannel, RuntimeEventBus } from "@harness/event/bus"
 
 // Engine entry
-export { runSession, runLoop } from "@harness/core/loop"
-
-// Plugins / modules
-export { corePlugin, coreModule } from "@harness/module"
-export type { RuntimePlugin } from "@harness/plugin/types"
+export { runSession } from "@harness/agent/loop"
 
 // Config
-export { loadConfigFromEnv, getConfig, resetConfig } from "@harness/config"
+export { loadConfigFromEnv, getConfig } from "@harness/config"
 export type { Config } from "@harness/config"
 
-// Agents (blueprints): definition + composition helpers
-export { defineAgent } from "@harness/agent/types"
-export type { AgentDefinition, AgentSpec } from "@harness/agent/types"
-export { coreAgents } from "@harness/agent"
-export { baseMiddleware } from "@harness/agent/shared/base-middleware"
+// The agent kernel: blueprint + the standalone runnable atom
+export { defineAgent } from "@harness/agent/blueprint"
+export type { AgentDefinition, AgentSpec } from "@harness/agent/blueprint"
+export { createAgent } from "@harness/agent/create-agent"
+export type { StandaloneAgentSpec } from "@harness/agent/create-agent"
+export { createCoreAgents, createGeneralAgent, createLeadAgent } from "@harness/std/agents"
+export { baseMiddleware } from "@harness/std/agents/shared/base-middleware"
 
 // Middleware library + hook contracts
 export {
@@ -37,20 +33,22 @@ export {
   structuredOutput,
   budget,
   doomLoop,
-  repeatedFailure,
-  compaction,
+  createCompaction,
   viewImage,
-} from "@harness/middleware"
+} from "@harness/std/middleware"
 export type {
+  ContextDraft,
   HookContext,
   Middleware,
   MiddlewareFactory,
   ToolCall,
   ToolGate,
+  ToolOutcome,
   TurnGate,
+  TurnJudgment,
   TurnOutcome,
-  FinishDecision,
-} from "@harness/hooks/types"
+  TurnTerminal,
+} from "@harness/agent/hooks"
 
 // Sessions: the aggregate (single writer of session state) + persistence contract
 export { Sessions } from "@harness/session"
@@ -58,7 +56,8 @@ export type { SessionPersistence } from "@harness/session"
 
 // Tools
 export { defineTool } from "@harness/tool/tool"
-export type { TaskArgs, TaskResumeArgs } from "@harness/tool/task"
+export { createCoreTools } from "@harness/std/tools"
+export type { TaskArgs, TaskResumeArgs } from "@harness/std/tools/task"
 
 // Skills
 export type { SkillInfo } from "@harness/skill/types"

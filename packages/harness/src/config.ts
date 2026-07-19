@@ -12,7 +12,6 @@ const ConfigSchema = z.object({
   turn_timeout_ms: z.coerce.number().int().min(1).default(300000),
   turn_max_tool_calls: z.coerce.number().int().min(1).default(8),
   tool_max_concurrency: z.coerce.number().int().min(1).default(4),
-  repeated_tool_failure_threshold: z.coerce.number().int().min(1).default(3),
   compaction_trigger_ratio: z.coerce.number().gt(0).max(1).default(0.75),
   compaction_retain_ratio: z.coerce.number().gt(0).lt(1).default(0.5),
 })
@@ -33,7 +32,6 @@ export function loadConfigFromEnv(env: NodeJS.ProcessEnv = process.env): Config 
     turn_timeout_ms: env.TURN_TIMEOUT_MS,
     turn_max_tool_calls: env.TURN_MAX_TOOL_CALLS,
     tool_max_concurrency: env.TOOL_MAX_CONCURRENCY,
-    repeated_tool_failure_threshold: env.REPEATED_TOOL_FAILURE_THRESHOLD,
     compaction_trigger_ratio: env.COMPACTION_TRIGGER_RATIO,
     compaction_retain_ratio: env.COMPACTION_RETAIN_RATIO,
   })
@@ -43,8 +41,4 @@ export function getConfig(): Config {
   if (cachedConfig) return cachedConfig
   cachedConfig = loadConfigFromEnv()
   return cachedConfig
-}
-
-export function resetConfig() {
-  cachedConfig = undefined
 }

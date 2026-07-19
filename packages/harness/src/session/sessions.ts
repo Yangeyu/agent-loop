@@ -24,7 +24,7 @@ import {
   type StateEvent,
   type TextPart,
 } from "@contracts"
-import type { EventChannel } from "@harness/runtime/events"
+import type { EventChannel } from "@harness/event/bus"
 import type { SessionPersistence } from "@harness/session/persistence"
 import { createID } from "@harness/types"
 

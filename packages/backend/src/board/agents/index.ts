@@ -1,10 +1,11 @@
-import type { AgentDefinition } from "@harness"
-import { boardAnalysisPrepareAgent } from "@backend/board/agents/board-analysis-prepare"
-import { boardBundleAnalyzeAgent } from "@backend/board/agents/board-bundle-analyze"
-import { boardWriteAgent } from "@backend/board/agents/board-write"
+import { createBoardAnalysisPrepareAgent } from "@backend/board/agents/board-analysis-prepare"
+import { createBoardBundleAnalyzeAgent } from "@backend/board/agents/board-bundle-analyze"
+import { createBoardWriteAgent } from "@backend/board/agents/board-write"
+import type { AgentDefinition, Model } from "@harness"
 
-export const boardAgents: AgentDefinition[] = [boardAnalysisPrepareAgent, boardBundleAnalyzeAgent, boardWriteAgent]
+/** Builds the board domain's delegated subagents on the injected chat model. */
+export function createBoardAgents(deps: { model: Model }): AgentDefinition[] {
+  return [createBoardAnalysisPrepareAgent(deps), createBoardBundleAnalyzeAgent(deps), createBoardWriteAgent(deps)]
+}
 
-export { boardAnalysisPrepareAgent }
-export { boardBundleAnalyzeAgent }
-export { boardWriteAgent }
+export { createBoardAnalysisPrepareAgent, createBoardBundleAnalyzeAgent, createBoardWriteAgent }

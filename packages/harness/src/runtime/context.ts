@@ -1,25 +1,16 @@
 import { getConfig, type Config } from "@harness/config"
-import { createAgentRegistry, type AgentRegistry } from "@harness/agent/registry"
-import { createRuntimeEvents, type RuntimeEventBus } from "@harness/runtime/events"
-import { createRuntimeTrace, type RuntimeTrace } from "@harness/runtime/trace"
-import { createSkillRegistry, type SkillRegistry } from "@harness/skill/registry"
+import { createAgentRegistry } from "@harness/agent/registry"
+import type { EngineDeps } from "@harness/agent/context"
+import { createRuntimeEvents } from "@harness/event/bus"
+import { createSkillRegistry } from "@harness/skill/registry"
 import { createSessionPersistence, Sessions } from "@harness/session"
-import { createToolRegistry, type ToolRegistry } from "@harness/tool/registry"
+import { createToolRegistry } from "@harness/tool/registry"
 
-export type RuntimeContext = {
-  config: Config
-  agent_registry: AgentRegistry
-  skill_registry: SkillRegistry
-  sessions: Sessions
-  tool_registry: ToolRegistry
-  events: RuntimeEventBus
-  trace: RuntimeTrace
-}
+// The runtime context IS the engine's dependency contract — assembly adds
+// nothing on top; the kernel (core/context.ts) owns the shape.
+export type RuntimeContext = EngineDeps
 
-export type RuntimeDeps = Pick<
-  RuntimeContext,
-  "config" | "agent_registry" | "skill_registry" | "sessions" | "tool_registry" | "events"
->
+export type RuntimeDeps = EngineDeps
 
 export function createRuntimeContext(options?: { config?: Config }): RuntimeContext {
   const config = options?.config ?? getConfig()
@@ -30,7 +21,6 @@ export function createRuntimeContext(options?: { config?: Config }): RuntimeCont
   const agent_registry = createAgentRegistry()
   const skill_registry = createSkillRegistry()
   const tool_registry = createToolRegistry()
-  const trace = createRuntimeTrace(events)
 
   return {
     config,
@@ -39,6 +29,5 @@ export function createRuntimeContext(options?: { config?: Config }): RuntimeCont
     sessions,
     tool_registry,
     events,
-    trace,
   }
 }

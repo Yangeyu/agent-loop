@@ -13,11 +13,12 @@
 - `@backend/src/http/server.ts` — `Bun.serve()` 路由装配。
 - `@backend/src/http/chat.ts` — `POST /api/chat` SSE 接口。
 - `@backend/src/http/openapi.ts` — `/openapi.json` 与 `/docs`。
-- `@backend/src/compose.ts` — 应用层组合根：装配 `corePlugin + boardModule` 成一个 runtime。
+- `@backend/src/compose.ts` — 应用层组合根，也是**唯一的 provider 绑定点**：在此构建模型实例、
+  调用 core/board 的 agent/tool 工厂、以扁平列表 `createRuntime({ agents, tools, skills })`。
 
 ## 数据流
 
-- `compose.ts` 装配 runtime（core + board 插件）。
+- `compose.ts` 装配 runtime（core + board 的展开式组合，组合即代码）。
 - `POST /api/chat` 接收 `text` + 可选 `agent` / `sessionID`，发起一次 session。
 - 为每个请求订阅 `runtime.events` 的 state 与 loop 两个通道，按 `event.rootID === 请求会话.rootID`
   做 O(1) 过滤后**原样透传**为 `state` / `loop` SSE 帧（协议即 `@agent-loop/contracts` 的事件词汇，
@@ -28,7 +29,7 @@
 ## 扩展点
 
 - 新 HTTP 路由：加到 `http/`，并在 `http/server.ts` 注册。
-- 新装配组合：在 `compose.ts` 增减插件，不改 harness。
+- 新装配组合：在 `compose.ts` 的展开列表里增减 agents/tools/skills，不改 harness。
 
 ## 约束与经验
 

@@ -1,5 +1,8 @@
+// The board domain as one cohesive unit: agents (model-injected factories),
+// tools, and skills. Grouping is expressed by this module itself — the runtime
+// has no plugin concept; compose.ts spreads these into the flat assembly.
+import { createBoardAgents } from "@backend/board/agents"
 import { boardSkills } from "@backend/board/skills"
-import { boardAgents } from "@backend/board/agents"
 import {
   BoardAnalysisAssetReadTool,
   BoardAnalysisAssetUpsertTool,
@@ -8,20 +11,15 @@ import {
   BoardReportWriteTool,
   BoardSnapshotTool,
 } from "@backend/board/tools"
-import type { RuntimePlugin } from "@harness"
+import type { AnyToolDefinition } from "@harness"
 
-export const boardPlugin: RuntimePlugin = {
-  name: "board",
-  agents: boardAgents,
-  skills: boardSkills,
-  tools: [
-    BoardSnapshotTool,
-    BoardAnalysisContextTool,
-    BoardAnalysisBundleReadTool,
-    BoardAnalysisAssetUpsertTool,
-    BoardAnalysisAssetReadTool,
-    BoardReportWriteTool,
-  ],
-}
+export const boardTools: AnyToolDefinition[] = [
+  BoardSnapshotTool,
+  BoardAnalysisContextTool,
+  BoardAnalysisBundleReadTool,
+  BoardAnalysisAssetUpsertTool,
+  BoardAnalysisAssetReadTool,
+  BoardReportWriteTool,
+]
 
-export const boardModule = boardPlugin
+export { boardSkills, createBoardAgents }

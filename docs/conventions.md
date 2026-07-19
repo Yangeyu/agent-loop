@@ -7,11 +7,11 @@
 
 引擎按三层组织，职责正交：
 
-- **core（引擎）**：`core/loop.ts` 驱动 turn 循环，`core/turn.ts` 跑单轮。**agent-agnostic**——
+- **agent（原子内核）**：`agent/loop.ts` 驱动 turn 循环，`agent/turn.ts` 跑单轮。**agent-agnostic**——
   引擎不认识任何具体 agent，不按 agent 身份分支。行为通过 middleware 与工具注入。
 - **agent（模块）**：一个 agent 是“能力（prompt + tools + middleware）+ 绑定的 `model` 实例”。
-  每个 agent 是一个自包含模块（`agent/lead/`、`agent/general/`），不是一张配置表。
-- **middleware（中间件）**：transform/decision 层。按 `hooks/types.ts` 的生命周期介入——
+  每个 agent 是一个自包含模块（`std/agents/lead/`、`std/agents/general/`），不是一张配置表。
+- **middleware（中间件）**：transform/decision 层。按 `agent/hooks.ts` 的生命周期介入——
   改写上下文、门控工具、塑形 turn 结果。它与只读的事件总线（`runtime/events.ts`）是两回事。
 
 > **原则：行为靠组合，不靠分支。** 想让引擎做新事，加一段 middleware 或一个工具，
@@ -62,7 +62,7 @@
 - 横切逻辑（参数校验、错误归一化、metadata、output 截断）走 `defineTool()` 的 hook 与
   归一化阶段，不要散落进每个 `execute()`。
 - 工具结果若要在后续轮次被模型感知，必须写回 session part。
-- 新工具注册到对应模块的 tools 汇总（core 走 `tool/tools.ts`），并为合适的 agent 开启。
+- 新工具注册到对应模块的 tools 汇总（core 走 `std/tools/index.ts`），并为合适的 agent 开启。
 
 ## 代码风格
 

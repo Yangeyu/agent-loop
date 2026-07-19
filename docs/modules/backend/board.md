@@ -5,11 +5,12 @@
 ## 职责
 
 一个垂直业务示例：把 board 数据从 PostgreSQL 抽取、归一化，再交给业务 agent 通过 delegation
-loop 自主组织分析与写作。它示范了“业务能力以 runtime 插件接入”，而不写死进 core。
+loop 自主组织分析与写作。它示范了“业务能力作为内聚模块接入组合根”，而不写死进 core。
 
 ## 关键入口
 
-- `@backend/src/board/index.ts` — 导出 `boardPlugin`（`boardModule`），向 runtime 注册 agents / skills / tools。
+- `@backend/src/board/index.ts` — 导出 `createBoardAgents({ model })` / `boardTools` / `boardSkills`；
+  分组由模块自身表达（一个 index），runtime 没有 plugin 概念，`compose.ts` 展开这些列表。
 - `@backend/src/board/agents/` — board subagents：`board_analysis_prepare`、`board_bundle_analyze`、`board_write`。
 - `@backend/src/board/tools/` — board 原语工具（snapshot、analysis context/bundle-read、asset upsert/read、report-write）。
 - `@backend/src/board/skills/` — `board-analysis` workflow skill。
@@ -33,7 +34,7 @@ Postgres 边界在 `BEGIN READ ONLY` 事务里执行查询，设 statement timeo
 
 ## 扩展点
 
-- 新业务模块仿照 board：独立 `index.ts` 导出 `RuntimePlugin`（agents/tools/skills），注册到 `compose.ts`。
+- 新业务模块仿照 board：独立 `index.ts` 导出 agent 工厂 + tools + skills，在 `compose.ts` 展开组合。
 - 新 DB 查询保持在 integration + snapshot 层，不把 SQL 暴露进 agent/tool prompt。
 
 ## 约束与经验

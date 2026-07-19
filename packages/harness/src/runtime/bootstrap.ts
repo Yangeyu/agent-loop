@@ -1,31 +1,36 @@
+// Runtime assembly: composition is code. A surface builds its models, calls the
+// agent/tool factories it wants, and hands the flat lists here — there is no
+// plugin or registration indirection in between.
 import { createRuntimeContext, type RuntimeContext } from "@harness/runtime/context"
-import { disposeRuntimePlugins, registerRuntimePlugins } from "@harness/plugin/manager"
-import { runSession } from "@harness/core/loop"
+import { runSession } from "@harness/agent/loop"
 import { loadConfigFromEnv, type Config } from "@harness/config"
-import type { RuntimePlugin } from "@harness/plugin/types"
-import type { ImageSource, OutputFormat } from "@harness/types"
+import type { AgentDefinition } from "@harness/agent/blueprint"
+import type { SkillInfo } from "@harness/skill/types"
+import type { AnyToolDefinition, ImageSource, OutputFormat } from "@harness/types"
 
-export async function createRuntime(options?: {
+/** The composed capability set a runtime is assembled from. */
+export type RuntimeAssembly = {
   config?: Config
-  plugins?: RuntimePlugin[]
-}) {
-  return registerRuntimePlugins(createRuntimeContext({ config: options?.config }), options?.plugins)
+  agents?: AgentDefinition[]
+  tools?: AnyToolDefinition[]
+  skills?: SkillInfo[]
 }
 
-export async function createTestRuntime(options?: {
-  config?: Partial<Config>
-  plugins?: RuntimePlugin[]
-}) {
+export function createRuntime(options?: RuntimeAssembly): RuntimeContext {
+  const runtime = createRuntimeContext({ config: options?.config })
+  for (const tool of options?.tools ?? []) runtime.tool_registry.register(tool)
+  for (const agent of options?.agents ?? []) runtime.agent_registry.register(agent)
+  for (const skill of options?.skills ?? []) runtime.skill_registry.register(skill)
+  return runtime
+}
+
+export function createTestRuntime(options?: Omit<RuntimeAssembly, "config"> & { config?: Partial<Config> }): RuntimeContext {
   const config = {
     ...loadConfigFromEnv({ ...process.env, SESSION_STORE: "memory" }),
     ...(options?.config ?? {}),
   }
 
-  return createRuntime({ config, plugins: options?.plugins })
-}
-
-export async function disposeRuntime(runtime: RuntimeContext) {
-  await disposeRuntimePlugins(runtime)
+  return createRuntime({ ...options, config })
 }
 
 export async function runPrompt(options: {

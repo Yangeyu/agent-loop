@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { baseMiddleware, createDashScopeModel, createTestRuntime, defineAgent, runPrompt } from "@harness"
-import { ReadTool } from "@harness/tool/basic"
+import { ReadTool } from "@harness/std/tools/basic"
 import type { ToolPart } from "@harness/types"
 
 // End-to-end against the real configured model (DashScope). Skipped when no API
@@ -30,7 +30,7 @@ describe("parallel tools (e2e)", () => {
         middleware: baseMiddleware(),
       })
       const runtime = await createTestRuntime({
-        plugins: [{ name: "test", agents: [agent], tools: [ReadTool] }],
+        agents: [agent], tools: [ReadTool],
       })
 
       const session = await runPrompt({

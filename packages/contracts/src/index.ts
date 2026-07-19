@@ -174,21 +174,6 @@ export type FinishReason = "stop" | "tool-calls" | "length" | "error"
 
 export type TurnPhase = "starting" | "streaming" | "reasoning" | "responding" | "executing-tool" | "finishing"
 
-export type TurnOutcomeReason =
-  | "tool_calls"
-  | "empty_assistant"
-  | "context_limit"
-  | "structured_output"
-  | "step_budget_reached"
-  | "step_budget_reached_without_answer"
-  | "assistant_error"
-  | "final_text"
-  | "completed_without_output"
-
-export type RetryCategory = "abort" | "timeout" | "network" | "availability" | "rate_limit" | "unknown"
-
-export type BudgetKind = "session_steps" | "agent_steps" | "subagent_depth" | "tool_calls" | "tool_failures"
-
 // How a turn terminated: a model finish, a failure, or an abort. Exactly one
 // `turn.end` is emitted per turn, with this discriminant.
 export type TurnEndReason = "finish" | "error" | "abort"
@@ -236,10 +221,12 @@ export type StateEvent =
     })
 
 // ---------------------------------------------------------------------------
-// Loop events — emitted by the engine; pure telemetry about the loop itself.
+// Loop events — emitted by the engine; the live activity protocol of the loop.
 // ---------------------------------------------------------------------------
-// Nothing here mirrors session state; consumers that need content subscribe to
-// the state channel. `messageID` is the assistant message the turn produces.
+// Loop events answer "what is the loop busy with right now" and nothing more:
+// a run began, a turn began, the turn changed phase, the turn ended. Every fact
+// that must survive replay travels on the state channel instead. `messageID` is
+// the assistant message the turn produces.
 
 export type LoopEnvelope = {
   readonly sessionID: string
@@ -250,38 +237,7 @@ export type LoopEnvelope = {
 export type LoopEvent =
   | (LoopEnvelope & { readonly type: "session.start"; readonly text: string })
   | (LoopEnvelope & { readonly type: "turn.start"; readonly messageID: string; readonly step: number })
-  | (LoopEnvelope & {
-      readonly type: "turn.input"
-      readonly messageID: string
-      readonly step: number
-      readonly system: readonly string[]
-      readonly tools: readonly string[]
-      readonly messageCount: number
-    })
   | (LoopEnvelope & { readonly type: "turn.phase"; readonly messageID: string; readonly phase: TurnPhase })
-  | (LoopEnvelope & {
-      readonly type: "turn.retry"
-      readonly messageID: string
-      readonly attempt: number
-      readonly delayMs: number
-      readonly category: RetryCategory
-      readonly reason?: string
-      readonly error: string
-    })
-  | (LoopEnvelope & {
-      readonly type: "budget.hit"
-      readonly budget: BudgetKind
-      readonly detail: string
-      readonly limit: number
-      readonly used?: number
-    })
-  | (LoopEnvelope & {
-      readonly type: "turn.outcome"
-      readonly messageID: string
-      readonly step: number
-      readonly outcome: "continue" | "break"
-      readonly reason: TurnOutcomeReason
-    })
   | (LoopEnvelope & {
       readonly type: "turn.end"
       readonly messageID: string

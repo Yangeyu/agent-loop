@@ -1,4 +1,4 @@
-import type { AgentDefinition } from "@harness/agent/types"
+import type { AgentDefinition } from "@harness/agent/blueprint"
 
 export type AgentRegistry = {
   agents: Map<string, AgentDefinition>

@@ -24,7 +24,7 @@ async function buildRuntime() {
     model: createFakeModel({ chunks: TURN_SCRIPT }),
     middleware: [...baseMiddleware()],
   })
-  return createTestRuntime({ plugins: [{ name: "test", agents: [agent] }] })
+  return createTestRuntime({ agents: [agent] })
 }
 
 describe("state channel completeness", () => {

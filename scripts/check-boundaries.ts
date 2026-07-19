@@ -42,6 +42,35 @@ const rules: Rule[] = [
     forbid: /from\s+["']@harness\//,
     why: 'import the harness via its barrel ("@harness"), not deep paths ("@harness/...") — add to the barrel if a symbol is missing',
   })),
+  // Layering inside the harness — a straight line, outward only:
+  //   contracts <- substrate (event/llm/session/tool/skill contracts, lib)
+  //             <- agent (the kernel atom) <- std (bricks) <- runtime <- surfaces.
+  //
+  // The agent kernel may use the substrate and its own files — never the std
+  // brick layer (middleware, concrete agents/tools) or the composition layer
+  // (runtime). Behavior enters the kernel through hook/blueprint contracts,
+  // not imports.
+  {
+    pkg: "harness-kernel",
+    dir: "packages/harness/src/agent",
+    forbid: /from\s+["']@harness\/(std\/|runtime\/)/,
+    why: "the agent kernel must not import std bricks or the runtime composition layer — extend via hooks/blueprints instead",
+  },
+  // The substrate (bus, model port, session state, tool/skill contracts) sits
+  // below the kernel: it must not reach up into agent/std/runtime.
+  ...["event", "llm", "session", "tool", "skill", "lib"].map((name) => ({
+    pkg: "harness-substrate",
+    dir: `packages/harness/src/${name}`,
+    forbid: /from\s+["']@harness\/(agent\/|std\/|runtime\/)/,
+    why: "the substrate must not depend on the kernel, std bricks, or runtime — it is what those layers build on",
+  })),
+  // Std bricks compose kernel + substrate; only runtime assembles them.
+  {
+    pkg: "harness-std",
+    dir: "packages/harness/src/std",
+    forbid: /from\s+["']@harness\/runtime\//,
+    why: "std bricks must not depend on the runtime composition layer — runtime assembles std, not the reverse",
+  },
 ]
 
 let violations = 0
