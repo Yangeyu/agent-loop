@@ -35,8 +35,12 @@ export type StandaloneAgentSpec = {
  * full-composition path (createRuntime + registries + surfaces) is this same
  * machinery assembled by hand; this entry is for embedding one agent directly.
  *
+ * The engine deps stay private — the facade exposes only what an embedder
+ * consumes: the blueprint, run(), the event bus to observe, and the sessions
+ * aggregate to read state back.
+ *
  * @param spec - the agent's model, bricks, and optional config/events overrides
- * @returns the agent definition, its engine deps, and a run() entry
+ * @returns { definition, run, events, sessions }
  */
 export function createAgent(spec: StandaloneAgentSpec) {
   const definition = defineAgent({
@@ -69,7 +73,8 @@ export function createAgent(spec: StandaloneAgentSpec) {
 
   return {
     definition,
-    deps,
+    events,
+    sessions: deps.sessions,
     async run(input: {
       text: string
       sessionID?: string

@@ -63,7 +63,7 @@ describe("createAgent standalone atom", () => {
     expect(seenSystem[0]).toEqual(["You are a standalone probe."])
     const assistants = session.messages.filter((message) => message.role === "assistant")
     expect(assistants.length).toBe(2)
-    expect(agent.deps.sessions.messageText(session.id, assistants[1].id)).toBe("standalone done")
+    expect(agent.sessions.messageText(session.id, assistants[1].id)).toBe("standalone done")
   })
 
   it("keeps sessions private to the atom and continues one via sessionID", async () => {
