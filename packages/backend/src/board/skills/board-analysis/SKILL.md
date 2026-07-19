@@ -1,3 +1,8 @@
+---
+name: board-analysis
+description: "Workflow for board analysis: delegate dataset preparation, delegate per-bundle analysis, then delegate report writing."
+---
+
 ## When to use
 
 Use this skill when the user asks for board analysis, board reporting, thesis-style writeups, or interpretation of one or more boards.

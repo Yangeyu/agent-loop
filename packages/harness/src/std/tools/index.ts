@@ -1,7 +1,7 @@
-import { GrepTool, ReadTool } from "@harness/std/tools/basic"
+import { GrepTool } from "@harness/std/tools/grep"
 import { BashTool } from "@harness/std/tools/bash"
 import { PresentFilesTool } from "@harness/std/tools/present-files"
-import { ReadFileTool } from "@harness/std/tools/read-file"
+import { ReadTool } from "@harness/std/tools/read"
 import { SkillTool } from "@harness/std/tools/skill"
 import { TaskResumeTool, TaskTool } from "@harness/std/tools/task"
 import { TavilyTool } from "@harness/std/tools/tavily"
@@ -21,7 +21,6 @@ export function createCoreTools(deps: { visionModel: Model }): AnyToolDefinition
     TaskResumeTool,
     BashTool,
     ReadTool,
-    ReadFileTool,
     GrepTool,
     TavilyTool,
     PresentFilesTool,

@@ -18,6 +18,7 @@
 - `@harness/tool/tool.ts` — `defineTool()`，core tool harness 的统一入口。
 - `@harness/std/tools/index.ts` — `createCoreTools({ visionModel })` 汇总（view_image 需注入视觉模型）。
 - `@harness/std/tools/task.ts` — `task` / `task_resume`，子 agent 委派原语。
+- `@harness/std/skills/load.ts` — skill 发现积木：`loadSkillsFromDir(dir)` 按 Agent Skills 目录约定（子目录/SKILL.md，YAML frontmatter 携带 name/description）解析为 `SkillInfo[]`；内核契约仍是纯数据，来源（目录/DB/内联）由组合根决定。
 
 ## 数据流
 
@@ -42,7 +43,7 @@
   core/tool-part（ToolPartTracker）/budget/event 边界。
 - 同一 turn 内的多个 tool call 由引擎整批并发执行（见 core-and-runtime 的"工具并发派发"），工具自身
   只实现单次调用即可。
-- core 工具：`task`、`task_resume`、`bash`、`read`、`read_file`、`grep`、`tavily`、`present_files`、`skill`、`view_image`。
+- core 工具：`task`、`task_resume`、`bash`、`read`（UTF-8 文本 + Office/PDF 文档解析、大小上限与截断）、`grep`、`tavily`、`present_files`、`skill`、`view_image`。
 - `task` 创建 child session、校验 `subagent_max_depth`、递归回 `runSession`，子 agent 结束后把最终文本
   作为普通 tool output 返回父上下文；`task_resume` 复用已有 child session。
 

@@ -13,7 +13,7 @@ loop 自主组织分析与写作。它示范了“业务能力作为内聚模块
   分组由模块自身表达（一个 index），runtime 没有 plugin 概念，`compose.ts` 展开这些列表。
 - `@backend/src/board/agents/` — board subagents：`board_analysis_prepare`、`board_bundle_analyze`、`board_write`。
 - `@backend/src/board/tools/` — board 原语工具（snapshot、analysis context/bundle-read、asset upsert/read、report-write）。
-- `@backend/src/board/skills/` — `board-analysis` workflow skill。
+- `@backend/src/board/skills/` — 每个子目录一个 skill（`SKILL.md` = frontmatter 元数据 + 工作流正文），经 `loadSkillsFromDir` 发现。
 - `@backend/src/board/shared/` — `snapshot`（DB→上下文）、`analyze`（清洗+聚合）、`store`（dataset 持久化）、`report-store`（落盘）。
 - `@backend/src/integrations/postgres/client.ts` — 只读 Postgres 访问边界。
 

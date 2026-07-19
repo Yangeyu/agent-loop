@@ -7,40 +7,8 @@ const DEFAULT_MAX_CHARS = 100_000
 const MAX_ALLOWED_CHARS = 500_000
 const DEFAULT_MAX_BYTES = 25 * 1024 * 1024
 
-const TEXT_EXTENSIONS = new Set([
-  ".txt",
-  ".md",
-  ".markdown",
-  ".csv",
-  ".json",
-  ".jsonc",
-  ".yaml",
-  ".yml",
-  ".xml",
-  ".html",
-  ".htm",
-  ".log",
-  ".ts",
-  ".tsx",
-  ".js",
-  ".jsx",
-  ".mjs",
-  ".cjs",
-  ".css",
-  ".scss",
-  ".sql",
-  ".sh",
-  ".py",
-  ".rb",
-  ".go",
-  ".rs",
-  ".java",
-  ".c",
-  ".cpp",
-  ".h",
-  ".hpp",
-])
-
+// Extensions routed through the office parser; anything else is read as UTF-8
+// text directly, so plain files never depend on an extension whitelist.
 const DOCUMENT_EXTENSIONS = new Set([
   ".docx",
   ".pptx",
@@ -62,26 +30,26 @@ type OfficeParserModule = {
   parseOffice?: (file: string, config?: unknown) => Promise<OfficeAst>
 }
 
-export const ReadFileParameters = z.object({
+export const ReadParameters = z.object({
   filePath: z.string().trim().min(1)
     .describe("The path to the document or text file to read"),
   format: z.enum(["text", "markdown"]).optional()
-    .describe("Output format. Defaults to text."),
+    .describe("Output format for document files. Defaults to text."),
   maxChars: z.number().int().min(1).max(MAX_ALLOWED_CHARS).optional()
     .describe("Maximum characters to return. Defaults to 100000."),
 })
 
-export type ReadFileArgs = z.infer<typeof ReadFileParameters>
+export type ReadArgs = z.infer<typeof ReadParameters>
 
-export const ReadFileTool = defineTool({
-  id: "read_file",
+export const ReadTool = defineTool({
+  id: "read",
   description:
-    "Read a local file and return text content. Supports UTF-8 text plus office/PDF documents such as DOCX, PPTX, XLSX, ODT, ODP, ODS, RTF, and PDF.",
-  parameters: ReadFileParameters,
+    "Read a local file and return its text content. Reads UTF-8 text files directly, and extracts text from Office/PDF documents such as DOCX, PPTX, XLSX, ODT, ODP, ODS, RTF, and PDF.",
+  parameters: ReadParameters,
   beforeExecute({ args }) {
     const target = path.resolve(process.cwd(), args.filePath)
     return {
-      title: `read_file: ${args.filePath}`,
+      title: `read: ${args.filePath}`,
       metadata: {
         filePath: target,
         format: args.format ?? "text",
@@ -93,7 +61,7 @@ export const ReadFileTool = defineTool({
       return {
         message: `The ${toolID} tool failed: file not found at ${args.filePath}`,
         retryable: false,
-        code: "read_file_not_found",
+        code: "read_not_found",
       }
     }
 
@@ -133,10 +101,7 @@ export const ReadFileTool = defineTool({
 })
 
 async function readFileAsText(target: string, ext: string, format: "text" | "markdown", abort: AbortSignal) {
-  if (TEXT_EXTENSIONS.has(ext)) return await fs.readFile(target, "utf8")
-  if (!DOCUMENT_EXTENSIONS.has(ext)) {
-    throw new Error(`unsupported file type ${ext || "(no extension)"}; expected a text, Office, OpenDocument, RTF, or PDF file`)
-  }
+  if (!DOCUMENT_EXTENSIONS.has(ext)) return await fs.readFile(target, "utf8")
 
   const parseOffice = await loadOfficeParser()
   const outputFormat: OfficeFormat = format === "markdown" ? "md" : "text"

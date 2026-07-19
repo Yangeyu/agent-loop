@@ -25,7 +25,6 @@ export function createLeadAgent(deps: { model: Model; summarizer: Model }): Agen
       task: true,
       task_resume: true,
       read: true,
-      read_file: true,
       grep: true,
       tavily: true,
       present_files: true,

@@ -59,8 +59,9 @@ export { defineTool } from "@harness/tool/tool"
 export { createCoreTools } from "@harness/std/tools"
 export type { TaskArgs, TaskResumeArgs } from "@harness/std/tools/task"
 
-// Skills
+// Skills: the data contract + the filesystem discovery brick (SKILL.md dirs)
 export type { SkillInfo } from "@harness/skill/types"
+export { loadSkillFile, loadSkillsFromDir } from "@harness/std/skills/load"
 
 // LLM: the Model abstraction + provider model factories
 export { createDashScopeModel, createOpenAICompatModel } from "@harness/llm/index"

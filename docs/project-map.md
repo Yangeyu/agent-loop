@@ -22,7 +22,7 @@ packages/
 │       ├── llm/              # Model 抽象 + providers（openai-compat 底座、dashscope）
 │       ├── tool/             # 工具契约：defineTool + registry
 │       ├── skill/            # skill 契约 + registry
-│       ├── std/              # ★ 标准积木层：middleware/（compaction、budget、doom-loop…）、agents/（lead、general、shared）、tools/（createCoreTools 及内置工具）
+│       ├── std/              # ★ 标准积木层：middleware/（compaction、budget、doom-loop…）、agents/（lead、general、shared）、tools/（createCoreTools 及内置工具）、skills/（SKILL.md 目录发现）
 │       ├── runtime/          # 组合层：bootstrap（createRuntime/runPrompt）、context
 │       ├── config.ts         # 引擎行为配置解析与校验
 │       ├── types.ts          # 全局核心类型

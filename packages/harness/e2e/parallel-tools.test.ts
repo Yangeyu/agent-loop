@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { baseMiddleware, createDashScopeModel, createTestRuntime, defineAgent, runPrompt } from "@harness"
-import { ReadTool } from "@harness/std/tools/basic"
+import { ReadTool } from "@harness/std/tools/read"
 import type { ToolPart } from "@harness/types"
 
 // End-to-end against the real configured model (DashScope). Skipped when no API

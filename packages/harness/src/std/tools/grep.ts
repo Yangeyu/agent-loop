@@ -16,57 +16,12 @@ function resolveGrepRoots() {
   return roots.length > 0 ? roots : [process.cwd()]
 }
 
-export const ReadParameters = z.object({
-  filePath: z.string().trim().min(1)
-    .describe("The path to the file to read"),
-})
-
-export type ReadArgs = z.infer<typeof ReadParameters>
-
 export const GrepParameters = z.object({
   pattern: z.string().trim().min(1)
     .describe("The regex pattern to search for in the codebase"),
 })
 
 export type GrepArgs = z.infer<typeof GrepParameters>
-
-export const ReadTool = defineTool({
-  id: "read",
-  description: "Read a UTF-8 text file from the workspace and return its contents.",
-  parameters: ReadParameters,
-  beforeExecute({ args }) {
-    const target = path.resolve(process.cwd(), args.filePath)
-    return {
-      title: `read: ${args.filePath}`,
-      metadata: {
-        filePath: target,
-      },
-    }
-  },
-  mapError({ args, toolID, error }) {
-    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
-      return {
-        message: `The ${toolID} tool failed: file not found at ${args.filePath}`,
-        retryable: false,
-        code: "read_not_found",
-      }
-    }
-
-    const message = error instanceof Error ? error.message : String(error)
-    return {
-      message: `The ${toolID} tool failed: ${message}`,
-      retryable: false,
-      code: "tool_execution_failed",
-    }
-  },
-  async execute(args) {
-    const target = path.resolve(process.cwd(), args.filePath)
-    const content = await fs.readFile(target, "utf8")
-    return {
-      output: content,
-    }
-  },
-})
 
 export const GrepTool = defineTool({
   id: "grep",

@@ -10,7 +10,7 @@ import { MiddlewareStack } from "@harness/agent/hooks"
 import { createRuntimeEvents } from "@harness/event/bus"
 import { MemorySessionPersistence, Sessions } from "@harness/session"
 import { createSkillRegistry } from "@harness/skill/registry"
-import { ReadFileTool } from "@harness/std/tools/read-file"
+import { ReadTool } from "@harness/std/tools/read"
 import { normalizeTavilyResponse } from "@harness/std/tools/tavily"
 import { defineTool } from "@harness/tool/tool"
 import { createToolRegistry } from "@harness/tool/registry"
@@ -40,13 +40,13 @@ describe("defineTool", () => {
   })
 })
 
-describe("read_file", () => {
+describe("read", () => {
   it("reads UTF-8 text files with metadata", async () => {
     const file = new File(["hello\nworld"], "sample.txt", { type: "text/plain" })
     const target = await Bun.write(Bun.file("/tmp/agent-loop-read-file-test.txt"), file)
     expect(target).toBe(11)
 
-    const result = await ReadFileTool.execute({ filePath: "/tmp/agent-loop-read-file-test.txt" }, createToolContextStub())
+    const result = await ReadTool.execute({ filePath: "/tmp/agent-loop-read-file-test.txt" }, createToolContextStub())
 
     expect(result.output).toBe("hello\nworld")
     expect(result.metadata?.format).toBe("text")
