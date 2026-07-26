@@ -1,6 +1,7 @@
 /**
- * Per-call tool execution: validate -> execute -> persist result/error, returning
- * a per-call outcome. This is the concurrency-safe unit a turn fans out: it owns
+ * Per-call tool execution, in two halves. `prepareToolCall` decides — gate,
+ * validate, describe — one call at a time in issue order. `executeToolCall`
+ * runs, and is the concurrency-safe unit a turn fans out: it owns
  * only its own tool part (via the injected tracker) and never touches the turn's
  * terminal state — collecting outcomes and deciding the turn's continue/stop is
  * the caller's job (see core/turn.ts). Contains NO business policy — budgets and
@@ -19,6 +20,7 @@ import type { ToolPartTracker } from "@harness/agent/tool-part"
 import { toToolExecutionErrorInfo } from "@harness/tool/tool"
 import {
   createID,
+  type AnyToolDefinition,
   type ErrorInfo,
   type SessionHistoryMessage,
   type ToolContext,
@@ -39,17 +41,88 @@ export type ToolCallOutcome =
   | { status: "abort" }
 
 /**
- * Runs a single tool call through the guard/execute pipeline against a
- * pre-allocated tool part, returning its per-call outcome. Writes only this
- * call's part state (via the tracker); it never mutates the turn's terminal
- * state, so N calls can run concurrently and the caller decides the turn's fate
- * once they all settle.
+ * The ordered half of a call: everything that decides *whether* and *what*,
+ * before anything is written or run. Returns either a call ready to execute —
+ * with its validated args and the display naming it — or the refusal itself.
+ *
+ * This runs one call at a time, in issue order. That is not a limitation to
+ * work around: a guard that counts (budget, doom-loop) is only correct when
+ * calls reach it in sequence, and the display must exist before the tool part
+ * is opened, or the transcript shows a row that cannot yet say what it is for.
+ * Concurrency belongs to execute(), which is where the actual work happens.
  *
  * @param ctx - the turn context
- * @param stack - the middleware stack (before/after/onError tool hooks)
+ * @param stack - the middleware stack (its beforeToolCall gate runs here)
+ * @param call - the tool name, call id, and raw args
+ * @returns the prepared call, or the refusal that ends it
+ */
+export async function prepareToolCall(
+  ctx: TurnContext,
+  stack: MiddlewareStack,
+  call: ToolCall,
+): Promise<PreparedToolCall> {
+  const gate = await stack.beforeToolCall(ctx, call)
+  if (gate.action === "deny") {
+    return { ok: false, args: call.args, error: gate.error, stop: true, note: gate.note }
+  }
+  const args = gate.args ?? call.args
+
+  const tool = ctx.tools.find((item) => item.id === call.toolName)
+  if (!tool) {
+    return {
+      ok: false,
+      args: call.args,
+      error: { message: `Tool not available: ${call.toolName}`, retryable: false, code: "tool_not_available" },
+    }
+  }
+
+  const parsed = tool.validate(args)
+  if (!parsed.success) return { ok: false, args, error: parsed.error }
+
+  return {
+    ok: true,
+    tool,
+    args: parsed.data,
+    display: tool.describe?.(parsed.data, { workspace: ctx.workspace, config: ctx.config }),
+  }
+}
+
+/** A call that passed its gate and validation, or the refusal that ended it. */
+export type PreparedToolCall =
+  | { ok: true; tool: AnyToolDefinition; args: unknown; display?: ToolDisplayPatch }
+  | { ok: false; args: unknown; error: ErrorInfo; stop?: boolean; note?: string }
+
+/**
+ * Opens the tool part a prepared call will report through — with its validated
+ * args and its display already in place. Because preparation happens first, the
+ * part is born in its final shape: there is no follow-up transition that only
+ * swaps raw args for parsed ones, and `part.created` is immediately usable by
+ * anything rendering the call.
+ *
+ * @param recorder - the turn recorder that owns part creation
+ * @param call - the tool name, call id, and raw args
+ * @param prepared - the result of prepareToolCall
+ * @returns the tracker for this call's part
+ */
+export function openToolPart(recorder: TurnRecorder, call: ToolCall, prepared: PreparedToolCall) {
+  return recorder.trackToolCall(
+    { ...call, args: prepared.ok ? prepared.args : call.args },
+    prepared.ok ? prepared.display : undefined,
+  )
+}
+
+/**
+ * Runs a prepared call to completion against its pre-allocated tool part. This
+ * is the concurrent half: it writes only this call's part state (via the
+ * tracker) and never touches the turn's terminal state, so N calls run at once
+ * and the caller decides the turn's fate after they all settle.
+ *
+ * @param ctx - the turn context
+ * @param stack - the middleware stack (after/onError tool hooks)
  * @param recorder - the turn recorder (used only to spawn nested tool parts)
  * @param call - the tool name, call id, and raw args
- * @param tracker - the tool part this call owns, pre-created by the caller
+ * @param tracker - the tool part this call owns, opened by the caller
+ * @param prepared - the outcome of prepareToolCall: a ready call or its refusal
  * @returns the per-call outcome
  */
 export async function executeToolCall(
@@ -58,27 +131,17 @@ export async function executeToolCall(
   recorder: TurnRecorder,
   call: ToolCall,
   tracker: ToolPartTracker,
+  prepared: PreparedToolCall,
 ): Promise<ToolCallOutcome> {
-  const gate = await stack.beforeToolCall(ctx, call)
-  if (gate.action === "deny") {
-    tracker.toErrored(call.args, gate.error)
-    return { status: "stop", error: gate.error, note: gate.note }
-  }
-  const args = gate.args ?? call.args
-
-  const tool = ctx.tools.find((item) => item.id === call.toolName)
-  if (!tool) {
-    const error: ErrorInfo = { message: `Tool not available: ${call.toolName}`, retryable: false, code: "tool_not_available" }
-    return settleFailure(ctx, stack, call, tracker, call.args, error)
+  if (!prepared.ok) {
+    if (prepared.stop) {
+      tracker.toErrored(prepared.args, prepared.error)
+      return { status: "stop", error: prepared.error, note: prepared.note }
+    }
+    return settleFailure(ctx, stack, call, tracker, prepared.args, prepared.error)
   }
 
-  const parsed = tool.validate(args)
-  if (!parsed.success) {
-    return settleFailure(ctx, stack, call, tracker, args, parsed.error)
-  }
-
-  const validatedArgs = parsed.data
-  tracker.toRunning(validatedArgs)
+  const { tool, args: validatedArgs } = prepared
 
   try {
     const raw = await tool.execute(validatedArgs, createToolContext(ctx, stack, recorder, tracker))
@@ -134,6 +197,7 @@ function createToolContext(
     sessions: ctx.sessions,
     tool_registry: ctx.tool_registry,
     events: ctx.events,
+    workspace: ctx.workspace,
     sessionID: ctx.sessionID,
     messageID: ctx.messageID,
     agent: ctx.agent.name,
@@ -150,8 +214,9 @@ function createToolContext(
         args: input.args,
         toolCallId: input.toolCallId ?? createID(),
       }
-      const nestedTracker = recorder.trackToolCall(nestedCall)
-      const outcome = await executeToolCall(ctx, stack, recorder, nestedCall, nestedTracker)
+      const nestedPrepared = await prepareToolCall(ctx, stack, nestedCall)
+      const nestedTracker = openToolPart(recorder, nestedCall, nestedPrepared)
+      const outcome = await executeToolCall(ctx, stack, recorder, nestedCall, nestedTracker, nestedPrepared)
 
       if (outcome.status === "completed") return { status: "completed" as const, result: outcome.result }
       if (outcome.status === "error" || outcome.status === "stop") {

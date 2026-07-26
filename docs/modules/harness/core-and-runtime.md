@@ -75,10 +75,15 @@ judgeTurn              # 一次裁决：terminal（仅干净收束时开放）+ 
 - **stream 消费**：`agent/turn.ts` 把 reasoning/text 增量交给 recorder（落 part + 自动发
   `part.delta`），并把每个 tool-call chunk 收集到本 turn 的待执行集合。retry 在此层包住
   `model.stream`，是 turn 级关注点（Model 抽象保持薄）。
-- **工具并发派发**：流耗尽后，`runToolCalls` 按发起顺序为每个 tool call 开好 tool part（part.created
-  确定性入场），再以有界并发整批执行——同时在飞至多 `policy.toolConcurrency` 个。这个界由每个
+- **工具并发派发**：流耗尽后，`runToolCalls` 按发起顺序逐个 `prepareToolCall`（gate → 校验 →
+  describe）并开好 tool part（part.created 确定性入场、且一次到位带全 display），
+  再以有界并发整批 `executeToolCall`——同时在飞至多 `policy.toolConcurrency` 个。这个界由每个
   turn 独立持有，嵌套 subagent 的扇出各自成界、互不争用。一批全部 settle 后才进入下一 turn，保证每个
   tool call 都有结果可供回放。
+  派发器**不看工具语义**：它必须在任何工具解析参数之前定下并发度，因而根本无从判断两个调用会不会
+  冲突——按工具类别猜（"只读才并发"）只是用一个粗代理指标掩盖这个信息缺口，代价是把并行委派一起
+  关掉。一致性归资源持有者：文件由 `workspace` 保证。调用之间的**因果顺序**则归模型——一批 tool call
+  是 provider 层"这些可以同时做"的声明，依赖前一个结果的调用属于下一个 turn。
 - **终态归属**：`agent/turn.ts` 是 turn 终态的唯一所有者，把这批 per-call outcome 归约成单一
   continue/stop（首个 stop/abort 按发起顺序胜出）。`agent/tool-call.ts` 是纯 per-call 执行单元：只经
   tracker 写自己那一个 part，不触碰 recorder 终态，可安全并发。
@@ -88,6 +93,13 @@ judgeTurn              # 一次裁决：terminal（仅干净收束时开放）+ 
   structured + finishReason 覆写）与循环去留（`outcome`：`continue | break`）；budget 与
   structured-output 在这里收口。终态失败而 outcome 仍为 continue 时，引擎兜底改为
   `break/assistant_error`。
+- **工作区**：`workspace/` 是本地文件树的所有者，随 `EngineDeps` 注入，`ToolContext` 透传给每个工具
+  （`workspace/types.ts` 定契约，`local.ts` 是文件系统实现）。它替代了工具里散落的 `node:fs` +
+  `process.cwd()`——后者是隐式全局，没有所有者，也就没人能为并发下的一致性负责。保证由机制给出而非
+  约定：`write` 经同目录 rename 原子发布（读者只会看到完整的旧或新，不会读到截断的中间态），
+  `mutate`（唯一的读-改-写）按路径互斥。读操作因此无需任何协调。
+  `cwd` 只在装配处出现一次（`config.workspace_root`）。
+  边界不在此列：绝对路径仍可指到 root 之外，沙箱是另一个关注点、另一个实现。
 - **状态事实来源**：`Sessions` 维护 `messages` 与 `parts`，是项目里最核心的状态来源；
   读取得到的是不可变快照（copy-on-write），持有者无法绕过聚合改状态。
 - **预算的作用域各不相同**，读 `TurnBudgetPolicy` 字段名而不是靠直觉：

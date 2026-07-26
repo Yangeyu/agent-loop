@@ -12,6 +12,8 @@ import type {
   ToolDisplayPatch,
   ToolMetadata,
 } from "@contracts"
+import type { Config } from "@harness/config"
+import type { Workspace } from "@harness/workspace"
 import type { z } from "zod"
 
 export type {
@@ -75,6 +77,18 @@ export type SessionHistoryMessage = {
   parts: readonly MessagePart[]
 }
 
+/**
+ * What `describe` may consult: the ambient collaborators, and none of the
+ * per-call machinery. A path has to be resolved the same way the tool will
+ * resolve it, so the row names the same file the call will actually touch.
+ * Everything tied to the call itself — metadata writes, nested execution — is
+ * deliberately absent: at describe time the part does not exist yet.
+ */
+export type ToolDescribeContext = {
+  workspace: Workspace
+  config: Config
+}
+
 export type ToolContext = EngineDeps & {
   sessionID: string
   // The assistant message (turn record) this tool call belongs to.
@@ -100,6 +114,13 @@ export type ToolContext = EngineDeps & {
 export type ToolDefinition<TArgs = unknown> = {
   id: string
   description: string
+  /**
+   * What this call is about — its verb and target. Pure and synchronous,
+   * because it runs before the tool part is opened so that `part.created`
+   * already carries the full display. Anything that needs to do work belongs in
+   * execute; this only names the call.
+   */
+  describe?(args: TArgs, ctx: ToolDescribeContext): ToolDisplayPatch
   parameters: z.ZodType<TArgs>
   validate(args: unknown):
     | {

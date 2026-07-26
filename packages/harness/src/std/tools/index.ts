@@ -1,5 +1,6 @@
 import { GrepTool } from "@harness/std/tools/grep"
 import { BashTool } from "@harness/std/tools/bash"
+import { EditTool } from "@harness/std/tools/edit"
 import { PresentFilesTool } from "@harness/std/tools/present-files"
 import { ReadTool } from "@harness/std/tools/read"
 import { SkillTool } from "@harness/std/tools/skill"
@@ -23,6 +24,7 @@ export function createCoreTools(deps: { visionModel: Model }): AnyToolDefinition
     BashTool,
     ReadTool,
     WriteTool,
+    EditTool,
     GrepTool,
     TavilyTool,
     PresentFilesTool,

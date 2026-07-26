@@ -4,6 +4,10 @@ import type { SessionPersistenceConfig } from "@harness/session/persistence"
 const ConfigSchema = z.object({
   session_store: z.enum(["memory", "file"]).default("memory"),
   session_store_dir: z.string().default("./data/sessions"),
+  // The directory the file tools resolve relative paths against. Defaults to the
+  // process directory, which is the one place `cwd` is allowed to enter — tools
+  // read it from the workspace, never from the process.
+  workspace_root: z.string().default("."),
   // Workspace skills directory, resolved against the working directory like the
   // read/write/bash tools are. Built-in skills ship with the code; these travel
   // with the workspace, so an absent default directory just means "none".
@@ -35,6 +39,7 @@ export function loadConfigFromEnv(env: NodeJS.ProcessEnv = process.env): Config 
   return ConfigSchema.parse({
     session_store: env.SESSION_STORE,
     session_store_dir: env.SESSION_STORE_DIR,
+    workspace_root: env.WORKSPACE_ROOT,
     skills_dir: env.SKILLS_DIR,
     model_max_retries: env.MODEL_MAX_RETRIES,
     model_retry_base_delay_ms: env.MODEL_RETRY_BASE_DELAY_MS,

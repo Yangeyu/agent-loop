@@ -21,6 +21,7 @@ export function createGeneralAgent(deps: { model: Model }): AgentDefinition {
     tools: {
       read: true,
       write: true,
+      edit: true,
       grep: true,
       tavily: true,
       present_files: true,

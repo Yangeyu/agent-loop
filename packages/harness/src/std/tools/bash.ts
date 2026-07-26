@@ -1,5 +1,4 @@
 import { spawn } from "node:child_process"
-import path from "node:path"
 import { defineTool } from "@harness/tool/tool"
 import { z } from "zod"
 
@@ -20,14 +19,14 @@ export const BashTool = defineTool({
   id: "bash",
   description: "Run a shell command in the local workspace and return stdout, stderr, and exit status.",
   parameters: BashParameters,
-  beforeExecute({ args }) {
-    const workdir = args.workdir ? path.resolve(process.cwd(), args.workdir) : process.cwd()
-    const timeout = args.timeout ?? 120000
+  describe(args) {
+    return { verb: "bash", target: args.description ?? args.command }
+  },
+  beforeExecute({ args, ctx }) {
     return {
-      display: { verb: "bash", target: args.description ?? args.command },
       metadata: {
-        workdir,
-        timeout,
+        workdir: ctx.workspace.resolve(args.workdir ?? "."),
+        timeout: args.timeout ?? 120000,
       },
     }
   },
@@ -48,7 +47,7 @@ export const BashTool = defineTool({
     }
   },
   async execute(args, ctx) {
-    const workdir = args.workdir ? path.resolve(process.cwd(), args.workdir) : process.cwd()
+    const workdir = ctx.workspace.resolve(args.workdir ?? ".")
     const timeout = args.timeout ?? 120000
 
     const result = await runCommand({

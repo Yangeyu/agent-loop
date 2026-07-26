@@ -1,7 +1,6 @@
-import { readdirSync } from "node:fs"
-import { join } from "node:path"
 import type { SkillInfo } from "@harness/skill/types"
 import { defineTool, ToolExecutionError } from "@harness/tool/tool"
+import type { Workspace } from "@harness/workspace"
 import { z } from "zod"
 
 const SkillParameters = z.object({
@@ -12,6 +11,9 @@ export const SkillTool = defineTool({
   id: "skill",
   description: "Load a specialized skill that provides domain-specific instructions and workflows.",
   parameters: SkillParameters,
+  describe(args) {
+    return { verb: "skill", target: args.name }
+  },
   async execute(args, ctx) {
     const skill = ctx.skill_registry.get(args.name)
     if (!skill) {
@@ -24,8 +26,7 @@ export const SkillTool = defineTool({
     }
 
     return {
-      display: { verb: "skill", target: skill.name },
-      output: renderSkillContent(skill),
+      output: await renderSkillContent(ctx.workspace, skill),
       metadata: {
         name: skill.name,
         location: skill.location,
@@ -34,7 +35,7 @@ export const SkillTool = defineTool({
   },
 })
 
-function renderSkillContent(skill: SkillInfo) {
+async function renderSkillContent(workspace: Workspace, skill: SkillInfo) {
   return [
     `<skill_content name="${skill.name}">`,
     `# Skill: ${skill.name}`,
@@ -42,19 +43,20 @@ function renderSkillContent(skill: SkillInfo) {
     skill.content.trim(),
     "",
     `Location: ${skill.location}`,
-    ...renderAssets(skill),
+    ...(await renderAssets(workspace, skill)),
     "</skill_content>",
   ].join("\n")
 }
 
 // Skill bodies refer to their assets relatively ("read ./template.html"), but
-// the read tool resolves against the process cwd. Listing the absolute paths
-// here removes the guesswork rather than asking the model to rebuild them.
-function renderAssets(skill: SkillInfo) {
+// the read tool resolves against the workspace root, not the skill's directory.
+// Listing the absolute paths here removes the guesswork rather than asking the
+// model to rebuild them.
+async function renderAssets(workspace: Workspace, skill: SkillInfo) {
   const dir = skill.dir
   if (!dir) return []
 
-  const assets = listAssets(dir, skill.location)
+  const assets = await listAssets(workspace, dir, skill.location)
   if (!assets.length) return []
 
   return [
@@ -64,12 +66,10 @@ function renderAssets(skill: SkillInfo) {
   ]
 }
 
-function listAssets(dir: string, skillFile: string) {
+async function listAssets(workspace: Workspace, dir: string, skillFile: string) {
   try {
-    return readdirSync(dir, { withFileTypes: true })
-      .filter((entry) => entry.isFile() && join(dir, entry.name) !== skillFile)
-      .map((entry) => join(dir, entry.name))
-      .sort()
+    const files = await workspace.listFiles(dir)
+    return files.filter((file) => file !== skillFile).sort()
   } catch {
     // A skill whose directory moved after discovery still has usable content;
     // losing the asset list is not worth failing the load over.

@@ -55,7 +55,6 @@ export type ToolDisplay = {
    * single transcript row (every append to one file is one "write"). Omit when
    * each call stands on its own.
    */
-  readonly mergeKey?: string
 }
 
 /**

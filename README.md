@@ -27,6 +27,7 @@ Bun workspaces — `packages/*` (libraries) and `apps/*` (runnable surfaces). Cr
   - `src/llm/`: the `Model` abstraction and providers (`providers/openai-compat.ts` base, `providers/dashscope.ts`)
   - `src/agent/`: agents as self-contained modules (`lead/`, `general/`)
   - `src/tool/`: `defineTool` harness and built-in tools (`task`, `bash`, `read`, …)
+  - `src/workspace/`: the owner of the local file tree — every file tool's single point of access
   - `tests/`: centralized harness test suite, organized by source module area
   - `e2e/`: end-to-end cases against the real model, skipped without an API key
 - `packages/tui/`: `src/app.tsx` componentized OpenTUI/Solid terminal UI
@@ -90,7 +91,11 @@ You can also open the TUI and immediately submit a prompt:
 bun run tui "read packages/harness/src/agent/loop.ts and explain the loop"
 ```
 
-Built-in tools: `read`, `write`, `grep`, `bash`, `tavily`, `present_files`, `view_image`, `task` / `task_resume`, and `skill`.
+Built-in tools: `read`, `write`, `edit`, `grep`, `bash`, `tavily`, `present_files`, `view_image`, `task` / `task_resume`, and `skill`.
+
+There is no append tool, deliberately. A long document is built by writing a complete skeleton once — with a short unique placeholder where each section goes — and then replacing each placeholder with `edit`. The file is valid at every step, and an edit whose anchor has gone missing fails loudly instead of appending blindly onto a broken document.
+
+File tools go through the runtime's workspace rather than `node:fs` directly, so concurrent calls stay consistent without any tool having to coordinate: writes publish atomically via rename, and read-modify-write edits are exclusive per path. `WORKSPACE_ROOT` sets the directory relative paths resolve against (default: the process directory).
 
 The runtime supports skills discovered from `skills/`: the system prompt exposes the available skill list, and the model calls the `skill` tool to load a specialized workflow on demand instead of carrying every long instruction in the base prompt. Loading a skill also prints the absolute paths of its sibling assets, so the model can `read` them directly.
 

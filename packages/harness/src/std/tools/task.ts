@@ -55,6 +55,12 @@ function createTaskTool<P extends z.ZodTypeAny>(input: {
     id: input.id,
     description: input.description,
     parameters: input.parameters,
+    describe(args) {
+      // The delegate and what it was asked for are both arguments, so the row
+      // names the subagent from the moment it appears rather than once the
+      // child session exists.
+      return { verb: "subagent", target: args.subagent_type, summary: args.description }
+    },
     beforeExecute({ args }) {
       return {
         title: args.description,
@@ -138,7 +144,6 @@ function createTaskTool<P extends z.ZodTypeAny>(input: {
       }
 
       await ctx.metadata({
-        display: { verb: "subagent", target: agent.name, summary: args.description },
         metadata: {
           taskId: child.id,
           sessionId: child.id,
@@ -157,6 +162,9 @@ function createTaskTool<P extends z.ZodTypeAny>(input: {
         sessions: ctx.sessions,
         tool_registry: ctx.tool_registry,
         events: ctx.events,
+        // The subagent shares the parent's workspace: that shared owner is what
+        // makes concurrent delegation safe without the two sessions coordinating.
+        workspace: ctx.workspace,
       }, {
         sessionID: child.id,
         text: args.prompt,

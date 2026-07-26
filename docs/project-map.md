@@ -22,6 +22,7 @@ packages/
 │       ├── llm/              # Model 抽象 + providers（openai-compat 底座、dashscope）
 │       ├── tool/             # 工具契约：defineTool + registry
 │       ├── skill/            # skill 契约 + registry
+│       ├── workspace/        # 本地文件树的所有者：types(契约) + local(原子写/按路径互斥)；工具的文件访问唯一入口
 │       ├── std/              # ★ 标准积木层：middleware/（compaction、budget、doom-loop…）、agents/（lead、general、shared）、tools/（createCoreTools 及内置工具）、skills/（SKILL.md 目录发现）
 │       ├── runtime/          # 组合层：bootstrap（createRuntime/runPrompt）、context
 │       ├── config.ts         # 引擎行为配置解析与校验
@@ -46,7 +47,8 @@ skills/                       # 工作区技能：一目录一技能（SKILL.md 
 5. 每一步（一个 turn）按生命周期推进：
    `beforeTurn` → `assembleContext`（引擎种入 instructions）→ `runTurn`（stream + 工具派发）→ `judgeTurn`（终态 + 去留一次裁决）。
 6. `agent/turn.ts` 调用 `ctx.model.stream()`（带 retry），经 `TurnRecorder` 把 text/reasoning/tool-call 写进 Sessions（状态事件随写入自动发出）。
-7. 工具经 `tool/tool.ts` 的 `defineTool` 统一校验/执行/归一化；`task` 创建 child session 并递归回 `runSession`。
+7. 工具经 `tool/tool.ts` 的 `defineTool` 统一校验/执行/归一化；文件访问一律经 `ctx.workspace`（并发安全由它保证，
+   派发器不介入）；`task` 创建 child session 并递归回 `runSession`。
 8. middleware 塑形结果：compaction 在 `beforeTurn` 压缩超长上下文，budget/structured-output 在 `judgeTurn` 收口。
 9. `event/bus.ts` 分 state/loop 两通道广播，由 `apps/cli/src/logger.ts`（CLI）或 `tui/app.tsx`（TUI）订阅渲染。
 
@@ -75,4 +77,6 @@ skills/                       # 工作区技能：一目录一技能（SKILL.md 
 - `config.ts` 只做配置解析与校验，不创建运行时对象。
 - `runtime/context.ts` 是运行时依赖的唯一组合根。
 - `session/` 中 `Sessions` 是状态唯一写入者；持久化后端只实现 read/persist/list 三方法，不维护启动型单例。
+- `workspace/` 是文件树唯一所有者：`process.cwd()` 只在装配处出现一次，工具里不再有 `node:fs`。
+  共享可变资源要么有所有者，要么就得靠调用方处处自律——后者迟早会漏。
 - 新的跨模块运行时依赖优先挂到 `RuntimeContext`，避免扩散隐式全局状态。

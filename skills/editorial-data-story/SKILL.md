@@ -53,31 +53,33 @@ gain, and a shallow subagent will run out of steps before it reaches `write`).
    keep unit, time window, and source inside the same chart card. Decoration must
    never occlude ticks, labels, or sources, or create false area/length
    comparisons.
-6. **Write the output in small bounded segments.** This is mandatory, not a
-   preference. NEVER emit the whole document — or the entire stylesheet — in a
-   single `write` call: one oversized generation step will hit the per-step
-   timeout and lose everything. Keep every single `write` call small (roughly one
-   screenful of markup). Build the file across many calls:
-   - Call 1 — `write` (mode `overwrite`): only `<!doctype html>`, the opening
-     `<head>` and font links, and the opening `<style>` tag.
-   - Next call(s) — `write` (mode `append`): the CSS, split into two or three
-     appends if it is long; then close `</style></head>` and open `<body>`.
-   - Then one `write` (mode `append`) per section (cover/nav, then each content
-     section). One section per call — do not batch several large sections.
-   - Final call — `write` (mode `append`): `</body></html>` plus any trailing
-     script.
-   After each call, the tool reports the growing total size — use that to keep
-   going until the document is complete. Default the output path to the source
+6. **Write a skeleton, then fill it in.** This is mandatory, not a preference.
+   NEVER emit the whole document — or the entire stylesheet — in a single call:
+   one oversized generation step will hit the per-step timeout and lose
+   everything. Keep every single call small (roughly one screenful of markup).
+   - Call 1 — `write`: the *complete, valid* document shell — `<!doctype html>`,
+     `<head>` with font links, an empty `<style>`, `<body>`, and the closing
+     tags. Inside it put one short unique placeholder comment per part, e.g.
+     `<!-- CSS -->`, `<!-- SECTION: cover -->`, `<!-- SECTION: market -->`,
+     one per content section you planned in step 5.
+   - Then one `edit` per placeholder, replacing it with the real markup. Split
+     the CSS across two or three placeholders if it is long. One section per
+     call — do not batch several large sections.
+   The point of the skeleton is that the file is valid HTML after every single
+   call, and each `edit` either matches its placeholder or fails loudly — a
+   mis-step cannot leave a half-open tag or silently land in the wrong place.
+   Each `edit` reports the line it changed and the file's new size. Default the output path to the source
    file's directory with an `.html` extension (e.g. `report.md` → `report.html`)
    unless the user names a path. Inline all styles; declare no new external
    dependencies beyond what the template already uses.
 7. **Deliver.** Call `present_files` with the written HTML path so the client
    shows it as an artifact card. Return the saved path as the user-facing answer.
 
-A typical render spends one `skill`, three `read`s, ~4–8 segmented `write`s and
-one `present_files` — comfortably inside the lead agent's budget. Spend the calls
-on more, smaller segments rather than fewer, larger ones: a segment that times
-out costs the whole render, while an extra append costs one call.
+A typical render spends one `skill`, three `read`s, one `write` plus ~4–8
+`edit`s, and one `present_files` — comfortably inside the lead agent's budget.
+Spend the calls on more, smaller sections rather than fewer, larger ones: a
+section that times out costs the whole render, while an extra placeholder costs
+one call.
 
 ## Evidence discipline
 

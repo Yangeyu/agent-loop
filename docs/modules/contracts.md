@@ -9,7 +9,7 @@
 1. **会话数据模型**：`SessionInfo`（含 `rootID`）、`SessionMessage`、`MessagePart`（text /
    reasoning / compaction / image / tool）。消息不携带 sessionID 回指；assistant message 即
    turn 的记录。tool part 上的 `ToolDisplay` 是工具对自己这次调用的语义描述
-   （`verb`/`target`/`summary`/`mergeKey`），必填——消费端因此无需各写一遍 `?? toolName` 兜底。
+   （`verb`/`target`/`summary`），必填——消费端因此无需各写一遍 `?? toolName` 兜底。
    它刻意不含任何排版：措辞属于工具，宽度与配色属于 surface。
 2. **两类事件**：`StateEvent`（会话状态变更，由 harness 的 `Sessions` 聚合在写入时发出）与
    `LoopEvent`（活动协议：`session.start` / `turn.start` / `turn.phase` / `turn.end`，只回答

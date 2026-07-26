@@ -1,5 +1,3 @@
-import fs from "node:fs/promises"
-import path from "node:path"
 import { formatBytes } from "@harness/lib/format"
 import { defineTool } from "@harness/tool/tool"
 import { z } from "zod"
@@ -9,8 +7,6 @@ export const WriteParameters = z.object({
     .describe("The path to the file to write. Parent directories are created as needed."),
   content: z.string()
     .describe("The text to write. Written verbatim — no trailing newline is added."),
-  mode: z.enum(["overwrite", "append"]).optional()
-    .describe("overwrite replaces the file (creating it if absent); append adds to the end. Defaults to overwrite."),
 })
 
 export type WriteArgs = z.infer<typeof WriteParameters>
@@ -18,24 +14,13 @@ export type WriteArgs = z.infer<typeof WriteParameters>
 export const WriteTool = defineTool({
   id: "write",
   description:
-    "Write text to a local file, either replacing it (overwrite) or adding to its end (append). Reports the file's resulting size, so a large document can be built across several bounded append calls.",
+    "Create a file, or replace one wholesale, with the given text. This discards whatever the file held before, so to change part of an existing file use edit instead. To build a long document, write its complete skeleton once — with a short unique placeholder where each section goes — then fill the sections in with edit.",
   parameters: WriteParameters,
-  beforeExecute({ args }) {
-    const target = path.resolve(process.cwd(), args.filePath)
-    const mode = args.mode ?? "overwrite"
-    return {
-      display: {
-        verb: "write",
-        target,
-        // Building one document out of many appends is a single logical
-        // operation; keying on the file folds them into one transcript row.
-        mergeKey: `write:${target}`,
-      },
-      metadata: {
-        filePath: target,
-        mode,
-      },
-    }
+  describe(args, ctx) {
+    return { verb: "write", target: ctx.workspace.resolve(args.filePath) }
+  },
+  beforeExecute({ args, ctx }) {
+    return { metadata: { filePath: ctx.workspace.resolve(args.filePath) } }
   },
   mapError({ args, toolID, error }) {
     const code = error && typeof error === "object" && "code" in error ? error.code : undefined
@@ -61,43 +46,23 @@ export const WriteTool = defineTool({
       code: "tool_execution_failed",
     }
   },
-  async execute(args) {
-    const target = path.resolve(process.cwd(), args.filePath)
-    const mode = args.mode ?? "overwrite"
+  async execute(args, ctx) {
+    const target = ctx.workspace.resolve(args.filePath)
+    // Published by rename, so this needs no coordination with anything else
+    // running — see workspace/local.ts.
+    const written = await ctx.workspace.write(target, args.content)
 
-    const existing = await statFile(target)
-    if (existing && !existing.isFile()) {
-      throw Object.assign(new Error(`${args.filePath} is not a file`), { code: "EISDIR" })
-    }
-
-    await fs.mkdir(path.dirname(target), { recursive: true })
-    await fs.writeFile(target, args.content, { encoding: "utf8", flag: mode === "append" ? "a" : "w" })
-
-    const written = Buffer.byteLength(args.content, "utf8")
-    const total = (await fs.stat(target)).size
-
-    // The output stays a single line on purpose: the model already holds the
-    // content it just sent, so echoing it back would double the context cost of
-    // every segment. The running total is the one fact it cannot derive.
+    // One line on purpose: the model already holds the content it just sent, so
+    // echoing it back would double the context cost of every write.
     return {
-      display: { summary: formatBytes(total) },
-      output: `Wrote ${written} bytes (${mode}). ${target} is now ${total} bytes.`,
+      display: { summary: formatBytes(written.totalBytes) },
+      output: `Wrote ${written.bytesWritten} bytes to ${target}.`,
       metadata: {
         filePath: target,
-        mode,
-        created: !existing,
-        bytesWritten: written,
-        totalBytes: total,
+        created: written.created,
+        bytesWritten: written.bytesWritten,
+        totalBytes: written.totalBytes,
       },
     }
   },
 })
-
-async function statFile(target: string) {
-  try {
-    return await fs.stat(target)
-  } catch (error) {
-    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") return undefined
-    throw error
-  }
-}

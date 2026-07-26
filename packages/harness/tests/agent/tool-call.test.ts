@@ -1,11 +1,12 @@
 import { describe, expect, it } from "bun:test"
+import { createToolContext } from "../support/tool-context"
 import { createAgentRegistry } from "@harness/agent/registry"
 import { defineAgent } from "@harness/agent/blueprint"
 import { loadConfigFromEnv } from "@harness/config"
 import { createTurnContext } from "@harness/agent/context"
 import { resolveTurnExecutionPolicy } from "@harness/agent/policy"
 import { TurnRecorder } from "@harness/agent/recorder"
-import { executeToolCall } from "@harness/agent/tool-call"
+import { executeToolCall, openToolPart, prepareToolCall } from "@harness/agent/tool-call"
 import { MiddlewareStack } from "@harness/agent/hooks"
 import { createRuntimeEvents } from "@harness/event/bus"
 import { MemorySessionPersistence, Sessions } from "@harness/session"
@@ -14,7 +15,8 @@ import { ReadTool } from "@harness/std/tools/read"
 import { normalizeTavilyResponse } from "@harness/std/tools/tavily"
 import { defineTool } from "@harness/tool/tool"
 import { createToolRegistry } from "@harness/tool/registry"
-import type { AssistantMessage, ToolContext, ToolDefinition, ToolPart, UserMessage } from "@harness/types"
+import { createWorkspace } from "@harness/workspace"
+import type { AssistantMessage, ToolContext, ToolDefinition, ToolDisplay, ToolPart, UserMessage } from "@harness/types"
 import { z } from "zod"
 import { createFakeModel } from "../support/fake-model"
 
@@ -34,7 +36,7 @@ describe("defineTool", () => {
       },
     })
 
-    const result = await tool.execute({}, createToolContextStub())
+    const result = await tool.execute({}, createToolContext())
 
     expect(result.metadata).toEqual({ fromExecute: true, fromAfterExecute: true })
   })
@@ -46,7 +48,7 @@ describe("read", () => {
     const target = await Bun.write(Bun.file("/tmp/agent-loop-read-file-test.txt"), file)
     expect(target).toBe(11)
 
-    const result = await ReadTool.execute({ filePath: "/tmp/agent-loop-read-file-test.txt" }, createToolContextStub())
+    const result = await ReadTool.execute({ filePath: "/tmp/agent-loop-read-file-test.txt" }, createToolContext())
 
     expect(result.output).toBe("hello\nworld")
     expect(result.metadata?.format).toBe("text")
@@ -128,7 +130,7 @@ describe("executeToolCall", () => {
     expect(part?.state.status).toBe("completed")
     if (!part || part.state.status !== "completed") throw new Error("Expected completed tool part")
 
-    expect(part.state.display).toEqual({ verb: "prepare", target: "the thing", summary: undefined, mergeKey: undefined })
+    expect(part.state.display).toEqual({ verb: "prepare", target: "the thing", summary: undefined })
     expect(part.state.metadata).toEqual({ fromBeforeExecute: true })
   })
 
@@ -152,8 +154,58 @@ describe("executeToolCall", () => {
     expect(part?.state.status).toBe("error")
     if (!part || part.state.status !== "error") throw new Error("Expected errored tool part")
 
-    expect(part.state.display).toEqual({ verb: "prepare", target: "the thing", summary: undefined, mergeKey: undefined })
+    expect(part.state.display).toEqual({ verb: "prepare", target: "the thing", summary: undefined })
     expect(part.state.metadata).toEqual({ fromBeforeExecute: true })
+  })
+
+  it("opens the part already carrying what describe() derived from the args", async () => {
+    // The contract the transcript depends on. When display only arrived later,
+    // a row appeared naming the tool but not its subject for the whole time the
+    // call was in flight — which is exactly when someone is watching it.
+    const tool = defineTool({
+      id: "described",
+      description: "Test describe-at-open",
+      parameters: z.object({ path: z.string() }),
+      describe(args) {
+        return { verb: "write", target: args.path }
+      },
+      async execute() {
+        return { output: "done" }
+      },
+    })
+
+    const { dispatch, events } = createToolCallHarness(tool)
+    const opened: ToolDisplay[] = []
+    events.state.subscribe((event) => {
+      if (event.type === "part.created" && event.part.type === "tool") opened.push(event.part.state.display)
+    })
+
+    await dispatch({ toolCallId: "call-described", toolName: tool.id, args: { path: "/tmp/report.html" } })
+
+    expect(opened).toEqual([
+      { verb: "write", target: "/tmp/report.html", summary: undefined },
+    ])
+  })
+
+  it("opens the part with validated args, not the raw ones", async () => {
+    const tool = defineTool({
+      id: "coerced",
+      description: "Test validated input at open",
+      parameters: z.object({ count: z.coerce.number() }),
+      async execute() {
+        return { output: "done" }
+      },
+    })
+
+    const { dispatch, events } = createToolCallHarness(tool)
+    const opened: unknown[] = []
+    events.state.subscribe((event) => {
+      if (event.type === "part.created" && event.part.type === "tool") opened.push(event.part.state.input)
+    })
+
+    await dispatch({ toolCallId: "call-coerced", toolName: tool.id, args: { count: "3" } })
+
+    expect(opened).toEqual([{ count: 3 }])
   })
 
   it("emits part.created and part.updated state events for a completed call", async () => {
@@ -177,29 +229,12 @@ describe("executeToolCall", () => {
 
     await dispatch({ toolCallId: "call-events", toolName: tool.id, args: {} })
 
-    expect(seen).toEqual(["created", "updated:running", "updated:completed"])
+    // Two transitions, not three: the part is created already validated and
+    // described, so nothing needs a follow-up "still running" update to correct
+    // it. A tool that patches mid-flight adds its own updates on top.
+    expect(seen).toEqual(["created", "updated:completed"])
   })
 })
-
-function createToolContextStub(): ToolContext {
-  const events = createRuntimeEvents()
-  return {
-    config: loadConfigFromEnv({}),
-    agent_registry: createAgentRegistry(),
-    skill_registry: createSkillRegistry(),
-    sessions: new Sessions(new MemorySessionPersistence(), events.state),
-    tool_registry: createToolRegistry(),
-    events,
-    sessionID: "session-1",
-    messageID: "message-1",
-    agent: "lead",
-    abort: new AbortController().signal,
-    format: { type: "text" },
-    messages: [],
-    metadata: async () => {},
-    executeTool: async () => ({ status: "error", error: { message: "not implemented", retryable: false } }),
-  }
-}
 
 function createToolCallHarness(tool: ToolDefinition) {
   const config = loadConfigFromEnv({})
@@ -240,6 +275,7 @@ function createToolCallHarness(tool: ToolDefinition) {
     sessions,
     tool_registry,
     events,
+    workspace: createWorkspace(),
   }
 
   const ctx = createTurnContext({
@@ -272,9 +308,11 @@ function createToolCallHarness(tool: ToolDefinition) {
   const stack = MiddlewareStack.build([])
 
   return {
-    dispatch: (chunk: { toolCallId: string; toolName: string; args: unknown }) => {
-      const tracker = recorder.trackToolCall(chunk)
-      return executeToolCall(ctx, stack, recorder, chunk, tracker)
+    // Both halves, in the order the turn runs them — so a test exercises the
+    // same path production takes, including the display the part opens with.
+    dispatch: async (chunk: { toolCallId: string; toolName: string; args: unknown }) => {
+      const prepared = await prepareToolCall(ctx, stack, chunk)
+      return executeToolCall(ctx, stack, recorder, chunk, openToolPart(recorder, chunk, prepared), prepared)
     },
     sessions,
     events,

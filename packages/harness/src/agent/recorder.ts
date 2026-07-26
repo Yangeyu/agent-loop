@@ -21,6 +21,7 @@ import {
   type AssistantMessage,
   type ErrorInfo,
   type FinishReason,
+  type ToolDisplayPatch,
   type LoopEvent,
   type ReasoningPart,
   type TextPart,
@@ -174,7 +175,7 @@ export class TurnRecorder {
    * @param call - the tool name, call id, and raw args from the stream
    * @returns the tracker owning that part's lifecycle
    */
-  trackToolCall(call: { toolName: string; toolCallId: string; args: unknown }): ToolPartTracker {
+  trackToolCall(call: { toolName: string; toolCallId: string; args: unknown }, display?: ToolDisplayPatch): ToolPartTracker {
     this.textPart = undefined
     this.reasoningPart = undefined
     this.toolCallCount += 1
@@ -184,6 +185,7 @@ export class TurnRecorder {
       toolName: call.toolName,
       toolCallId: call.toolCallId,
       input: call.args,
+      display,
       startedAt: Date.now(),
     })
   }

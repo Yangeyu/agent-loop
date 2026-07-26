@@ -15,6 +15,7 @@ import type { Sessions } from "@harness/session"
 import type { SkillRegistry } from "@harness/skill/registry"
 import type { ToolRegistry } from "@harness/tool/registry"
 import type { ToolDefinition, UserMessage } from "@harness/types"
+import type { Workspace } from "@harness/workspace"
 
 /** The engine's dependency surface — the kernel owns this contract; the runtime
  * layer's RuntimeContext is exactly one of these plus nothing else. */
@@ -25,6 +26,10 @@ export type EngineDeps = {
   agent_registry: AgentRegistry
   skill_registry: SkillRegistry
   tool_registry: ToolRegistry
+  // The local file tree as an owned collaborator. Tools go through it instead of
+  // `node:fs` + `process.cwd()`, which is what makes concurrent file work safe
+  // without the engine knowing anything about what a tool does.
+  workspace: Workspace
 }
 
 /** The engine-internal turn context: HookContext plus the turn's resolved inputs.
@@ -36,6 +41,7 @@ export type TurnContext = HookContext & {
   readonly agent_registry: AgentRegistry
   readonly skill_registry: SkillRegistry
   readonly tool_registry: ToolRegistry
+  readonly workspace: Workspace
 }
 
 /**
@@ -65,6 +71,7 @@ export function createTurnContext(input: {
     agent_registry: input.deps.agent_registry,
     skill_registry: input.deps.skill_registry,
     tool_registry: input.deps.tool_registry,
+    workspace: input.deps.workspace,
     agent: input.agent,
     sessionID: input.sessionID,
     rootID: input.rootID,

@@ -1,4 +1,3 @@
-import fs from "node:fs/promises"
 import path from "node:path"
 import { defineTool } from "@harness/tool/tool"
 import { z } from "zod"
@@ -16,9 +15,11 @@ export const PresentFilesTool = defineTool({
   id: "present_files",
   description: "Present one or more files to the client as a file artifact card.",
   parameters: PresentFilesParameters,
+  describe(args) {
+    return { verb: "present", target: args.title ?? args.paths[0] }
+  },
   beforeExecute({ args }) {
     return {
-      display: { verb: "present", target: args.title ?? args.paths[0] },
       metadata: {
         artifactType: "files",
         fileCount: args.paths.length,
@@ -41,16 +42,16 @@ export const PresentFilesTool = defineTool({
       code: "tool_execution_failed",
     }
   },
-  async execute(args) {
+  async execute(args, ctx) {
     const files = await Promise.all(args.paths.map(async (item) => {
-      const resolved = path.resolve(process.cwd(), item)
-      const stat = await fs.stat(resolved)
-      const mime = inferMimeType(resolved)
+      const resolved = ctx.workspace.resolve(item)
+      const stat = await ctx.workspace.stat(resolved)
+      if (!stat) throw Object.assign(new Error(`file not found at ${item}`), { code: "ENOENT" })
       return {
         path: resolved,
         filename: path.basename(resolved),
-        mime,
-        bytes: stat.size,
+        mime: inferMimeType(resolved),
+        bytes: stat.bytes,
       }
     }))
 

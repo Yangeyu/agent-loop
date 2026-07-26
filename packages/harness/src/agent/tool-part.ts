@@ -48,29 +48,6 @@ export function createRunningToolPart(input: RunningToolPartInput): ToolPart {
 }
 
 /**
- * Transitions an existing part to `running` with validated input, preserving its
- * display/metadata and original start time.
- *
- * @param part - the prior tool part
- * @param input - the validated tool input
- * @returns the part in the running state
- */
-export function toRunningToolPart(part: ToolPart, input: unknown): ToolPart {
-  return {
-    ...part,
-    state: {
-      status: "running",
-      input,
-      display: part.state.display,
-      metadata: part.state.metadata,
-      time: {
-        start: part.state.time?.start ?? Date.now(),
-      },
-    },
-  }
-}
-
-/**
  * Transitions a part to `completed`, folding the execute result's output, display,
  * metadata (merged over the prior), and attachments in, and stamping the end time.
  *
@@ -166,7 +143,6 @@ function resolveDisplay(
     verb: patch?.verb ?? base?.verb ?? toolName,
     target: patch?.target ?? base?.target,
     summary: patch?.summary ?? base?.summary,
-    mergeKey: patch?.mergeKey ?? base?.mergeKey,
   }
 }
 
@@ -205,11 +181,6 @@ export class ToolPartTracker {
   /** The live snapshot — identity and current state of the tracked part. */
   get part(): ToolPart {
     return this.current
-  }
-
-  /** Transitions to `running` with validated input. */
-  toRunning(input: unknown): ToolPart {
-    return this.write(toRunningToolPart(this.current, input))
   }
 
   /** Transitions to `completed`, folding in the execute result. */

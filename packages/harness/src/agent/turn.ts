@@ -12,7 +12,14 @@
  */
 import type { TurnContext } from "@harness/agent/context"
 import type { TurnRecorder } from "@harness/agent/recorder"
-import { executeToolCall, type ToolCallOutcome } from "@harness/agent/tool-call"
+import type { ToolPartTracker } from "@harness/agent/tool-part"
+import {
+  executeToolCall,
+  openToolPart,
+  prepareToolCall,
+  type PreparedToolCall,
+  type ToolCallOutcome,
+} from "@harness/agent/tool-call"
 import type { MiddlewareStack, ToolCall } from "@harness/agent/hooks"
 import type { LLMInput, ModelMessage } from "@harness/llm/types"
 import { classifyRetry, isAbortError, retry, retryDelay, toErrorInfo } from "@harness/agent/retry"
@@ -124,12 +131,31 @@ async function runToolCalls(
 ): Promise<{ kind: "continue" } | { kind: "stop" }> {
   recorder.enterPhase("executing-tool")
 
-  const tracked = calls.map((call) => ({ call, tracker: recorder.trackToolCall(call) }))
+  // Prepare in issue order, one at a time: this is where the gate runs (a
+  // counting guard is only correct in sequence) and where the call's display is
+  // derived, so the part opens already saying what the call is for. Preparation
+  // is cheap and non-blocking — the work it precedes is what gets concurrency.
+  const tracked: { call: ToolCall; tracker: ToolPartTracker; prepared: PreparedToolCall }[] = []
+  for (const call of calls) {
+    const prepared = await prepareToolCall(ctx, stack, call)
+    tracked.push({ call, prepared, tracker: openToolPart(recorder, call, prepared) })
+  }
 
   // Run the batch with at most `toolConcurrency` in flight at once, keeping outcomes
   // in issue order regardless of completion order. The bound is a fresh per-turn
   // number, not a shared semaphore, so a parent turn delegating to subagents that
   // themselves fan out tools never contends on one counter and cannot deadlock.
+  //
+  // Every call is eligible, whatever it does. The dispatcher deliberately knows
+  // nothing about tool semantics — it could not use them anyway, since it must
+  // fix a concurrency level before any tool has parsed its arguments and so has
+  // no idea which files are in play. Consistency belongs to whoever owns the
+  // resource: concurrent file work is made safe by the workspace (workspace.ts),
+  // not by holding calls back here.
+  //
+  // Ordering between calls is the model's to arrange. A batch is the provider's
+  // statement that these calls may proceed together; a call that depends on
+  // another's effect belongs in the next turn, not the same batch.
   const outcomes = new Array<ToolCallOutcome>(tracked.length)
   const limit = Math.max(1, ctx.policy.toolConcurrency)
   let nextIndex = 0
@@ -137,8 +163,8 @@ async function runToolCalls(
     while (nextIndex < tracked.length) {
       const index = nextIndex
       nextIndex += 1
-      const { call, tracker } = tracked[index]
-      outcomes[index] = await executeToolCall(ctx, stack, recorder, call, tracker)
+      const { call, tracker, prepared } = tracked[index]
+      outcomes[index] = await executeToolCall(ctx, stack, recorder, call, tracker, prepared)
     }
   }
   await Promise.all(Array.from({ length: Math.min(limit, tracked.length) }, () => worker()))

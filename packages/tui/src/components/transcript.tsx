@@ -200,8 +200,7 @@ function toolLabel(entry: TraceEntry) {
 function toolSummary(entry: TraceEntry) {
   const tool = entry.tool
   if (!tool) return undefined
-  const calls = tool.calls > 1 ? `${tool.calls} calls` : undefined
-  return [tool.display.summary, calls].filter(Boolean).join(" · ") || undefined
+  return tool.display.summary || undefined
 }
 
 function collapseWhitespace(text: string) {

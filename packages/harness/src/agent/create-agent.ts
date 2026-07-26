@@ -11,6 +11,7 @@ import type { MiddlewareFactory } from "@harness/agent/hooks"
 import { createSessionPersistence, Sessions } from "@harness/session"
 import { createSkillRegistry } from "@harness/skill/registry"
 import { createToolRegistry } from "@harness/tool/registry"
+import { createWorkspace } from "@harness/workspace"
 import type { AnyToolDefinition, ImageSource, OutputFormat, SessionInfo } from "@harness/types"
 
 /** The standalone-agent configuration: a model plus whatever bricks it composes. */
@@ -66,6 +67,7 @@ export function createAgent(spec: StandaloneAgentSpec) {
     agent_registry: createAgentRegistry(),
     skill_registry: createSkillRegistry(),
     tool_registry: createToolRegistry(),
+    workspace: createWorkspace(config.workspace_root),
   }
   deps.agent_registry.register(definition)
   for (const subagent of spec.subagents ?? []) deps.agent_registry.register(subagent)

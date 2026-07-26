@@ -1,4 +1,12 @@
-import type { ErrorInfo, ToolContext, ToolDefinition, ToolDisplayPatch, ToolExecuteResult, ToolMetadata } from "@harness/types"
+import type {
+  ErrorInfo,
+  ToolContext,
+  ToolDefinition,
+  ToolDescribeContext,
+  ToolDisplayPatch,
+  ToolExecuteResult,
+  ToolMetadata,
+} from "@harness/types"
 import { z } from "zod"
 
 // Types
@@ -46,6 +54,13 @@ type ToolNormalizedResultInput<TArgs> = {
 type DefineToolOptions<P extends z.ZodType> = {
   id: string
   description: string
+  /**
+   * Names the call from its arguments: what it does and what it acts on. Runs
+   * before the tool part is opened, so the transcript can show what a call is
+   * working on from the moment it appears rather than once it finishes.
+   * Must be pure — it is display, not work.
+   */
+  describe?: (args: z.infer<P>, ctx: ToolDescribeContext) => ToolDisplayPatch
   parameters: P
   execute: (args: z.infer<P>, ctx: ToolContext) => Promise<ToolExecuteResult>
   beforeExecute?: (input: ToolHookInput<z.infer<P>>) => Awaitable<ToolMetadataUpdate | void>
@@ -102,6 +117,7 @@ export function defineTool<P extends z.ZodType>(
   return {
     id,
     description,
+    describe: options.describe,
     parameters,
     validate(args) {
       return parseToolArgs(id, parameters, args)
@@ -210,6 +226,14 @@ function wrapToolError<P extends z.ZodType>(
   ctx: ToolContext,
   error: unknown,
 ) {
+  // A tool that threw a ToolExecutionError has already classified its own
+  // failure as precisely as it can. mapError exists to give a stable code to
+  // what a tool *could not* classify — the raw errno or library error — so it
+  // never runs over an already-typed failure. Letting it would relabel
+  // "edit_not_unique" as a generic execution failure, and the caller would lose
+  // the one thing that tells it how to fix the call.
+  if (error instanceof ToolExecutionError) return error
+
   return new ToolExecutionError(
     options.mapError?.({
       error,

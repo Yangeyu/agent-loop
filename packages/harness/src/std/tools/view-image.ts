@@ -12,6 +12,7 @@ import { resolveImageSource } from "@harness/llm/image"
 import type { LLMInput, Model, ModelMessage } from "@harness/llm/types"
 import { defineTool } from "@harness/tool/tool"
 import { type AnyToolDefinition, type ImageSource, type ToolContext } from "@harness/types"
+import type { Workspace } from "@harness/workspace"
 import { z } from "zod"
 
 const VIEW_INSTRUCTIONS = [
@@ -50,8 +51,8 @@ export function createViewImageTool(deps: { model: Model }): AnyToolDefinition {
     description:
       "Look at an image (local file path or http(s) URL) and return a text description of its contents. Use this to read or understand images, screenshots, or image links.",
     parameters: ViewImageParameters,
-    beforeExecute({ args }) {
-      return { display: { verb: "view", target: args.image } }
+    describe(args) {
+      return { verb: "view", target: args.image }
     },
     mapError({ args, toolID, error }) {
       if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
@@ -61,21 +62,21 @@ export function createViewImageTool(deps: { model: Model }): AnyToolDefinition {
       return { message: `The ${toolID} tool failed: ${message}`, retryable: false, code: "tool_execution_failed" }
     },
     async execute(args, ctx) {
-      const source = toImageSource(args.image)
+      const source = toImageSource(ctx.workspace, args.image)
       const description = await describeImage(ctx, deps.model, source, args.prompt ?? DEFAULT_PROMPT)
       return { title: `view_image: ${args.image}`, output: description }
     },
   })
 }
 
-function toImageSource(image: string): ImageSource {
+function toImageSource(workspace: Workspace, image: string): ImageSource {
   if (/^https?:\/\//i.test(image)) return { kind: "url", url: image }
 
   const mime = IMAGE_EXT_MIME[path.extname(image).toLowerCase()]
   if (!mime) {
     throw new Error(`unsupported image type for ${image} (expected JPEG/PNG/WEBP)`)
   }
-  return { kind: "file", path: path.resolve(process.cwd(), image), mime }
+  return { kind: "file", path: workspace.resolve(image), mime }
 }
 
 async function describeImage(ctx: ToolContext, model: Model, source: ImageSource, prompt: string): Promise<string> {

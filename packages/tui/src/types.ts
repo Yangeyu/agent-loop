@@ -38,9 +38,6 @@ export type TraceTool = {
   name: string
   display: ToolDisplay
   status: TraceToolStatus
-  // How many calls this row stands for. Above 1 the row is a folded run of
-  // calls sharing a mergeKey (every append to one file is one "write").
-  calls: number
 }
 
 /**

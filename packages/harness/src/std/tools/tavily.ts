@@ -56,9 +56,11 @@ export const TavilyTool = defineTool({
   description:
     "Search the web with Tavily and return current information with result titles, URLs, snippets, and optional synthesized answer.",
   parameters: TavilyParameters,
+  describe(args) {
+    return { verb: "search", target: args.query }
+  },
   beforeExecute({ args }) {
     return {
-      display: { verb: "search", target: args.query },
       metadata: {
         query: args.query,
         maxResults: args.maxResults ?? DEFAULT_MAX_RESULTS,

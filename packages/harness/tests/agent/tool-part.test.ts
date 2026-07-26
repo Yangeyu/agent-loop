@@ -24,12 +24,11 @@ describe("tool part display", () => {
       verb: "write",
       target: undefined,
       summary: undefined,
-      mergeKey: undefined,
     })
   })
 
   it("lets the result add only how the call went, keeping what it was about", () => {
-    const part = running({ verb: "write", target: "/tmp/report.html", mergeKey: "write:/tmp/report.html" })
+    const part = running({ verb: "write", target: "/tmp/report.html" })
 
     const completed = toCompletedToolPart(part, {}, { display: { summary: "31.1 KB" }, output: "ok" })
 
@@ -37,7 +36,6 @@ describe("tool part display", () => {
       verb: "write",
       target: "/tmp/report.html",
       summary: "31.1 KB",
-      mergeKey: "write:/tmp/report.html",
     })
   })
 

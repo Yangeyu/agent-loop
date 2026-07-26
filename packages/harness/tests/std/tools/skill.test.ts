@@ -1,39 +1,17 @@
 import { describe, expect, it } from "bun:test"
+import { createToolContext } from "../../support/tool-context"
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { createAgentRegistry } from "@harness/agent/registry"
-import { loadConfigFromEnv } from "@harness/config"
-import { createRuntimeEvents } from "@harness/event/bus"
-import { MemorySessionPersistence, Sessions } from "@harness/session"
 import { createSkillRegistry } from "@harness/skill/registry"
 import type { SkillInfo } from "@harness/skill/types"
 import { loadSkillFile } from "@harness/std/skills/load"
 import { SkillTool } from "@harness/std/tools/skill"
-import { createToolRegistry } from "@harness/tool/registry"
-import type { ToolContext } from "@harness/types"
 
-function createContext(skills: SkillInfo[]): ToolContext {
-  const events = createRuntimeEvents()
+function createContext(skills: SkillInfo[]) {
   const skill_registry = createSkillRegistry()
   for (const skill of skills) skill_registry.register(skill)
-
-  return {
-    config: loadConfigFromEnv({}),
-    agent_registry: createAgentRegistry(),
-    skill_registry,
-    sessions: new Sessions(new MemorySessionPersistence(), events.state),
-    tool_registry: createToolRegistry(),
-    events,
-    sessionID: "session-1",
-    messageID: "message-1",
-    agent: "lead",
-    abort: new AbortController().signal,
-    format: { type: "text" },
-    messages: [],
-    metadata: async () => {},
-    executeTool: async () => ({ status: "error", error: { message: "not implemented", retryable: false } }),
-  }
+  return createToolContext({ skill_registry })
 }
 
 function makeSkill(assets: Record<string, string>) {

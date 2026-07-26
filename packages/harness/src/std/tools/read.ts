@@ -1,7 +1,7 @@
-import fs from "node:fs/promises"
 import path from "node:path"
 import { formatBytes } from "@harness/lib/format"
 import { defineTool } from "@harness/tool/tool"
+import type { Workspace } from "@harness/workspace"
 import { z } from "zod"
 
 const DEFAULT_MAX_CHARS = 100_000
@@ -47,12 +47,13 @@ export const ReadTool = defineTool({
   description:
     "Read a local file and return its text content. Reads UTF-8 text files directly, and extracts text from Office/PDF documents such as DOCX, PPTX, XLSX, ODT, ODP, ODS, RTF, and PDF.",
   parameters: ReadParameters,
-  beforeExecute({ args }) {
-    const target = path.resolve(process.cwd(), args.filePath)
+  describe(args, ctx) {
+    return { verb: "read", target: ctx.workspace.resolve(args.filePath) }
+  },
+  beforeExecute({ args, ctx }) {
     return {
-      display: { verb: "read", target },
       metadata: {
-        filePath: target,
+        filePath: ctx.workspace.resolve(args.filePath),
         format: args.format ?? "text",
       },
     }
@@ -74,29 +75,30 @@ export const ReadTool = defineTool({
     }
   },
   async execute(args, ctx) {
-    const target = path.resolve(process.cwd(), args.filePath)
-    const stat = await fs.stat(target)
-    if (!stat.isFile()) throw new Error(`${args.filePath} is not a file`)
-    if (stat.size > DEFAULT_MAX_BYTES) {
-      throw new Error(`file is too large (${stat.size} bytes, limit ${DEFAULT_MAX_BYTES} bytes)`)
+    const target = ctx.workspace.resolve(args.filePath)
+    const stat = await ctx.workspace.stat(target)
+    if (!stat) throw Object.assign(new Error(`file not found at ${args.filePath}`), { code: "ENOENT" })
+    if (!stat.isFile) throw new Error(`${args.filePath} is not a file`)
+    if (stat.bytes > DEFAULT_MAX_BYTES) {
+      throw new Error(`file is too large (${stat.bytes} bytes, limit ${DEFAULT_MAX_BYTES} bytes)`)
     }
 
     const ext = path.extname(target).toLowerCase()
     const maxChars = args.maxChars ?? DEFAULT_MAX_CHARS
     const requestedFormat = args.format ?? "text"
-    const content = await readFileAsText(target, ext, requestedFormat, ctx.abort)
+    const content = await readFileAsText(ctx.workspace, target, ext, requestedFormat, ctx.abort)
     const truncated = truncateText(content.trim(), maxChars)
 
     return {
       display: {
-        summary: truncated.truncated ? `${formatBytes(stat.size)}, truncated` : formatBytes(stat.size),
+        summary: truncated.truncated ? `${formatBytes(stat.bytes)}, truncated` : formatBytes(stat.bytes),
       },
       output: truncated.text,
       metadata: {
         filePath: target,
         extension: ext,
         format: requestedFormat,
-        bytes: stat.size,
+        bytes: stat.bytes,
         characters: content.length,
         truncated: truncated.truncated,
       },
@@ -104,9 +106,18 @@ export const ReadTool = defineTool({
   },
 })
 
-async function readFileAsText(target: string, ext: string, format: "text" | "markdown", abort: AbortSignal) {
-  if (!DOCUMENT_EXTENSIONS.has(ext)) return await fs.readFile(target, "utf8")
+async function readFileAsText(
+  workspace: Workspace,
+  target: string,
+  ext: string,
+  format: "text" | "markdown",
+  abort: AbortSignal,
+) {
+  if (!DOCUMENT_EXTENSIONS.has(ext)) return await workspace.readText(target)
 
+  // The office parser opens the path itself, so this one read escapes the
+  // workspace. It is safe to leave: reads need no coordination, since writes
+  // publish atomically and never expose a half-written file.
   const parseOffice = await loadOfficeParser()
   const outputFormat: OfficeFormat = format === "markdown" ? "md" : "text"
   const ast = await parseOffice(target, {

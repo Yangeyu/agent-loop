@@ -72,50 +72,22 @@ describe("trace tool rows", () => {
     })
   })
 
-  it("folds a run of calls sharing a mergeKey into one row that counts them", () => {
+  it("gives every call its own row, in the order they were issued", () => {
+    // No merging: two calls are two facts. A row that stood for several calls
+    // could only show one status and one summary, quietly dropping the rest.
     const harness = createHarness()
-    const key = "write:/tmp/report.html"
 
-    for (const id of ["p1", "p2", "p3"]) {
-      const part = harness.startTool(id, "write", { verb: "write", target: "/tmp/report.html", mergeKey: key })
-      harness.completeTool(part, { verb: "write", target: "/tmp/report.html", summary: "8 KB", mergeKey: key })
-    }
+    harness.startTool("p1", "write", { verb: "write", target: "/tmp/report.html" })
+    harness.startTool("p2", "edit", { verb: "edit", target: "/tmp/report.html" })
+    harness.startTool("p3", "edit", { verb: "edit", target: "/tmp/report.html" })
 
-    expect(harness.tools()).toHaveLength(1)
-    expect(harness.tools()[0].tool?.calls).toBe(3)
-    expect(harness.tools()[0].tool?.status).toBe("completed")
+    expect(harness.tools().map((row) => row.tool?.display.verb)).toEqual(["write", "edit", "edit"])
   })
 
-  it("moves a folded row to the end so the newest activity stays at the bottom", () => {
-    const harness = createHarness()
-    const key = "write:/tmp/a.html"
-
-    const first = harness.startTool("p1", "write", { verb: "write", target: "/tmp/a.html", mergeKey: key })
-    harness.completeTool(first, { verb: "write", target: "/tmp/a.html", mergeKey: key })
-    harness.startTool("p2", "read", { verb: "read", target: "/tmp/b.ts" })
-    harness.startTool("p3", "write", { verb: "write", target: "/tmp/a.html", mergeKey: key })
-
-    const rows = harness.tools()
-    expect(rows).toHaveLength(2)
-    expect(rows.at(-1)?.tool?.display.verb).toBe("write")
-    expect(rows.at(-1)?.tool?.calls).toBe(2)
-  })
-
-  it("keeps calls apart when they do not share a mergeKey", () => {
+  it("keeps a subagent's calls on their own rows", () => {
     const harness = createHarness()
 
-    harness.startTool("p1", "write", { verb: "write", target: "/tmp/a.html", mergeKey: "write:/tmp/a.html" })
-    harness.startTool("p2", "write", { verb: "write", target: "/tmp/b.html", mergeKey: "write:/tmp/b.html" })
-    harness.startTool("p3", "read", { verb: "read", target: "/tmp/c.ts" })
-
-    expect(harness.tools()).toHaveLength(3)
-  })
-
-  it("never folds a subagent's calls into its parent's row", () => {
-    const harness = createHarness()
-    const key = "write:/tmp/shared.html"
-
-    harness.startTool("p1", "write", { verb: "write", target: "/tmp/shared.html", mergeKey: key })
+    harness.startTool("p1", "edit", { verb: "edit", target: "/tmp/shared.html" })
     harness.folder.handleState({
       type: "session.created",
       sessionID: CHILD,
@@ -123,18 +95,7 @@ describe("trace tool rows", () => {
       session: { id: CHILD, parentID: ROOT, rootID: ROOT, title: "child" },
     } as StateEvent)
     harness.folder.handleLoop({ type: "session.start", sessionID: CHILD, rootID: ROOT, agent: "general", text: "sub" } as LoopEvent)
-    harness.startTool("p2", "write", { verb: "write", target: "/tmp/shared.html", mergeKey: key }, CHILD)
-
-    expect(harness.tools()).toHaveLength(2)
-  })
-
-  it("starts a fresh merge window on a new prompt", () => {
-    const harness = createHarness()
-    const key = "write:/tmp/report.html"
-
-    harness.startTool("p1", "write", { verb: "write", target: "/tmp/report.html", mergeKey: key })
-    harness.folder.handleLoop({ type: "session.start", sessionID: ROOT, rootID: ROOT, agent: "lead", text: "again" } as LoopEvent)
-    harness.startTool("p2", "write", { verb: "write", target: "/tmp/report.html", mergeKey: key })
+    harness.startTool("p2", "edit", { verb: "edit", target: "/tmp/shared.html" }, CHILD)
 
     expect(harness.tools()).toHaveLength(2)
   })
@@ -181,7 +142,7 @@ describe("trace tool rows", () => {
 
   it("records a failed call as an error row that still says what it tried", () => {
     const harness = createHarness()
-    const part = harness.startTool("p1", "write", { verb: "write", target: "/tmp/report.html" })
+    const part = harness.startTool("p1", "append", { verb: "append", target: "/tmp/report.html" })
 
     harness.folder.handleState({
       type: "part.updated",
