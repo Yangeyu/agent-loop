@@ -58,7 +58,7 @@ export const TavilyTool = defineTool({
   parameters: TavilyParameters,
   beforeExecute({ args }) {
     return {
-      title: `tavily: ${args.query}`,
+      display: { verb: "search", target: args.query },
       metadata: {
         query: args.query,
         maxResults: args.maxResults ?? DEFAULT_MAX_RESULTS,
@@ -101,6 +101,7 @@ export const TavilyTool = defineTool({
     )
 
     return {
+      display: { summary: `${output.results.length} results` },
       output: JSON.stringify(output, null, 2),
       metadata: {
         query: args.query,

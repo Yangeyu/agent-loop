@@ -2,7 +2,7 @@
 // channel (telemetry) into terminal output. Stream text is keyed by the turn's
 // assistant message id; `part.delta` carries the part type, so the renderer
 // needs no store access and no part bookkeeping beyond the turn header state.
-import type { LoopEvent, RuntimeEventBus, StateEvent, ToolPart } from "@harness"
+import type { LoopEvent, RuntimeEventBus, StateEvent, ToolDisplay, ToolPart } from "@harness"
 
 export type OutputMode = "stream" | "buffered"
 
@@ -79,49 +79,23 @@ function prettyStructuredOutput(value: unknown) {
   }
 }
 
-function normalizePath(input: unknown) {
-  if (typeof input !== "string" || !input) return undefined
-  const cwd = process.cwd()
-  return input.startsWith(cwd) ? input.slice(cwd.length + 1) || "." : input
+// A tool call renders from the ToolDisplay the tool itself declared. The CLI
+// makes its own layout choices here (relative paths, a width cap) but never
+// re-derives *what* ran by inspecting arguments — that guesswork drifts the
+// moment a tool changes a parameter name, and it was already carrying a branch
+// for a `glob` tool that no longer exists.
+function formatToolLabel(display: ToolDisplay) {
+  const target = display.target ? preview(relativizePath(display.target), 80) : undefined
+  return [display.verb, target].filter(Boolean).join(" ")
 }
 
-function formatToolLabel(tool: string, args: unknown) {
-  if (!args || typeof args !== "object") return tool
-  const input = args as Record<string, unknown>
+function formatToolResult(display: ToolDisplay) {
+  return display.summary ? preview(display.summary, 80) : undefined
+}
 
-  if (tool === "read") {
-    const filePath = normalizePath(input.filePath)
-    return filePath ? `Read ${filePath}` : "Read file"
-  }
-
-  if (tool === "grep") {
-    const pattern = typeof input.pattern === "string" ? input.pattern : undefined
-    return pattern ? `Search ${JSON.stringify(pattern)}` : "Search"
-  }
-
-  if (tool === "glob") {
-    const pattern = typeof input.pattern === "string" ? input.pattern : undefined
-    return pattern ? `Find ${pattern}` : "Find files"
-  }
-
-  if (tool === "bash") {
-    const command = typeof input.command === "string" ? input.command : undefined
-    return command ? `$ ${command}` : "$ shell"
-  }
-
-  if (tool === "task") {
-    const subagent = typeof input.subagent_type === "string" ? input.subagent_type : "agent"
-    const description = typeof input.description === "string" ? input.description : undefined
-    return description ? `Delegate to ${subagent}: ${description}` : `Delegate to ${subagent}`
-  }
-
-  if (tool === "task_resume") {
-    const subagent = typeof input.subagent_type === "string" ? input.subagent_type : "agent"
-    const taskID = typeof input.task_id === "string" ? input.task_id : undefined
-    return taskID ? `Resume ${subagent}: ${taskID}` : `Resume ${subagent}`
-  }
-
-  return `${tool} ${preview(args, 80)}`
+function relativizePath(value: string) {
+  const cwd = process.cwd()
+  return value.startsWith(cwd) ? value.slice(cwd.length + 1) || "." : value
 }
 
 function printLogo() {
@@ -245,6 +219,7 @@ class StreamingOutputRenderer implements OutputRenderer {
 }
 
 class ConsoleLogger {
+  private announced = new Set<string>()
   private outputs = new Map<string, TurnOutput>()
   private agents = new Map<string, string>()
   private renderer: OutputRenderer
@@ -268,12 +243,15 @@ class ConsoleLogger {
     }
 
     if (event.type === "part.created" && event.part.type === "tool") {
-      this.flush(event.messageID)
-      printLine(`${style("->", ANSI.gray, ANSI.bold)} ${formatToolLabel(event.part.toolName, event.part.state.input)}`)
+      // Deliberately silent here: part.created only knows the tool's name, and
+      // what it is acting on arrives one update later. Announcing now would
+      // print "-> task" where "-> subagent general" is the useful line, and a
+      // stream cannot go back and fix it.
       return
     }
 
     if (event.type === "part.updated" && event.part.type === "tool") {
+      this.announceTool(event.messageID, event.part)
       this.renderToolState(event.messageID, event.part)
       return
     }
@@ -336,17 +314,33 @@ class ConsoleLogger {
     this.outputs.clear()
   }
 
+  // Prints the "->" line once per call, and only once the tool has said what
+  // the call is about. The first update is the transition to running, which
+  // still carries just the tool's name; the target lands on a later patch. A
+  // stream cannot revise a printed line, so it waits for the useful one — and
+  // stays quiet for a call that never names a target, since the closing
+  // [ok]/[x] line already carries everything such a call has to say.
+  private announceTool(messageID: string, part: ToolPart) {
+    if (this.announced.has(part.id)) return
+    if (part.state.status !== "running" || !part.state.display.target) return
+
+    this.announced.add(part.id)
+    this.flush(messageID)
+    printLine(`${style("->", ANSI.gray, ANSI.bold)} ${formatToolLabel(part.state.display)}`)
+  }
+
   private renderToolState(messageID: string, part: ToolPart) {
     if (part.state.status === "completed") {
       this.flush(messageID)
-      const suffix = preview(part.state.output, 80)
-      printLine(`${style("[ok]", ANSI.green, ANSI.bold)} ${part.toolName}${suffix ? style(` - ${suffix}`, ANSI.dim) : ""}`)
+      const label = formatToolLabel(part.state.display)
+      const suffix = formatToolResult(part.state.display)
+      printLine(`${style("[ok]", ANSI.green, ANSI.bold)} ${label}${suffix ? style(` - ${suffix}`, ANSI.dim) : ""}`)
       return
     }
 
     if (part.state.status === "error") {
       this.flush(messageID)
-      printLine(`${style("[x]", ANSI.red, ANSI.bold)} ${part.toolName}`)
+      printLine(`${style("[x]", ANSI.red, ANSI.bold)} ${formatToolLabel(part.state.display)}`)
       printLine(style(part.state.error.message, ANSI.red))
     }
   }

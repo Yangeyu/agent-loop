@@ -39,7 +39,7 @@
 参数校验 → beforeExecute → execute → afterExecute → output/metadata 归一化 → 写回 session ToolPart
 ```
 
-- 横切逻辑集中在 hook：`beforeExecute`（写执行前已知的 title/路径/workdir/delegate 目标）、
+- 横切逻辑集中在 hook：`beforeExecute`（写执行前已知的 display/路径/workdir/delegate 目标）、
   `mapError`（把失败映射成稳定 `ErrorInfo.code`）、`afterExecute`/`normalizeMetadata`（修整结果与 metadata）。
 - `ToolContext` 提供受控的 `executeTool()`，让嵌套工具调用复用标准执行路径，而不绕开
   core/tool-part（ToolPartTracker）/budget/event 边界。
@@ -51,6 +51,14 @@
   写入字节与文件当前总大小（不回显内容——模型刚发出的内容再回灌一遍会让长文档的上下文成本翻倍）。
   这个累计总量是分段生成的反馈信号：一份长文档由多次小 `append` 累积而成，避免单次超大生成撞上
   turn 超时而前功尽弃。
+- **每个工具自报 `ToolDisplay`**（`@contracts`）：`verb`（干了什么）、`target`（对什么干的，
+  完整不缩写）、`summary`（结果，工具自己的说法）、`mergeKey`（连续同键调用是一个逻辑操作）。
+  它是语义，不是排版——工具不知道视口多宽，绝不预拼字符串；截断、分隔、配色由 surface 决定。
+  `beforeExecute` 声明「这次调用是关于什么的」，执行结果只补「结果如何」，
+  `agent/tool-part.ts` 的 `resolveDisplay` 按字段合并，未声明 `verb` 时回落到工具名——
+  于是不实现 display 的工具照样能正常显示。
+  这一份数据同时喂给三个消费者：TUI transcript、CLI logger、以及发给模型的 tool-output 标题。
+  在任何一个消费者里按工具名分支，都是把工具已经说过的事重新猜一遍。
 - `task` 创建 child session、校验 `subagent_max_depth`、递归回 `runSession`，子 agent 结束后把最终文本
   作为普通 tool output 返回父上下文；`task_resume` 复用已有 child session。
 

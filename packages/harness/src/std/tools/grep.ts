@@ -30,7 +30,7 @@ export const GrepTool = defineTool({
   beforeExecute({ args }) {
     const roots = resolveGrepRoots().map((root) => path.relative(process.cwd(), root))
     return {
-      title: `grep: ${args.pattern}`,
+      display: { verb: "grep", target: args.pattern },
       metadata: {
         pattern: args.pattern,
         roots,
@@ -80,6 +80,9 @@ export const GrepTool = defineTool({
     }
 
     return {
+      display: {
+        summary: matches.length ? `${matches.length} in ${fileCount} files` : "no matches",
+      },
       output: matches.length ? matches.join("\n") : `No matches for ${args.pattern}`,
       metadata: {
         pattern: args.pattern,

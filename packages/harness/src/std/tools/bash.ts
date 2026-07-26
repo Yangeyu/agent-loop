@@ -24,7 +24,7 @@ export const BashTool = defineTool({
     const workdir = args.workdir ? path.resolve(process.cwd(), args.workdir) : process.cwd()
     const timeout = args.timeout ?? 120000
     return {
-      title: args.description ?? `bash: ${args.command}`,
+      display: { verb: "bash", target: args.description ?? args.command },
       metadata: {
         workdir,
         timeout,
@@ -59,7 +59,7 @@ export const BashTool = defineTool({
     })
 
     return {
-      title: args.description ?? `bash: ${args.command}`,
+      display: { summary: result.timedOut ? "timed out" : `exit ${result.exitCode ?? "null"}` },
       output: formatOutput(result),
       metadata: {
         exitCode: result.exitCode,

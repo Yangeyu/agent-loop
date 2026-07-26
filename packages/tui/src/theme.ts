@@ -9,6 +9,9 @@ export const COLORS = {
   borderStrong: "#484848",
   text: "#eeeeee",
   muted: "#808080",
+  // Process rows sit below muted: thinking and settled tool calls are the
+  // background a transcript is read against, not things to look at.
+  dim: "#5a5a5a",
   accent: "#fab283",
   info: "#56b6c2",
   success: "#7fd88f",
@@ -23,6 +26,8 @@ export const PROMPT_PLACEHOLDERS = [
   "review the latest session flow changes for regressions",
 ]
 
+const ELLIPSIS = "…"
+
 export const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
 export const PROMPT_MAX_HEIGHT = 6
 
@@ -34,6 +39,53 @@ export function agentAccent(name: string) {
   const palette = [COLORS.accent, COLORS.info, COLORS.success, COLORS.warning, "#c792ea"]
   const hash = [...name].reduce((sum, char) => sum + char.charCodeAt(0), 0)
   return palette[hash % palette.length]
+}
+
+/**
+ * Fits text to a column width, eliding the middle. Paths and commands carry
+ * their meaning at both ends — `packages/…/loop.ts` still identifies the file,
+ * while a tail-truncated `packages/harness/src/agen…` identifies nothing.
+ *
+ * This is the surface's job by construction: a tool states the full target and
+ * only the view knows how many columns are left for it.
+ *
+ * @param text - the full text
+ * @param width - the available display width in cells
+ * @returns the text, elided in the middle when it does not fit
+ */
+export function fitText(text: string, width: number) {
+  if (width <= 0) return ""
+  if (displayWidth(text) <= width) return text
+
+  // The ellipsis is measured, not assumed to be one cell: under this module's
+  // width rule it occupies two, and budgeting one for it overflows the column.
+  const ellipsisWidth = displayWidth(ELLIPSIS)
+  if (width <= ellipsisWidth) return ELLIPSIS
+
+  const half = (width - ellipsisWidth) / 2
+  return `${takeWidth(text, Math.ceil(half))}${ELLIPSIS}${takeWidth(text, Math.floor(half), "end")}`
+}
+
+export function displayWidth(text: string) {
+  let total = 0
+  for (const char of text) total += charDisplayWidth(char)
+  return total
+}
+
+function takeWidth(text: string, width: number, from: "start" | "end" = "start") {
+  const chars = [...text]
+  const ordered = from === "start" ? chars : chars.reverse()
+  const taken: string[] = []
+  let used = 0
+
+  for (const char of ordered) {
+    const next = used + charDisplayWidth(char)
+    if (next > width) break
+    taken.push(char)
+    used = next
+  }
+
+  return from === "start" ? taken.join("") : taken.reverse().join("")
 }
 
 function charDisplayWidth(char: string) {
@@ -100,9 +152,4 @@ export function safeJson(value: unknown) {
   } catch {
     return String(value)
   }
-}
-
-export function asRecord(value: unknown) {
-  if (!value || typeof value !== "object") return undefined
-  return value as Record<string, unknown>
 }

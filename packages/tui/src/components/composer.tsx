@@ -3,7 +3,7 @@ import { applyFileSuggestion, getFileSuggestions, listWorkspaceFiles, resolveAct
 import { appendPromptHistory, loadPromptHistory, type PromptHistoryEntry } from "@tui/prompt-history"
 import { getTextareaKeybindings } from "@tui/textarea-keybindings"
 import { COLORS, PROMPT_MAX_HEIGHT, SPINNER_FRAMES, agentAccent, estimateVisualLines, titleCase } from "@tui/theme"
-import type { ComposerHandle, ComposerSubmitInput } from "@tui/types"
+import type { ActivityState, ComposerHandle, ComposerSubmitInput } from "@tui/types"
 import type { TextareaRenderable } from "@opentui/core"
 import { useRenderer, useTerminalDimensions } from "@opentui/solid"
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js"
@@ -29,7 +29,8 @@ export function ComposerCard(props: {
   selectedAgent: string
   // The selected agent's bound model, shown in the footer (id + provider).
   model: { id: string; providerID: string }
-  activityStatus: string
+  activity: ActivityState
+  spinnerFrame: number
 }) {
   const renderer = useRenderer()
   const term = useTerminalDimensions()
@@ -38,7 +39,6 @@ export function ComposerCard(props: {
   const [history, setHistory] = createSignal<PromptHistoryEntry[]>([])
   const [historyCursor, setHistoryCursor] = createSignal(0)
   const [historyDraft, setHistoryDraft] = createSignal("")
-  const [spinnerFrame, setSpinnerFrame] = createSignal(0)
   const [clipboardImages, setClipboardImages] = createSignal<ComposerImageAttachment[]>([])
   const [fileSuggestions, setFileSuggestions] = createSignal<FileSuggestion[]>([])
   const [fileSuggestionIndex, setFileSuggestionIndex] = createSignal(0)
@@ -234,19 +234,6 @@ export function ComposerCard(props: {
     } satisfies ComposerHandle)
   })
 
-  createEffect(() => {
-    if (!props.busy) {
-      setSpinnerFrame(0)
-      return
-    }
-
-    const timer = setInterval(() => {
-      setSpinnerFrame((current) => (current + 1) % SPINNER_FRAMES.length)
-    }, 80)
-
-    onCleanup(() => clearInterval(timer))
-  })
-
   onMount(() => {
     loadPromptHistory()
       .then(setHistory)
@@ -416,8 +403,8 @@ export function ComposerCard(props: {
       >
         <Show when={props.busy}>
           <box flexDirection="row" gap={1}>
-            <text fg={highlight()}>{SPINNER_FRAMES[spinnerFrame()]}</text>
-            <text fg={COLORS.text}>{props.activityStatus}</text>
+            <text fg={highlight()}>{SPINNER_FRAMES[props.spinnerFrame % SPINNER_FRAMES.length]}</text>
+            <text fg={COLORS.muted}>{describeActivity(props.activity)}</text>
           </box>
         </Show>
         <box flexDirection="row" gap={2}>
@@ -433,4 +420,28 @@ export function ComposerCard(props: {
       </box>
     </box>
   )
+}
+
+// The status line is composed from the activity's separate fields, so a fact
+// that arrived earlier survives a later one: the step number stays visible
+// while the phase and the running tool change underneath it.
+//
+// Elapsed time is read at render rather than tracked in a signal — the spinner
+// already re-renders this row several times a second, and a second timer would
+// only add another thing to keep in sync.
+function describeActivity(activity: ActivityState) {
+  const parts = [
+    activity.agent,
+    activity.step ? `step ${activity.step}${activity.maxSteps ? `/${activity.maxSteps}` : ""}` : undefined,
+    activity.tool ?? activity.phase,
+    activity.startedAt ? formatElapsed(Date.now() - activity.startedAt) : undefined,
+  ].filter(Boolean)
+
+  return `${parts.join(" · ")}  esc to cancel`
+}
+
+function formatElapsed(ms: number) {
+  const seconds = Math.max(0, Math.round(ms / 1000))
+  if (seconds < 60) return `${seconds}s`
+  return `${Math.floor(seconds / 60)}m${String(seconds % 60).padStart(2, "0")}s`
 }

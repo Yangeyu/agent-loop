@@ -108,13 +108,13 @@ describe("executeToolCall", () => {
     expect(parseCount).toBe(1)
   })
 
-  it("preserves beforeExecute title and metadata on completed parts", async () => {
+  it("preserves beforeExecute display and metadata on completed parts", async () => {
     const tool = defineTool({
       id: "complete_preserves_metadata",
       description: "Test completed tool part state",
       parameters: z.object({}),
       beforeExecute() {
-        return { title: "Prepared title", metadata: { fromBeforeExecute: true } }
+        return { display: { verb: "prepare", target: "the thing" }, metadata: { fromBeforeExecute: true } }
       },
       async execute() {
         return { output: "done" }
@@ -128,17 +128,17 @@ describe("executeToolCall", () => {
     expect(part?.state.status).toBe("completed")
     if (!part || part.state.status !== "completed") throw new Error("Expected completed tool part")
 
-    expect(part.state.title).toBe("Prepared title")
+    expect(part.state.display).toEqual({ verb: "prepare", target: "the thing", summary: undefined, mergeKey: undefined })
     expect(part.state.metadata).toEqual({ fromBeforeExecute: true })
   })
 
-  it("preserves beforeExecute title and metadata on errored parts", async () => {
+  it("preserves beforeExecute display and metadata on errored parts", async () => {
     const tool = defineTool({
       id: "error_preserves_metadata",
       description: "Test errored tool part state",
       parameters: z.object({}),
       beforeExecute() {
-        return { title: "Prepared title", metadata: { fromBeforeExecute: true } }
+        return { display: { verb: "prepare", target: "the thing" }, metadata: { fromBeforeExecute: true } }
       },
       async execute() {
         throw new Error("boom")
@@ -152,7 +152,7 @@ describe("executeToolCall", () => {
     expect(part?.state.status).toBe("error")
     if (!part || part.state.status !== "error") throw new Error("Expected errored tool part")
 
-    expect(part.state.title).toBe("Prepared title")
+    expect(part.state.display).toEqual({ verb: "prepare", target: "the thing", summary: undefined, mergeKey: undefined })
     expect(part.state.metadata).toEqual({ fromBeforeExecute: true })
   })
 
@@ -264,6 +264,7 @@ function createToolCallHarness(tool: ToolDefinition) {
     rootID: session.rootID,
     agent: agent.name,
     step: 1,
+    maxSteps: 4,
     assistant,
   })
   recorder.enterPhase("streaming")

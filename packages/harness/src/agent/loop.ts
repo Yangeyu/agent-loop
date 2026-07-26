@@ -147,6 +147,7 @@ export async function runLoop(
       rootID: session.rootID,
       agent: input.agent.name,
       step,
+      maxSteps: policy.budget.maxAgentSteps,
       assistant,
     })
 

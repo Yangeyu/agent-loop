@@ -18,7 +18,7 @@ export const PresentFilesTool = defineTool({
   parameters: PresentFilesParameters,
   beforeExecute({ args }) {
     return {
-      title: args.title ?? `present_files: ${args.paths.length} file${args.paths.length === 1 ? "" : "s"}`,
+      display: { verb: "present", target: args.title ?? args.paths[0] },
       metadata: {
         artifactType: "files",
         fileCount: args.paths.length,
@@ -55,7 +55,7 @@ export const PresentFilesTool = defineTool({
     }))
 
     return {
-      title: args.title ?? `Presented ${files.length} file${files.length === 1 ? "" : "s"}`,
+      display: { summary: `${files.length} file${files.length === 1 ? "" : "s"}` },
       output: files.length === 1
         ? `Presented 1 file: ${files[0]?.path ?? ""}`
         : `Presented ${files.length} files.`,

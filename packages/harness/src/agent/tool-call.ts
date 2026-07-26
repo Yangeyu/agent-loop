@@ -22,6 +22,7 @@ import {
   type ErrorInfo,
   type SessionHistoryMessage,
   type ToolContext,
+  type ToolDisplayPatch,
   type ToolExecuteResult,
 } from "@harness/types"
 
@@ -140,8 +141,8 @@ function createToolContext(
     toolCallId: tracker.part.toolCallId,
     format: ctx.user.format,
     messages: collectSessionHistory(ctx),
-    metadata: async (update: { title?: string; metadata?: Record<string, unknown> }) => {
-      tracker.patchMetadata({ title: update.title, metadata: update.metadata })
+    metadata: async (update: { display?: ToolDisplayPatch; metadata?: Record<string, unknown> }) => {
+      tracker.patchMetadata({ display: update.display, metadata: update.metadata })
     },
     executeTool: async (input: { toolName: string; args: unknown; toolCallId?: string }) => {
       const nestedCall: ToolCall = {

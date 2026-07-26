@@ -56,11 +56,18 @@ export class TurnRecorder {
       rootID: string
       agent: string
       step: number
+      maxSteps: number
       assistant: AssistantMessage
     },
   ) {
     this.current = input.sessions.appendMessage(input.sessionID, input.assistant)
-    input.loop.emit({ type: "turn.start", ...this.envelope(), messageID: this.current.id, step: input.step })
+    input.loop.emit({
+      type: "turn.start",
+      ...this.envelope(),
+      messageID: this.current.id,
+      step: input.step,
+      maxSteps: input.maxSteps,
+    })
   }
 
   /** The current snapshot of this turn's assistant message. */

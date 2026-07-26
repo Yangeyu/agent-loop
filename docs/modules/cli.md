@@ -19,6 +19,9 @@
 - `createAppRuntime()`（`src/compose.ts`，唯一的 provider 绑定点）装配运行时
   （测试/smoke 用 `createAppTestRuntime()`，默认 memory store）。
 - `runPrompt()` 跑一次完整 session；`attachConsoleLogger` 订阅 `runtime.events` 渲染。
+- 工具行渲染自工具声明的 `ToolDisplay`，不解析 args 猜测（CLI 只决定自己的排版：相对路径、宽度上限）。
+  `->` 行等到 display 带上 `target` 才打印：流式输出无法回改已输出的行，`part.created` 时
+  只知道工具名，打早了就只能是 `-> task` 而不是有用的 `-> subagent general`。
 - `--output stream` 边收边打 reasoning/answer；`buffered` turn 完成后成块输出。
 
 ## 扩展点

@@ -51,7 +51,7 @@ export function createViewImageTool(deps: { model: Model }): AnyToolDefinition {
       "Look at an image (local file path or http(s) URL) and return a text description of its contents. Use this to read or understand images, screenshots, or image links.",
     parameters: ViewImageParameters,
     beforeExecute({ args }) {
-      return { title: `view_image: ${args.image}` }
+      return { display: { verb: "view", target: args.image } }
     },
     mapError({ args, toolID, error }) {
       if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {

@@ -18,7 +18,7 @@ function completedToolPart(toolCallId: string, toolName: string, input: unknown,
     type: "tool",
     toolName,
     toolCallId,
-    state: { status: "completed", input, output, time: { start: 0, end: 1 } },
+    state: { status: "completed", input, output, display: { verb: toolName }, time: { start: 0, end: 1 } },
   }
 }
 
@@ -104,7 +104,7 @@ describe("toModelMessages tool-call projection", () => {
   it("omits a still-running tool call so no dangling call is projected", () => {
     const session = assistantToolSession([
       { id: "txt", type: "text", text: "thinking" },
-      { id: "p-c1", type: "tool", toolName: "read", toolCallId: "c1", state: { status: "running", input: {}, time: { start: 0 } } },
+      { id: "p-c1", type: "tool", toolName: "read", toolCallId: "c1", state: { status: "running", input: {}, display: { verb: "read" }, time: { start: 0 } } },
     ])
 
     const messages = toModelMessages(session)

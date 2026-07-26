@@ -8,7 +8,7 @@
  * (part.created / part.updated) in one step, with no hand-written mirror events.
  */
 import type { Sessions } from "@harness/session"
-import type { ErrorInfo, ToolExecuteResult, ToolMetadata, ToolPart } from "@harness/types"
+import type { ErrorInfo, ToolDisplay, ToolDisplayPatch, ToolExecuteResult, ToolMetadata, ToolPart } from "@harness/types"
 
 type ToolPartBase = {
   id: string
@@ -18,7 +18,7 @@ type ToolPartBase = {
 
 type RunningToolPartInput = ToolPartBase & {
   input: unknown
-  title?: string
+  display?: ToolDisplayPatch
   metadata?: ToolMetadata
   startedAt: number
 }
@@ -38,7 +38,7 @@ export function createRunningToolPart(input: RunningToolPartInput): ToolPart {
     state: {
       status: "running",
       input: input.input,
-      title: input.title,
+      display: resolveDisplay(input.toolName, undefined, input.display),
       metadata: input.metadata,
       time: {
         start: input.startedAt,
@@ -49,7 +49,7 @@ export function createRunningToolPart(input: RunningToolPartInput): ToolPart {
 
 /**
  * Transitions an existing part to `running` with validated input, preserving its
- * title/metadata and original start time.
+ * display/metadata and original start time.
  *
  * @param part - the prior tool part
  * @param input - the validated tool input
@@ -61,7 +61,7 @@ export function toRunningToolPart(part: ToolPart, input: unknown): ToolPart {
     state: {
       status: "running",
       input,
-      title: part.state.title,
+      display: part.state.display,
       metadata: part.state.metadata,
       time: {
         start: part.state.time?.start ?? Date.now(),
@@ -71,7 +71,7 @@ export function toRunningToolPart(part: ToolPart, input: unknown): ToolPart {
 }
 
 /**
- * Transitions a part to `completed`, folding the execute result's output, title,
+ * Transitions a part to `completed`, folding the execute result's output, display,
  * metadata (merged over the prior), and attachments in, and stamping the end time.
  *
  * @param part - the running tool part
@@ -86,7 +86,7 @@ export function toCompletedToolPart(part: ToolPart, input: unknown, result: Tool
       status: "completed",
       input,
       output: result.output,
-      title: result.title ?? part.state.title,
+      display: resolveDisplay(part.toolName, part.state.display, result.display),
       metadata: mergeMetadata(part.state.metadata, result.metadata),
       attachments: result.attachments,
       time: {
@@ -121,7 +121,7 @@ export function toErroredToolPart(
         message: error.message,
         retryable: error.retryable,
       },
-      title: part.state.title,
+      display: part.state.display,
       metadata: part.state.metadata,
       attachments: part.state.status === "completed" ? part.state.attachments : undefined,
       time: {
@@ -133,24 +133,40 @@ export function toErroredToolPart(
 }
 
 /**
- * Patches a part's title/metadata in place (same status), for a beforeExecute hook
- * that annotates a running call. Undefined fields leave the prior value untouched.
+ * Patches a part's display/metadata in place (same status), for a beforeExecute
+ * hook that annotates a running call. Undefined fields leave the prior value
+ * untouched.
  *
  * @param part - the tool part to patch
- * @param input - optional title and metadata to merge in
- * @returns the part with patched title/metadata
+ * @param input - optional display and metadata to merge in
+ * @returns the part with patched display/metadata
  */
-export function toMetadataPatchedToolPart(part: ToolPart, input: { title?: string; metadata?: ToolMetadata }): ToolPart {
-  const nextTitle = input.title === undefined ? part.state.title : input.title
-  const nextMetadata = mergeMetadata(part.state.metadata, input.metadata)
-
+export function toMetadataPatchedToolPart(part: ToolPart, input: { display?: ToolDisplayPatch; metadata?: ToolMetadata }): ToolPart {
   return {
     ...part,
     state: {
       ...part.state,
-      title: nextTitle,
-      metadata: nextMetadata,
+      display: resolveDisplay(part.toolName, part.state.display, input.display),
+      metadata: mergeMetadata(part.state.metadata, input.metadata),
     },
+  }
+}
+
+// Folds a display patch onto what a call has established so far. Two rules make
+// the pieces compose: a later patch refines the earlier one field by field (so
+// beforeExecute states the target and the result adds only the summary), and an
+// undeclared verb falls back to the tool's own name — a tool that says nothing
+// about its display still renders as itself rather than as a blank row.
+function resolveDisplay(
+  toolName: string,
+  base: ToolDisplay | undefined,
+  patch: ToolDisplayPatch | undefined,
+): ToolDisplay {
+  return {
+    verb: patch?.verb ?? base?.verb ?? toolName,
+    target: patch?.target ?? base?.target,
+    summary: patch?.summary ?? base?.summary,
+    mergeKey: patch?.mergeKey ?? base?.mergeKey,
   }
 }
 
@@ -206,8 +222,8 @@ export class ToolPartTracker {
     return this.write(toErroredToolPart(this.current, input, error))
   }
 
-  /** Patches the live snapshot's title/metadata in place (same status). */
-  patchMetadata(patch: { title?: string; metadata?: ToolMetadata }): ToolPart {
+  /** Patches the live snapshot's display/metadata in place (same status). */
+  patchMetadata(patch: { display?: ToolDisplayPatch; metadata?: ToolMetadata }): ToolPart {
     return this.write(toMetadataPatchedToolPart(this.current, patch))
   }
 

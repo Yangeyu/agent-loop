@@ -138,7 +138,7 @@ function createTaskTool<P extends z.ZodTypeAny>(input: {
       }
 
       await ctx.metadata({
-        title: args.description,
+        display: { verb: "subagent", target: agent.name, summary: args.description },
         metadata: {
           taskId: child.id,
           sessionId: child.id,

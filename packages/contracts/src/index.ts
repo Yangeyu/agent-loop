@@ -33,6 +33,38 @@ export type OutputFormat =
 
 export type ToolMetadata = Readonly<Record<string, unknown>>
 
+/**
+ * What a tool call is doing, in the tool's own terms — the semantic half of a
+ * transcript row. A tool knows what it operated on and how that turned out; it
+ * does not know the viewport, so it states facts and never formats them.
+ *
+ * Truncation, separators, column widths and colour belong to the surface: the
+ * same call renders differently in an 80-column terminal and a 200-column one,
+ * and a tool that pre-rendered its own label would freeze one of those choices
+ * for every consumer.
+ */
+export type ToolDisplay = {
+  /** The action, as one lowercase word: `read`, `write`, `grep`, `subagent`. */
+  readonly verb: string
+  /** What it acted on, unabridged — a full path, pattern, or query. */
+  readonly target?: string
+  /** How it turned out, in the tool's terms: `31.1 KB`, `exit 0`, `3 matches`. */
+  readonly summary?: string
+  /**
+   * Consecutive calls sharing a key are one logical operation and fold into a
+   * single transcript row (every append to one file is one "write"). Omit when
+   * each call stands on its own.
+   */
+  readonly mergeKey?: string
+}
+
+/**
+ * A partial display update. `beforeExecute` states what the call is about
+ * before it runs; the result fills in how it went. Absent fields keep whatever
+ * the earlier update established, so neither side has to restate the other.
+ */
+export type ToolDisplayPatch = Partial<ToolDisplay>
+
 export type ToolAttachment = {
   readonly mime: string
   readonly filename?: string
@@ -115,7 +147,7 @@ export type ImagePart = {
 export type ToolRunningState = {
   readonly status: "running"
   readonly input: unknown
-  readonly title?: string
+  readonly display: ToolDisplay
   readonly metadata?: ToolMetadata
   readonly time?: { readonly start: number }
 }
@@ -124,7 +156,7 @@ export type ToolCompletedState = {
   readonly status: "completed"
   readonly input: unknown
   readonly output: string
-  readonly title?: string
+  readonly display: ToolDisplay
   readonly metadata?: ToolMetadata
   readonly attachments?: readonly ToolAttachment[]
   readonly time?: { readonly start: number; readonly end: number }
@@ -134,7 +166,7 @@ export type ToolErrorState = {
   readonly status: "error"
   readonly input: unknown
   readonly error: ErrorInfo
-  readonly title?: string
+  readonly display: ToolDisplay
   readonly metadata?: ToolMetadata
   readonly attachments?: readonly ToolAttachment[]
   readonly time?: { readonly start: number; readonly end: number }
@@ -235,7 +267,14 @@ export type LoopEnvelope = {
 
 export type LoopEvent =
   | (LoopEnvelope & { readonly type: "session.start"; readonly text: string })
-  | (LoopEnvelope & { readonly type: "turn.start"; readonly messageID: string; readonly step: number })
+  | (LoopEnvelope & {
+      readonly type: "turn.start"
+      readonly messageID: string
+      readonly step: number
+      // The step cap this turn runs under, so a consumer can show progress
+      // against the budget rather than a number climbing toward nothing.
+      readonly maxSteps: number
+    })
   | (LoopEnvelope & { readonly type: "turn.phase"; readonly messageID: string; readonly phase: TurnPhase })
   | (LoopEnvelope & {
       readonly type: "turn.end"

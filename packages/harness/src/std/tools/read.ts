@@ -1,5 +1,6 @@
 import fs from "node:fs/promises"
 import path from "node:path"
+import { formatBytes } from "@harness/lib/format"
 import { defineTool } from "@harness/tool/tool"
 import { z } from "zod"
 
@@ -49,7 +50,7 @@ export const ReadTool = defineTool({
   beforeExecute({ args }) {
     const target = path.resolve(process.cwd(), args.filePath)
     return {
-      title: `read: ${args.filePath}`,
+      display: { verb: "read", target },
       metadata: {
         filePath: target,
         format: args.format ?? "text",
@@ -87,6 +88,9 @@ export const ReadTool = defineTool({
     const truncated = truncateText(content.trim(), maxChars)
 
     return {
+      display: {
+        summary: truncated.truncated ? `${formatBytes(stat.size)}, truncated` : formatBytes(stat.size),
+      },
       output: truncated.text,
       metadata: {
         filePath: target,

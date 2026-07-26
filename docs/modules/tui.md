@@ -18,9 +18,15 @@
 
 - 订阅 `runtime.events.state`（内容）与 `runtime.events.loop`（遥测）：内容条目由 trace folder
   按 partID 折叠，活动状态（spinner/phase）来自 loop 的 `turn.start/phase/end`。
-- 条目自带 `rootID`/`topLevel`，transcript 的会话树过滤是一次比较，不再爬 parentID 链。
-- 界面两区：上 transcript（按 session tree 扁平展示 user/thinking/tool/answer/error），
-  底 composer（输入、取消）。`ctrl+n` 新建会话，`tab` 切换 agent；无可视会话列表故不提供会话间切换。
+- 条目自带 `rootID`/`sessionChain`/`topLevel`，会话树过滤与「折叠某个子 agent 分支」都是一次比较，
+  不爬 parentID 链。
+- **trace 不认识任何具体工具**：一次工具调用的措辞来自工具自己声明的 `ToolDisplay`
+  （`verb`/`target`/`summary`/`mergeKey`）。在这里为某个工具加分支，等于把工具已经说过的事
+  重新猜一遍，工具改个参数名就会漂移。
+- 共享 `mergeKey` 的连续调用折叠成一行并计数（一份文档的 9 次 append 是一个操作，不是 9 件事），
+  折叠后该行移到末尾——transcript 自下而上读作「最近发生了什么」，在十屏之上悄悄增长的行没人看得见。
+- 界面两区：上 transcript，底 composer（输入、取消）。`ctrl+n` 新建会话，`tab` 切换 agent；
+  无可视会话列表故不提供会话间切换。
 - composer 支持 `@` 打开全文件候选并按 token 过滤（选图片路径则提交时作为图片附件），`ctrl+v` 贴剪贴板图片。
 
 ## 扩展点
@@ -28,6 +34,25 @@
 - 改终端布局/快捷键/trace 折叠：`app.tsx` 与 `components/`。
 - 新可视化事实：先扩展 `@contracts` 的 `StateEvent`/`LoopEvent`（及发射端），再在 `trace.ts` / 组件里消费。
 
+## 展示分层
+
+transcript 按视觉权重分三层，这是它唯一的布局规则：
+
+| 层 | 内容 | 形态 |
+| --- | --- | --- |
+| 对话 | user prompt、顶层 answer | 全宽、无前缀、正文色——用户真正要读的东西 |
+| 过程 | tool 调用、thinking | **严格一行**、暗色、状态字形起头 |
+| 细节 | 完整 input/output | 仅在展开时出现 |
+
+- **颜色编码的是注意力，不是类别**：完成的调用用暗灰，因为成功是常态；把它涂绿会让真正需要
+  眼睛的失败失去对比。
+- **排版属于 surface**：工具给出完整的 `target`，只有视图知道还剩几列，`fitText` 中间省略
+  （`packages/…/loop.ts` 仍能认出文件，尾部截断则认不出）。
+- 深度画成缩进而不是每行重复 `lead > general > read` 的前缀——那会把省下来的宽度又花掉。
+  子 agent 的 user 行是该分支的折叠头，收起后一个跑完的子 agent 只占一行。
+
 ## 约束与经验
 
 - TUI 只渲染事件，**不持有/修改 session 状态**；新增展示需求优先扩展 runtime 事件，保持单向。
+- 展示所需的新事实，先问「这是工具知道的还是视图知道的」：工具知道它操作了什么、结果如何
+  （进 `ToolDisplay`）；视图知道视口多宽、什么该抢眼（留在 TUI）。

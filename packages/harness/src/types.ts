@@ -8,6 +8,8 @@ import type {
   MessagePart,
   SessionMessage,
   ToolAttachment,
+  ToolDisplay,
+  ToolDisplayPatch,
   ToolMetadata,
 } from "@contracts"
 import type { z } from "zod"
@@ -35,6 +37,8 @@ export type {
   TimeInfo,
   ToolAttachment,
   ToolCompletedState,
+  ToolDisplay,
+  ToolDisplayPatch,
   ToolErrorState,
   ToolMetadata,
   ToolPart,
@@ -58,7 +62,9 @@ export type AgentInfo = {
 }
 
 export type ToolExecuteResult = {
-  title?: string
+  // A patch: the result states how the call went; what it was about was already
+  // established by beforeExecute (see resolveDisplay in agent/tool-part.ts).
+  display?: ToolDisplayPatch
   output: string
   metadata?: ToolMetadata
   attachments?: ToolAttachment[]
@@ -78,7 +84,7 @@ export type ToolContext = EngineDeps & {
   toolCallId?: string
   format?: OutputFormat
   messages: SessionHistoryMessage[]
-  metadata(input: { title?: string; metadata?: ToolMetadata }): Promise<void>
+  metadata(input: { display?: ToolDisplayPatch; metadata?: ToolMetadata }): Promise<void>
   executeTool(input: { toolName: string; args: unknown; toolCallId?: string }): Promise<
     | {
         status: "completed"

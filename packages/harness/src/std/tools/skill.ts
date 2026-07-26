@@ -24,7 +24,7 @@ export const SkillTool = defineTool({
     }
 
     return {
-      title: `Loaded skill: ${skill.name}`,
+      display: { verb: "skill", target: skill.name },
       output: renderSkillContent(skill),
       metadata: {
         name: skill.name,

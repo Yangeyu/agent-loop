@@ -33,13 +33,16 @@ function App(props: TuiOptions) {
     return { id: model.spec.id, providerID: model.providerID }
   })
   const [currentSessionID, setCurrentSessionID] = createSignal<string | undefined>()
-  const [activity, setActivity] = createSignal<ActivityState>({
-    phase: "idle",
-    status: "Ready",
-    busy: false,
-  })
+  const [activity, setActivity] = createSignal<ActivityState>({ phase: "idle", busy: false })
+  // One tick drives every animated glyph — the composer's spinner and the
+  // running rows in the transcript — so they never drift out of step.
+  const [spinnerFrame, setSpinnerFrame] = createSignal(0)
   const [revision, setRevision] = createSignal(0)
   const [traceEntries, setTraceEntries] = createSignal<TraceEntry[]>([])
+  // Delegated sessions the user has folded away. Collapsing is keyed on the
+  // session rather than on the task tool that opened it, so the view stays
+  // ignorant of which tool delegates.
+  const [collapsedSessions, setCollapsedSessions] = createSignal<ReadonlySet<string>>(new Set())
 
   let abort: AbortController | undefined
   let composerRef: ComposerHandle | undefined
@@ -56,6 +59,14 @@ function App(props: TuiOptions) {
     )))
   }
 
+  const toggleSession = (sessionID: string) => {
+    setCollapsedSessions((current) => {
+      const next = new Set(current)
+      if (!next.delete(sessionID)) next.add(sessionID)
+      return next
+    })
+  }
+
   const session = () => {
     revision()
     const sessionID = currentSessionID()
@@ -65,9 +76,21 @@ function App(props: TuiOptions) {
 
   const visibleTranscript = () => {
     const rootSessionID = currentSessionID()
-    if (!rootSessionID) return traceEntries()
-    // Entries carry their delegation tree's rootID; scoping is one comparison.
-    return traceEntries().filter((entry) => entry.rootID === rootSessionID)
+    const collapsed = collapsedSessions()
+    const inScope = rootSessionID
+      ? // Entries carry their delegation tree's rootID; scoping is one comparison.
+        traceEntries().filter((entry) => entry.rootID === rootSessionID)
+      : traceEntries()
+
+    if (collapsed.size === 0) return inScope
+
+    // A collapsed session keeps its own header row — the one thing that says a
+    // subagent ran and how it went — and hides everything beneath it.
+    return inScope.filter((entry) => {
+      const hidden = entry.sessionChain.findIndex((id) => collapsed.has(id))
+      if (hidden === -1) return true
+      return entry.kind === "user" && entry.sessionChain.length === hidden + 1
+    })
   }
 
   const createSession = (text?: string) => {
@@ -98,7 +121,8 @@ function App(props: TuiOptions) {
     abort = new AbortController()
     setActivity({
       phase: "starting",
-      status: `Running ${selectedAgent()}`,
+      agent: selectedAgent(),
+      startedAt: Date.now(),
       busy: true,
     })
 
@@ -113,11 +137,7 @@ function App(props: TuiOptions) {
       })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      setActivity({
-        phase: "error",
-        status: message,
-        busy: false,
-      })
+      setActivity((current) => ({ ...current, phase: "error", error: message, busy: false }))
       abort = undefined
     } finally {
       refresh()
@@ -192,7 +212,7 @@ function App(props: TuiOptions) {
 
       if (inCurrentTree(event) && event.type === "part.created" && event.part.type === "tool") {
         const tool = event.part.toolName
-        setActivity((current) => ({ ...current, phase: "executing-tool", status: `Tool ${tool}`, tool, busy: true }))
+        setActivity((current) => ({ ...current, phase: "executing-tool", tool, busy: true }))
       }
 
       refresh()
@@ -208,18 +228,30 @@ function App(props: TuiOptions) {
 
       if (inCurrentTree(event)) {
         if (event.type === "turn.phase") {
-          setActivity((current) => ({ ...current, phase: event.phase, status: `Phase ${event.phase}`, busy: true }))
+          // Each fact updates only its own field: a phase arriving must not
+          // erase the step number the status bar is still showing.
+          setActivity((current) => ({ ...current, phase: event.phase, busy: true }))
         } else if (event.type === "turn.start") {
-          setActivity({ phase: "starting", status: `Step ${event.step}`, busy: true })
+          setActivity((current) => ({
+            ...current,
+            phase: "starting",
+            step: event.step,
+            maxSteps: event.maxSteps,
+            agent: event.agent,
+            tool: undefined,
+            error: undefined,
+            startedAt: current.startedAt ?? Date.now(),
+            busy: true,
+          }))
         } else if (event.type === "turn.end") {
           abort = undefined
-          if (event.reason === "abort") {
-            setActivity({ phase: "aborted", status: `Aborted in ${event.durationMs}ms`, busy: false })
-          } else if (event.reason === "error") {
-            setActivity({ phase: "error", status: event.error ?? "Turn failed", busy: false })
-          } else {
-            setActivity({ phase: "done", status: `Done in ${event.durationMs}ms`, busy: false })
-          }
+          setActivity((current) => ({
+            ...current,
+            phase: event.reason === "abort" ? "aborted" : event.reason === "error" ? "error" : "done",
+            tool: undefined,
+            error: event.reason === "error" ? event.error ?? "turn failed" : undefined,
+            busy: false,
+          }))
         }
       }
 
@@ -235,6 +267,16 @@ function App(props: TuiOptions) {
   createEffect(() => {
     revision()
     queueMicrotask(() => composerRef?.focus())
+  })
+
+  createEffect(() => {
+    if (!activity().busy) {
+      setSpinnerFrame(0)
+      return
+    }
+
+    const timer = setInterval(() => setSpinnerFrame((frame) => frame + 1), 80)
+    onCleanup(() => clearInterval(timer))
   })
 
   return (
@@ -262,7 +304,11 @@ function App(props: TuiOptions) {
                   <TraceEntryBlock
                     entry={entry}
                     expanded={Boolean(entry.expanded)}
+                    width={term().width - 4}
+                    spinnerFrame={spinnerFrame()}
+                    branchCollapsed={collapsedSessions().has(entry.sessionID)}
                     onToggle={() => toggleExpanded(entry.id)}
+                    onToggleBranch={() => toggleSession(entry.sessionID)}
                   />
                 )}
               </For>
@@ -278,7 +324,8 @@ function App(props: TuiOptions) {
           onSubmit={submitPrompt}
           selectedAgent={selectedAgent()}
           model={selectedModel()}
-          activityStatus={activity().status}
+          activity={activity()}
+          spinnerFrame={spinnerFrame()}
           initialValue={props.autoSubmitInitial ? "" : props.initialPrompt ?? ""}
         />
       </box>

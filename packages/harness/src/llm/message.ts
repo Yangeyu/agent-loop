@@ -137,8 +137,11 @@ function toToolResultMessage(part: ToolPart): ModelMessage | undefined {
       content: [
         {
           type: "tool-output",
+          // The model gets the same facts the transcript shows, serialized its
+          // way — one flat line. UI layout (truncation, columns) stays out of
+          // here; this is the prompt, not a viewport.
+          title: [part.state.display.verb, part.state.display.target].filter(Boolean).join(" "),
           output: part.state.output,
-          title: part.state.title,
           metadata: part.state.metadata,
         },
       ],

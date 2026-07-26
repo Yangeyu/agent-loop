@@ -1,10 +1,10 @@
-import type { ErrorInfo, ToolContext, ToolDefinition, ToolExecuteResult, ToolMetadata } from "@harness/types"
+import type { ErrorInfo, ToolContext, ToolDefinition, ToolDisplayPatch, ToolExecuteResult, ToolMetadata } from "@harness/types"
 import { z } from "zod"
 
 // Types
 
 type ToolMetadataUpdate = {
-  title?: string
+  display?: ToolDisplayPatch
   metadata?: ToolMetadata
 }
 
@@ -123,7 +123,7 @@ async function executeTool<P extends z.ZodType>(
     const resultWithHooks = await runAfterExecute(options, args, ctx, baseResult)
     const normalizedResult = finalizeToolResult(options, args, ctx, resultWithHooks)
     await applyMetadataUpdate(ctx, {
-      title: normalizedResult.title,
+      display: normalizedResult.display,
       metadata: normalizedResult.metadata,
     })
     return normalizedResult
@@ -233,7 +233,7 @@ function mergeToolResult(result: ToolExecuteResult, patch?: Partial<ToolExecuteR
 
 async function applyMetadataUpdate(ctx: ToolContext, update?: ToolMetadataUpdate | void) {
   if (!update) return
-  if (update.title === undefined && update.metadata === undefined) return
+  if (update.display === undefined && update.metadata === undefined) return
   await ctx.metadata(update)
 }
 

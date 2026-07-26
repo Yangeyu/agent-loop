@@ -1,5 +1,6 @@
 import fs from "node:fs/promises"
 import path from "node:path"
+import { formatBytes } from "@harness/lib/format"
 import { defineTool } from "@harness/tool/tool"
 import { z } from "zod"
 
@@ -23,7 +24,13 @@ export const WriteTool = defineTool({
     const target = path.resolve(process.cwd(), args.filePath)
     const mode = args.mode ?? "overwrite"
     return {
-      title: `write (${mode}): ${args.filePath}`,
+      display: {
+        verb: "write",
+        target,
+        // Building one document out of many appends is a single logical
+        // operation; keying on the file folds them into one transcript row.
+        mergeKey: `write:${target}`,
+      },
       metadata: {
         filePath: target,
         mode,
@@ -73,7 +80,7 @@ export const WriteTool = defineTool({
     // content it just sent, so echoing it back would double the context cost of
     // every segment. The running total is the one fact it cannot derive.
     return {
-      title: `write (${mode}): ${args.filePath}`,
+      display: { summary: formatBytes(total) },
       output: `Wrote ${written} bytes (${mode}). ${target} is now ${total} bytes.`,
       metadata: {
         filePath: target,
