@@ -2,12 +2,7 @@ import { getDelegationDepthInfo, resolveSessionDepth } from "@harness/agent/poli
 import { runSession } from "@harness/agent/loop"
 import type { Sessions } from "@harness/session"
 import { defineTool } from "@harness/tool/tool"
-import type {
-  AssistantMessage,
-  MessagePart,
-  ToolPart,
-  ToolDefinition,
-} from "@harness/types"
+import type { AssistantMessage, ToolDefinition } from "@harness/types"
 import { z } from "zod"
 
 const BaseTaskParameters = {
@@ -61,15 +56,6 @@ function createTaskTool<P extends z.ZodTypeAny>(input: {
       // child session exists.
       return { verb: "subagent", target: args.subagent_type, summary: args.description }
     },
-    beforeExecute({ args }) {
-      return {
-        title: args.description,
-        metadata: {
-          subagentName: args.subagent_type,
-          resume: input.resume,
-        },
-      }
-    },
     mapError({ error, toolID }) {
       const message = error instanceof Error ? error.message : String(error)
       if (message.includes("Session not found") || message.includes("does not belong to session")) {
@@ -100,12 +86,6 @@ function createTaskTool<P extends z.ZodTypeAny>(input: {
         message: `The ${toolID} tool failed: ${message}`,
         retryable: false,
         code: "tool_execution_failed",
-      }
-    },
-    normalizeMetadata({ metadata, ctx }) {
-      return {
-        ...(metadata ?? {}),
-        parentSessionId: ctx.sessionID,
       }
     },
     async execute(args, ctx) {
@@ -143,18 +123,6 @@ function createTaskTool<P extends z.ZodTypeAny>(input: {
         throw new Error(`Subagent depth limit reached: attempted depth ${childDepth}, max ${ctx.config.subagent_max_depth}`)
       }
 
-      await ctx.metadata({
-        metadata: {
-          taskId: child.id,
-          sessionId: child.id,
-          parentSessionId: ctx.sessionID,
-          agentName: agent.name,
-          subagentName: agent.name,
-          resume: input.resume,
-          completed: false,
-        },
-      })
-
       await runSession({
         config: ctx.config,
         agent_registry: ctx.agent_registry,
@@ -184,22 +152,16 @@ function createTaskTool<P extends z.ZodTypeAny>(input: {
         sessions,
       })
 
+      // No metadata block: the output below already carries the task id and the
+      // agent, and the rest of what used to be here was either the same value
+      // under a second key (sessionId, subagentName) or something nothing ever
+      // read (parentSessionId, completed, resume).
       return {
-        title: args.description,
         output: formatTaskToolOutput({
           taskId: completedChild.id,
           agentName: agent.name,
           result: result.text,
         }),
-        metadata: {
-          taskId: completedChild.id,
-          sessionId: completedChild.id,
-          parentSessionId: ctx.sessionID,
-          agentName: agent.name,
-          subagentName: agent.name,
-          resume: input.resume,
-          completed: lastAssistant?.time.completed !== undefined,
-        },
       }
     },
   })
@@ -210,9 +172,6 @@ function extractTaskResult(input: {
   lastAssistant: AssistantMessage | undefined
   sessions: Sessions
 }) {
-  const toolResult = input.lastAssistant
-    ? extractDeliverableFromToolParts(input.sessions.parts(input.childSessionId, input.lastAssistant.id))
-    : undefined
   const finalText = input.lastAssistant
     ? input.sessions.messageText(input.childSessionId, input.lastAssistant.id, { includeSynthetic: false }).trim()
     : ""
@@ -223,26 +182,8 @@ function extractTaskResult(input: {
     input.lastAssistant?.structured !== undefined
       ? JSON.stringify(input.lastAssistant.structured, null, 2)
       : ""
-  const text = toolResult || structuredText || finalText || synthesizedText || "Subagent stopped without final answer"
+  const text = structuredText || finalText || synthesizedText || "Subagent stopped without final answer"
   return { text }
-}
-
-function extractDeliverableFromToolParts(parts: readonly MessagePart[]) {
-  for (let index = parts.length - 1; index >= 0; index -= 1) {
-    const part = parts[index]
-    if (!part || part.type !== "tool") continue
-    if (part.state.status !== "completed") continue
-
-    const reportPath = readReportPath(part)
-    if (reportPath) return reportPath
-  }
-
-  return undefined
-}
-
-function readReportPath(part: ToolPart) {
-  const reportPath = part.state.metadata?.reportPath
-  return typeof reportPath === "string" && reportPath.trim().length > 0 ? reportPath : undefined
 }
 
 function formatTaskToolOutput(input: {

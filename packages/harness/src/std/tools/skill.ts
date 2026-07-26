@@ -68,7 +68,7 @@ async function renderAssets(workspace: Workspace, skill: SkillInfo) {
 
 async function listAssets(workspace: Workspace, dir: string, skillFile: string) {
   try {
-    const files = await workspace.listFiles(dir)
+    const files = await workspace.listFiles(dir, { recursive: false })
     return files.filter((file) => file !== skillFile).sort()
   } catch {
     // A skill whose directory moved after discovery still has usable content;

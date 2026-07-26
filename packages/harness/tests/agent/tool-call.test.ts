@@ -22,26 +22,6 @@ import { createFakeModel } from "../support/fake-model"
 
 const stubModel = createFakeModel()
 
-describe("defineTool", () => {
-  it("merges execute and afterExecute metadata", async () => {
-    const tool = defineTool({
-      id: "merge_metadata",
-      description: "Test metadata merging",
-      parameters: z.object({}),
-      async execute() {
-        return { output: "ok", metadata: { fromExecute: true } }
-      },
-      afterExecute() {
-        return { metadata: { fromAfterExecute: true } }
-      },
-    })
-
-    const result = await tool.execute({}, createToolContext())
-
-    expect(result.metadata).toEqual({ fromExecute: true, fromAfterExecute: true })
-  })
-})
-
 describe("read", () => {
   it("reads UTF-8 text files with metadata", async () => {
     const file = new File(["hello\nworld"], "sample.txt", { type: "text/plain" })

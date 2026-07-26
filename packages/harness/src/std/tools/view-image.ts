@@ -53,17 +53,15 @@ export function createViewImageTool(deps: { model: Model }): AnyToolDefinition {
     describe(args) {
       return { verb: "view", target: args.image }
     },
-    mapError({ args, toolID, error }) {
-      if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+    mapError({ args, toolID, code }) {
+      if (code === "ENOENT") {
         return { message: `The ${toolID} tool failed: image not found at ${args.image}`, retryable: false, code: "view_image_not_found" }
       }
-      const message = error instanceof Error ? error.message : String(error)
-      return { message: `The ${toolID} tool failed: ${message}`, retryable: false, code: "tool_execution_failed" }
     },
     async execute(args, ctx) {
       const source = toImageSource(ctx.workspace, args.image)
       const description = await describeImage(ctx, deps.model, source, args.prompt ?? DEFAULT_PROMPT)
-      return { title: `view_image: ${args.image}`, output: description }
+      return { output: description }
     },
   })
 }

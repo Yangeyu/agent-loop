@@ -49,8 +49,8 @@ export const ReadTool = defineTool({
   describe(args, ctx) {
     return { verb: "read", target: ctx.workspace.resolve(args.filePath) }
   },
-  mapError({ args, toolID, error }) {
-    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+  mapError({ args, toolID, code }) {
+    if (code === "ENOENT") {
       return {
         message: `The ${toolID} tool failed: file not found at ${args.filePath}`,
         retryable: false,
@@ -58,12 +58,6 @@ export const ReadTool = defineTool({
       }
     }
 
-    const message = error instanceof Error ? error.message : String(error)
-    return {
-      message: `The ${toolID} tool failed: ${message}`,
-      retryable: false,
-      code: "tool_execution_failed",
-    }
   },
   async execute(args, ctx) {
     const target = ctx.workspace.resolve(args.filePath)

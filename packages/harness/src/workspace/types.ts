@@ -40,8 +40,12 @@ export type Workspace = {
   stat(target: string): Promise<WorkspaceStat | undefined>
   /** Reads a file as UTF-8 text. */
   readText(target: string): Promise<string>
-  /** The files in a directory as absolute paths; `recursive` walks subdirectories. */
-  listFiles(directory: string, options?: { recursive?: boolean }): Promise<string[]>
+  /**
+   * The files in a directory, as absolute paths. `recursive` is required rather
+   * than defaulted: a caller that omits it would otherwise search less than it
+   * meant to and get an empty result instead of an error.
+   */
+  listFiles(directory: string, options: { recursive: boolean }): Promise<string[]>
   /** Replaces a file's contents, creating parent directories as needed. */
   write(target: string, content: string): Promise<WorkspaceWriteResult>
   /**

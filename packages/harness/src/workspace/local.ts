@@ -100,7 +100,7 @@ export function createWorkspace(root: string = "."): Workspace {
     },
 
     async listFiles(directory, options) {
-      const entries = await fs.readdir(directory, { recursive: options?.recursive ?? false, withFileTypes: true })
+      const entries = await fs.readdir(directory, { recursive: options.recursive, withFileTypes: true })
       return entries
         .filter((entry) => entry.isFile())
         .map((entry) => path.join(entry.parentPath ?? directory, entry.name))

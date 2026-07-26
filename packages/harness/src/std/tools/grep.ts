@@ -46,12 +46,6 @@ export const GrepTool = defineTool({
       }
     }
 
-    const message = error instanceof Error ? error.message : String(error)
-    return {
-      message: `The ${toolID} tool failed: ${message}`,
-      retryable: false,
-      code: "tool_execution_failed",
-    }
   },
   async execute(args, ctx) {
     const roots = await resolveGrepRoots(ctx.workspace)
@@ -60,7 +54,7 @@ export const GrepTool = defineTool({
     let fileCount = 0
 
     for (const root of roots) {
-      for (const absolute of await ctx.workspace.listFiles(root)) {
+      for (const absolute of await ctx.workspace.listFiles(root, { recursive: true })) {
         const relative = ctx.workspace.relative(absolute)
         if (!relative.endsWith(".ts") && !relative.endsWith(".tsx")) continue
         if (GREP_SKIP.test(relative)) continue

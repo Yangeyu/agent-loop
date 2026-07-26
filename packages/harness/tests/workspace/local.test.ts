@@ -161,7 +161,7 @@ describe("workspace mutations", () => {
     await workspace.write(target, "a")
     await workspace.mutate(target, (current) => ({ text: `${current}b`, result: undefined }))
 
-    const files = await workspace.listFiles(root)
+    const files = await workspace.listFiles(root, { recursive: false })
 
     expect(files).toEqual([target])
   })
@@ -175,7 +175,7 @@ describe("workspace listing", () => {
     writeFileSync(join(root, "top.ts"), "")
     writeFileSync(join(root, "sub", "nested.ts"), "")
 
-    expect(await workspace.listFiles(root)).toEqual([join(root, "top.ts")])
+    expect(await workspace.listFiles(root, { recursive: false })).toEqual([join(root, "top.ts")])
     expect((await workspace.listFiles(root, { recursive: true })).sort()).toEqual([
       join(root, "sub", "nested.ts"),
       join(root, "top.ts"),

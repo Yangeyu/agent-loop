@@ -37,8 +37,8 @@ export const EditTool = defineTool({
   // Only classifies what execute() could not: execute throws its own refusals
   // (no match, ambiguous, no-op) already typed, and defineTool leaves those
   // alone rather than running them through here.
-  mapError({ args, toolID, error }) {
-    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+  mapError({ args, toolID, code }) {
+    if (code === "ENOENT") {
       return {
         message: `The ${toolID} tool failed: file not found at ${args.filePath}`,
         retryable: false,
@@ -46,12 +46,6 @@ export const EditTool = defineTool({
       }
     }
 
-    const message = error instanceof Error ? error.message : String(error)
-    return {
-      message: `The ${toolID} tool failed: ${message}`,
-      retryable: false,
-      code: "tool_execution_failed",
-    }
   },
   async execute(args, ctx) {
     const target = ctx.workspace.resolve(args.filePath)

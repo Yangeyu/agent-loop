@@ -17,8 +17,8 @@ export const PresentFilesTool = defineTool({
   describe(args) {
     return { verb: "present", target: args.title ?? args.paths[0] }
   },
-  mapError({ args, toolID, error }) {
-    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+  mapError({ args, toolID, code }) {
+    if (code === "ENOENT") {
       return {
         message: `The ${toolID} tool failed: file not found while presenting ${args.paths.join(", ")}`,
         retryable: false,
@@ -26,12 +26,6 @@ export const PresentFilesTool = defineTool({
       }
     }
 
-    const message = error instanceof Error ? error.message : String(error)
-    return {
-      message: `The ${toolID} tool failed: ${message}`,
-      retryable: false,
-      code: "tool_execution_failed",
-    }
   },
   async execute(args, ctx) {
     const files = await Promise.all(args.paths.map(async (item) => {

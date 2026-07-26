@@ -18,9 +18,8 @@ export const WriteTool = defineTool({
   describe(args, ctx) {
     return { verb: "write", target: ctx.workspace.resolve(args.filePath) }
   },
-  mapError({ args, toolID, error }) {
-    const code = error && typeof error === "object" && "code" in error ? error.code : undefined
-    if (code === "EISDIR") {
+  mapError({ args, toolID, code }) {
+        if (code === "EISDIR") {
       return {
         message: `The ${toolID} tool failed: ${args.filePath} is a directory, not a file`,
         retryable: false,
@@ -35,12 +34,6 @@ export const WriteTool = defineTool({
       }
     }
 
-    const message = error instanceof Error ? error.message : String(error)
-    return {
-      message: `The ${toolID} tool failed: ${message}`,
-      retryable: false,
-      code: "tool_execution_failed",
-    }
   },
   async execute(args, ctx) {
     const target = ctx.workspace.resolve(args.filePath)

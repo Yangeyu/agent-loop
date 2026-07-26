@@ -24,31 +24,10 @@ type ToolHookInput<TArgs> = {
   toolID: string
 }
 
-type ToolAfterExecuteInput<TArgs> = ToolHookInput<TArgs> & {
-  result: ToolExecuteResult
-}
-
 type ToolMapErrorInput<TArgs> = ToolHookInput<TArgs> & {
   error: unknown
-}
-
-type ToolTruncateOutputInput<TArgs> = ToolHookInput<TArgs> & {
-  output: string
-  result: ToolExecuteResult
-}
-
-type ToolNormalizeMetadataInput<TArgs> = ToolHookInput<TArgs> & {
-  metadata: ToolMetadata | undefined
-  result: ToolExecuteResult
-}
-
-type ToolNormalizedResultInput<TArgs> = {
-  args: TArgs
-  ctx: ToolContext
-  toolID: string
-  result: ToolExecuteResult
-  truncateOutput?: DefineToolOptions<z.ZodType<TArgs>>["truncateOutput"]
-  normalizeMetadata?: DefineToolOptions<z.ZodType<TArgs>>["normalizeMetadata"]
+  /** The errno-style code, when the failure carries one (ENOENT, EISDIR, …). */
+  code?: string
 }
 
 type DefineToolOptions<P extends z.ZodType> = {
@@ -64,10 +43,12 @@ type DefineToolOptions<P extends z.ZodType> = {
   parameters: P
   execute: (args: z.infer<P>, ctx: ToolContext) => Promise<ToolExecuteResult>
   beforeExecute?: (input: ToolHookInput<z.infer<P>>) => Awaitable<ToolMetadataUpdate | void>
-  afterExecute?: (input: ToolAfterExecuteInput<z.infer<P>>) => Awaitable<(Partial<ToolExecuteResult> & ToolMetadataUpdate) | void>
-  mapError?: (input: ToolMapErrorInput<z.infer<P>>) => ErrorInfo
-  truncateOutput?: number | ((input: ToolTruncateOutputInput<z.infer<P>>) => string)
-  normalizeMetadata?: (input: ToolNormalizeMetadataInput<z.infer<P>>) => ToolMetadata | undefined
+  /**
+   * Classifies the failures this tool recognizes. Returning nothing is the
+   * normal case for everything else — defineTool then applies the generic
+   * classification, so a tool never has to restate it.
+   */
+  mapError?: (input: ToolMapErrorInput<z.infer<P>>) => ErrorInfo | undefined
 }
 
 // Errors
@@ -135,14 +116,9 @@ async function executeTool<P extends z.ZodType>(
 ) {
   try {
     await runBeforeExecute(options, args, ctx)
-    const baseResult = await runToolExecute(options, args, ctx)
-    const resultWithHooks = await runAfterExecute(options, args, ctx, baseResult)
-    const normalizedResult = finalizeToolResult(options, args, ctx, resultWithHooks)
-    await applyMetadataUpdate(ctx, {
-      display: normalizedResult.display,
-      metadata: normalizedResult.metadata,
-    })
-    return normalizedResult
+    const result = await options.execute(args, ctx)
+    await applyMetadataUpdate(ctx, { display: result.display, metadata: result.metadata })
+    return result
   } catch (error) {
     throw wrapToolError(options, args, ctx, error)
   }
@@ -180,46 +156,6 @@ async function runBeforeExecute<P extends z.ZodType>(
   )
 }
 
-async function runToolExecute<P extends z.ZodType>(
-  options: DefineToolOptions<P>,
-  args: z.infer<P>,
-  ctx: ToolContext,
-) {
-  return await options.execute(args, ctx)
-}
-
-async function runAfterExecute<P extends z.ZodType>(
-  options: DefineToolOptions<P>,
-  args: z.infer<P>,
-  ctx: ToolContext,
-  result: ToolExecuteResult,
-) {
-  const patch = await options.afterExecute?.({
-    args,
-    ctx,
-    toolID: options.id,
-    result,
-  })
-
-  return mergeToolResult(result, patch ?? undefined)
-}
-
-function finalizeToolResult<P extends z.ZodType>(
-  options: DefineToolOptions<P>,
-  args: z.infer<P>,
-  ctx: ToolContext,
-  result: ToolExecuteResult,
-) {
-  return normalizeToolResult({
-    args,
-    ctx,
-    toolID: options.id,
-    result,
-    truncateOutput: options.truncateOutput,
-    normalizeMetadata: options.normalizeMetadata,
-  })
-}
-
 function wrapToolError<P extends z.ZodType>(
   options: DefineToolOptions<P>,
   args: z.infer<P>,
@@ -237,6 +173,7 @@ function wrapToolError<P extends z.ZodType>(
   return new ToolExecutionError(
     options.mapError?.({
       error,
+      code: errnoOf(error),
       args,
       ctx,
       toolID: options.id,
@@ -245,14 +182,11 @@ function wrapToolError<P extends z.ZodType>(
   )
 }
 
-function mergeToolResult(result: ToolExecuteResult, patch?: Partial<ToolExecuteResult>) {
-  if (!patch) return result
-
-  return {
-    ...result,
-    ...patch,
-    metadata: mergeMetadata(result.metadata, patch.metadata),
-  }
+// Node reports filesystem failures as an errno string on the error object.
+// Narrowed once here so nine tools do not each re-narrow `unknown` to read it.
+function errnoOf(error: unknown) {
+  if (error && typeof error === "object" && "code" in error && typeof error.code === "string") return error.code
+  return undefined
 }
 
 async function applyMetadataUpdate(ctx: ToolContext, update?: ToolMetadataUpdate | void) {
@@ -261,54 +195,3 @@ async function applyMetadataUpdate(ctx: ToolContext, update?: ToolMetadataUpdate
   await ctx.metadata(update)
 }
 
-function normalizeToolResult<TArgs>(input: ToolNormalizedResultInput<TArgs>): ToolExecuteResult {
-  const output = normalizeOutput(input)
-  const metadata = input.normalizeMetadata
-    ? input.normalizeMetadata({
-        metadata: input.result.metadata,
-        args: input.args,
-        ctx: input.ctx,
-        toolID: input.toolID,
-        result: input.result,
-      })
-    : input.result.metadata
-
-  return {
-    ...input.result,
-    output,
-    metadata,
-  }
-}
-
-function mergeMetadata(base: ToolMetadata | undefined, patch: ToolMetadata | undefined) {
-  if (base === undefined) return patch
-  if (patch === undefined) return base
-
-  return {
-    ...base,
-    ...patch,
-  }
-}
-
-function normalizeOutput<TArgs>(input: ToolNormalizedResultInput<TArgs>) {
-  if (typeof input.truncateOutput === "function") {
-    return input.truncateOutput({
-      output: input.result.output,
-      args: input.args,
-      ctx: input.ctx,
-      toolID: input.toolID,
-      result: input.result,
-    })
-  }
-
-  if (typeof input.truncateOutput === "number") {
-    return truncateText(input.result.output, input.truncateOutput)
-  }
-
-  return input.result.output
-}
-
-function truncateText(text: string, limit: number) {
-  if (limit < 0 || text.length <= limit) return text
-  return `${text.slice(0, limit)}\n\n[truncated ${text.length - limit} characters]`
-}
