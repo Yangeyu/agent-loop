@@ -2,14 +2,13 @@ import { formatBytes } from "@harness/lib/format"
 import { defineTool } from "@harness/tool/tool"
 import { z } from "zod"
 
-export const WriteParameters = z.object({
+const WriteParameters = z.object({
   filePath: z.string().trim().min(1)
     .describe("The path to the file to write. Parent directories are created as needed."),
   content: z.string()
     .describe("The text to write. Written verbatim — no trailing newline is added."),
 })
 
-export type WriteArgs = z.infer<typeof WriteParameters>
 
 export const WriteTool = defineTool({
   id: "write",

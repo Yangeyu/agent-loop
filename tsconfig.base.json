@@ -4,6 +4,11 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "strict": true,
+    // Unused locals, parameters and imports are dead code that compiles. Left
+    // off, they accumulate quietly through refactors — every one of them was
+    // load-bearing before something moved.
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,

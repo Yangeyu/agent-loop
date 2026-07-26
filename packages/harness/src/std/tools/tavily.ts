@@ -26,7 +26,7 @@ const TavilyResponseSchema = z.object({
   results: z.array(TavilyResultSchema).optional().default([]),
 }).passthrough()
 
-export const TavilyParameters = z.object({
+const TavilyParameters = z.object({
   query: z.string().trim().min(1)
     .describe("The web search query"),
   maxResults: z.number().int().min(1).max(MAX_RESULTS).optional()
@@ -37,7 +37,6 @@ export const TavilyParameters = z.object({
     .describe("Whether to include Tavily's synthesized answer. Defaults to true."),
 })
 
-export type TavilyArgs = z.infer<typeof TavilyParameters>
 
 export type TavilySearchOutput = {
   query: string

@@ -12,7 +12,7 @@
  * reads as a summary followed by the retained tail.
  */
 import type { ModelContentBlock, ModelMessage, ModelToolCall } from "@harness/llm/types"
-import type { AssistantMessage, CompactionPart, ImagePart, MessagePart, SessionInfo, TextPart, ToolPart, UserMessage } from "@harness/types"
+import type { AssistantMessage, CompactionPart, ImagePart, MessagePart, SessionInfo, TextPart, ToolPart } from "@harness/types"
 
 /**
  * Projects a session into the ordered ModelMessage list for an LLM turn.
@@ -29,7 +29,7 @@ export function toModelMessages(session: SessionInfo): ModelMessage[] {
 
     if (message.role === "user") {
       messages.push(...buildCompactionMessages(parts))
-      const userMessage = buildUserMessage(message, parts, index)
+      const userMessage = buildUserMessage(parts, index)
       if (userMessage) messages.push(userMessage)
       continue
     }
@@ -40,7 +40,7 @@ export function toModelMessages(session: SessionInfo): ModelMessage[] {
   return messages
 }
 
-function buildUserMessage(message: UserMessage, parts: readonly MessagePart[], index: number): ModelMessage | undefined {
+function buildUserMessage(parts: readonly MessagePart[], index: number): ModelMessage | undefined {
   const textParts = parts.filter((part): part is TextPart => part.type === "text")
   const content: ModelContentBlock[] = []
 

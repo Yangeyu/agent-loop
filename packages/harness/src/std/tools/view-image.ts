@@ -31,14 +31,13 @@ const IMAGE_EXT_MIME: Record<string, string> = {
   ".webp": "image/webp",
 }
 
-export const ViewImageParameters = z.object({
+const ViewImageParameters = z.object({
   image: z.string().trim().min(1)
     .describe("A local file path or http(s) URL of an image (JPEG/PNG/WEBP) to look at"),
   prompt: z.string().trim().min(1).optional()
     .describe("What to look for in the image. Defaults to a general description."),
 })
 
-export type ViewImageArgs = z.infer<typeof ViewImageParameters>
 
 /**
  * Builds the view_image tool around the injected vision model.

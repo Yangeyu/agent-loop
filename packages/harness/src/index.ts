@@ -9,7 +9,7 @@ export {
   runPrompt,
 } from "@harness/runtime/bootstrap"
 export type { RuntimeAssembly } from "@harness/runtime/bootstrap"
-export type { RuntimeContext, RuntimeDeps } from "@harness/runtime/context"
+export type { RuntimeContext } from "@harness/runtime/context"
 export type { EventChannel, RuntimeEventBus } from "@harness/event/bus"
 
 // Engine entry
@@ -68,7 +68,6 @@ export { createDashScopeModel, createOpenAICompatModel } from "@harness/llm/inde
 export type { Model, ModelCapabilities, ProviderModelSpec, DashScopeConfig, OpenAICompatModelConfig } from "@harness/llm/index"
 
 // Utilities
-export { loadText } from "@harness/lib/load-text"
 
 // Shared runtime types (AgentInfo, SessionInfo, createID, message/part types, …)
 export * from "@harness/types"

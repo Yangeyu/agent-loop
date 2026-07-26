@@ -31,7 +31,7 @@ type OfficeParserModule = {
   parseOffice?: (file: string, config?: unknown) => Promise<OfficeAst>
 }
 
-export const ReadParameters = z.object({
+const ReadParameters = z.object({
   filePath: z.string().trim().min(1)
     .describe("The path to the document or text file to read"),
   format: z.enum(["text", "markdown"]).optional()
@@ -40,7 +40,6 @@ export const ReadParameters = z.object({
     .describe("Maximum characters to return. Defaults to 100000."),
 })
 
-export type ReadArgs = z.infer<typeof ReadParameters>
 
 export const ReadTool = defineTool({
   id: "read",

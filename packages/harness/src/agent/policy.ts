@@ -107,7 +107,7 @@ export function isFinalAllowedStep(budget: TurnBudgetPolicy, step: number) {
  * @param session - the session to count
  * @returns the number of assistant messages
  */
-export function countAssistantTurns(session: SessionInfo) {
+function countAssistantTurns(session: SessionInfo) {
   return session.messages.filter((message) => message.role === "assistant").length
 }
 

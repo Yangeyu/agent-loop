@@ -16,7 +16,7 @@ import { normalizeTavilyResponse } from "@harness/std/tools/tavily"
 import { defineTool } from "@harness/tool/tool"
 import { createToolRegistry } from "@harness/tool/registry"
 import { createWorkspace } from "@harness/workspace"
-import type { AssistantMessage, ToolContext, ToolDefinition, ToolDisplay, ToolPart, UserMessage } from "@harness/types"
+import type { AssistantMessage, ToolDefinition, ToolDisplay, ToolPart, UserMessage } from "@harness/types"
 import { z } from "zod"
 import { createFakeModel } from "../support/fake-model"
 

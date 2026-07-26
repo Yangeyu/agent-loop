@@ -7,7 +7,6 @@ import {
   createDashScopeModel,
   createRuntime,
   getConfig,
-  loadConfigFromEnv,
   loadSkillsFromDir,
   type Config,
   type RuntimeContext,
@@ -35,10 +34,3 @@ export function createAppRuntime(options?: { config?: Config }): RuntimeContext 
   return createRuntime({ config, ...assembleApp(config) })
 }
 
-export function createAppTestRuntime(options?: { config?: Partial<Config> }): RuntimeContext {
-  const config = {
-    ...loadConfigFromEnv({ ...process.env, SESSION_STORE: "memory" }),
-    ...options?.config,
-  }
-  return createRuntime({ config, ...assembleApp(config) })
-}

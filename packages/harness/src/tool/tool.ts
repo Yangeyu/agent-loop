@@ -82,7 +82,7 @@ export class ToolExecutionError extends Error {
   }
 }
 
-export function createToolValidationErrorInfo(toolID: string, error: z.ZodError): ErrorInfo {
+function createToolValidationErrorInfo(toolID: string, error: z.ZodError): ErrorInfo {
   return {
     message: formatToolValidationError(toolID, error),
     retryable: false,
@@ -103,7 +103,7 @@ export function toToolExecutionErrorInfo(toolID: string, error: unknown): ErrorI
   }
 }
 
-export function formatToolValidationError(toolID: string, error: z.ZodError) {
+function formatToolValidationError(toolID: string, error: z.ZodError) {
   return `The ${toolID} tool was called with invalid arguments: ${error.message}. Please rewrite the input so it satisfies the expected schema.`
 }
 

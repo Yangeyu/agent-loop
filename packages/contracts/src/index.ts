@@ -71,13 +71,6 @@ export type ToolAttachment = {
   readonly bytes?: number
 }
 
-export type ArtifactFile = {
-  readonly path: string
-  readonly filename: string
-  readonly mime: string
-  readonly bytes: number
-}
-
 // ---------------------------------------------------------------------------
 // Session data model
 // ---------------------------------------------------------------------------

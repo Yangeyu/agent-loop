@@ -11,8 +11,6 @@ import { createWorkspace } from "@harness/workspace"
 // nothing on top; the kernel (core/context.ts) owns the shape.
 export type RuntimeContext = EngineDeps
 
-export type RuntimeDeps = EngineDeps
-
 export function createRuntimeContext(options?: { config?: Config }): RuntimeContext {
   const config = options?.config ?? getConfig()
   const events = createRuntimeEvents()

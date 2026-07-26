@@ -2,7 +2,7 @@ import { spawn } from "node:child_process"
 import { defineTool } from "@harness/tool/tool"
 import { z } from "zod"
 
-export const BashParameters = z.object({
+const BashParameters = z.object({
   command: z.string().trim().min(1)
     .describe("The shell command to execute"),
   workdir: z.string().trim().min(1).optional()
@@ -13,7 +13,6 @@ export const BashParameters = z.object({
     .describe("A brief explanation of what this command is doing"),
 })
 
-export type BashArgs = z.infer<typeof BashParameters>
 
 export const BashTool = defineTool({
   id: "bash",

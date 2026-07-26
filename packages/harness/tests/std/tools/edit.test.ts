@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { EditTool } from "@harness/std/tools/edit"
-import type { ToolContext, ToolMetadata } from "@harness/types"
+import type { ToolMetadata } from "@harness/types"
 
 const SOURCE = [
   "export function greet(name: string) {",

@@ -1,7 +1,7 @@
 // Enforces step, session-step and tool-call budgets. Holds the per-loop tool
 // call counter in closure and shapes the stop notes when a budget breaks.
 import { isFinalAllowedStep, type TurnBudgetPolicy } from "@harness/agent/policy"
-import type { MiddlewareFactory, TurnOutcome } from "@harness/agent/hooks"
+import type { MiddlewareFactory } from "@harness/agent/hooks"
 
 export const budget: MiddlewareFactory = () => {
   let toolCalls = 0

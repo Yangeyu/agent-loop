@@ -8,7 +8,6 @@ import type {
   MessagePart,
   SessionMessage,
   ToolAttachment,
-  ToolDisplay,
   ToolDisplayPatch,
   ToolMetadata,
 } from "@contracts"
@@ -17,7 +16,6 @@ import type { Workspace } from "@harness/workspace"
 import type { z } from "zod"
 
 export type {
-  ArtifactFile,
   AssistantMessage,
   CompactionPart,
   ErrorInfo,
@@ -50,8 +48,6 @@ export type {
   TurnPhase,
   UserMessage,
 } from "@contracts"
-
-export type JsonObject = Record<string, unknown>
 
 export type AgentInfo = {
   name: string

@@ -1,4 +1,3 @@
-import path from "node:path"
 import { defineTool } from "@harness/tool/tool"
 import type { Workspace } from "@harness/workspace"
 import { z } from "zod"
@@ -19,12 +18,11 @@ async function resolveGrepRoots(workspace: Workspace) {
   return roots.length > 0 ? roots : [workspace.root]
 }
 
-export const GrepParameters = z.object({
+const GrepParameters = z.object({
   pattern: z.string().trim().min(1)
     .describe("The regex pattern to search for in the codebase"),
 })
 
-export type GrepArgs = z.infer<typeof GrepParameters>
 
 export const GrepTool = defineTool({
   id: "grep",
@@ -33,7 +31,7 @@ export const GrepTool = defineTool({
   describe(args) {
     return { verb: "grep", target: args.pattern }
   },
-  async beforeExecute({ args, ctx }) {
+  async beforeExecute({ ctx }) {
     const roots = (await resolveGrepRoots(ctx.workspace)).map((root) => ctx.workspace.relative(root))
     // The roots are the one fact the caller cannot derive: which directories
     // this tool decided to search.

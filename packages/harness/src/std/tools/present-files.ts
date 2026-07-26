@@ -2,14 +2,13 @@ import path from "node:path"
 import { defineTool } from "@harness/tool/tool"
 import { z } from "zod"
 
-export const PresentFilesParameters = z.object({
+const PresentFilesParameters = z.object({
   paths: z.array(z.string().trim().min(1)).min(1)
     .describe("Workspace-relative or absolute file paths to present in the client"),
   title: z.string().trim().min(1).max(120).optional()
     .describe("Optional artifact title shown in the client UI"),
 })
 
-export type PresentFilesArgs = z.infer<typeof PresentFilesParameters>
 
 export const PresentFilesTool = defineTool({
   id: "present_files",

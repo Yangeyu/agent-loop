@@ -19,13 +19,6 @@ export const COLORS = {
   danger: "#e06c75",
 } as const
 
-export const PROMPT_PLACEHOLDERS = [
-  "read packages/harness/src/core/loop.ts and explain the loop",
-  "investigate why the TUI stops streaming after a tool call",
-  "refactor the runtime bootstrap with smaller boundaries",
-  "review the latest session flow changes for regressions",
-]
-
 const ELLIPSIS = "…"
 
 export const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
@@ -146,7 +139,7 @@ export function shouldCollapse(value: string, max = 240) {
   return value.trim().length > max || lineCount > 5
 }
 
-export function safeJson(value: unknown) {
+function safeJson(value: unknown) {
   try {
     return JSON.stringify(value, null, 2)
   } catch {

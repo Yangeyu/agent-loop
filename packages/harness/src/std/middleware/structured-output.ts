@@ -39,7 +39,7 @@ export function hasStructuredOutputFormat(format?: OutputFormat) {
   return format?.type === "json_schema"
 }
 
-export function buildStructuredOutputSystemPrompt(format?: OutputFormat) {
+function buildStructuredOutputSystemPrompt(format?: OutputFormat) {
   if (!hasStructuredOutputFormat(format)) return undefined
 
   return [
@@ -51,7 +51,7 @@ export function buildStructuredOutputSystemPrompt(format?: OutputFormat) {
   ].join("\n")
 }
 
-export function parseStructuredOutputText(text: string) {
+function parseStructuredOutputText(text: string) {
   const trimmed = text.trim()
   if (!trimmed) {
     return { success: false as const, error: "Structured output response was empty." }
