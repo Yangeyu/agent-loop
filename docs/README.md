@@ -20,13 +20,9 @@ docs/
     │   ├── core-and-runtime.md  # 主循环、turn 生命周期、middleware、session 状态
     │   ├── llm-and-providers.md # Model 抽象、provider、流式协议
     │   └── agents-and-tools.md  # agent 模块、agent middleware、工具、委派
-    ├── backend/                 # packages/backend
-    │   ├── http-and-sse.md      # HTTP/SSE 传输、compose 装配
-    │   └── board.md             # board 报告领域 + PostgreSQL 集成
-    ├── contracts.md             # packages/contracts：共享 wire/SSE 协议
+    ├── contracts.md             # packages/contracts：共享数据模型与事件词汇
     ├── tui.md                   # packages/tui
-    ├── cli.md                   # apps/cli
-    └── frontend.md              # apps/frontend
+    └── cli.md                   # apps/cli（含组合根 compose.ts）
 ```
 
 ## 阅读顺序

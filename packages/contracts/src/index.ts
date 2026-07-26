@@ -1,12 +1,11 @@
 // The shared vocabulary for the whole chain: the session data model, the two
-// event channels (state + loop), the SSE wire frames, and the pure projection
-// that folds state events back into session state.
+// event channels (state + loop), and the pure projection that folds state
+// events back into session state.
 //
 // Pure types and pure functions only — no runtime dependencies, no node/bun
-// globals — so the browser, the backend, and the harness all import the same
+// globals — so any consumer, in or out of this process, imports the same
 // definitions. This file is the single source of truth: the harness emits these
-// events, the backend forwards them verbatim, and every consumer projects state
-// with the same reducer.
+// events and every consumer projects state with the same reducer.
 
 // ---------------------------------------------------------------------------
 // Primitives
@@ -248,18 +247,6 @@ export type LoopEvent =
       readonly durationMs: number
       readonly toolCalls: number
     })
-
-// ---------------------------------------------------------------------------
-// Wire frames — the SSE protocol is the event vocabulary, passed through.
-// ---------------------------------------------------------------------------
-
-export type StreamEvent =
-  | { readonly event: "state"; readonly data: StateEvent }
-  | { readonly event: "loop"; readonly data: LoopEvent }
-  | { readonly event: "done"; readonly data: { readonly sessionID: string } }
-  | { readonly event: "error"; readonly data: { readonly sessionID: string; readonly error: string } }
-
-export type StreamEventName = StreamEvent["event"]
 
 // ---------------------------------------------------------------------------
 // Projection — the one reducer every consumer shares.

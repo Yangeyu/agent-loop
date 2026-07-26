@@ -19,9 +19,9 @@
 
 ## 依赖与边界
 
-- **跨包方向单向**：`contracts ← harness ← surfaces`（cli/backend/tui）。contracts 是纯叶子
-  （数据模型 + 事件词汇，零依赖）；harness 不反向依赖 surface；浏览器前端只 import
-  `@agent-loop/contracts`。由 `bun run check:boundaries` 强制。
+- **跨包方向单向**：`contracts ← harness ← surfaces`（cli/tui）。contracts 是纯叶子
+  （数据模型 + 事件词汇，零依赖）；harness 不反向依赖 surface。
+  由 `bun run check:boundaries` 强制。
 - **RuntimeContext vs RuntimeDeps**：`RuntimeContext` 是完整运行时，只由组合根（bootstrap、
   CLI/TUI 入口）持有；执行链拿到的是依赖切片 `RuntimeDeps`（config / registries / sessions /
   events）。能拿 `RuntimeDeps` 的地方就不要持有 `RuntimeContext`。
@@ -33,7 +33,7 @@
 ## 类型与不可信输入
 
 - 用显式类型和可辨识联合（discriminated union）建模核心运行时数据。
-- 把 provider 响应、工具参数、SSE 负载、外部 JSON 都当不可信输入：**先解析成类型化结构，
+- 把 provider 响应、工具参数、外部 JSON 都当不可信输入：**先解析成类型化结构，
   再进入核心循环**。优先 `unknown` + 收窄，避免 `any`。
 
 > **原则：未知输入要 fail fast，不要静默兜底。** 比如未知的 model id 直接抛错，
@@ -68,7 +68,7 @@
 
 - 无分号、双引号、2 空格缩进。
 - 类型导入用 `import type`；TS 源码 import 不加 `.js` 后缀。
-- 别名导入：`@harness/*`、`@backend/*`、`@tui/*`、`@contracts`；不重新引入 `@/`。
+- 别名导入：`@harness/*`、`@tui/*`、`@contracts`；不重新引入 `@/`。
 - **注释**：导出 API 用 JSDoc（讲契约：参数、返回、用途）；内部实现用 `//`（讲“为什么”，不复述代码）。
 - 优先短函数和清晰的模块边界；只在确实提升可读性/复用/隔离时才引入抽象。
 

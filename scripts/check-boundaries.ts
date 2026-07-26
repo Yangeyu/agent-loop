@@ -3,8 +3,7 @@
 // Enforces the monorepo dependency direction:
 //   contracts <- harness <- surfaces (one-way). Contracts is the pure shared
 //   leaf (data model + event vocabulary); the harness builds on it; surfaces
-//   build on the harness. The engine never depends on a surface, and the
-//   browser frontend only imports @agent-loop/contracts.
+//   (tui, cli) build on the harness. The engine never depends on a surface.
 import { Glob } from "bun"
 import { readFileSync } from "node:fs"
 
@@ -19,24 +18,18 @@ const rules: Rule[] = [
   {
     pkg: "harness",
     dir: "packages/harness/src",
-    forbid: /from\s+["']@(backend|tui)(\/|["'])/,
-    why: "harness is the engine: it must not depend on any surface (backend/tui)",
+    forbid: /from\s+["']@tui(\/|["'])/,
+    why: "harness is the engine: it must not depend on any surface (tui/cli)",
   },
   {
     pkg: "contracts",
     dir: "packages/contracts/src",
-    forbid: /from\s+["']@(harness|backend|tui)(\/|["'])/,
+    forbid: /from\s+["']@(harness|tui)(\/|["'])/,
     why: "contracts is a pure wire-type leaf: it must not import any other workspace package",
-  },
-  {
-    pkg: "frontend",
-    dir: "apps/frontend/src",
-    forbid: /from\s+["'](@harness|@backend|@tui|@agent-loop\/(harness|backend|tui))(\/|["'])/,
-    why: "frontend runs in the browser: it may only import @agent-loop/contracts, never engine/server code",
   },
   // Consume the harness only through its public barrel ("@harness"), never deep
   // internal paths ("@harness/..."), so the engine keeps a curated public contract.
-  ...["packages/backend/src", "packages/tui/src", "apps/cli/src"].map((dir) => ({
+  ...["packages/tui/src", "apps/cli/src"].map((dir) => ({
     pkg: dir.split("/")[1],
     dir,
     forbid: /from\s+["']@harness\//,

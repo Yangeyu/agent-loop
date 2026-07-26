@@ -12,8 +12,6 @@
     "paths": {
       "@harness": ["packages/harness/src/index.ts"],
       "@harness/*": ["packages/harness/src/*"],
-      "@backend": ["packages/backend/src/index.ts"],
-      "@backend/*": ["packages/backend/src/*"],
       "@tui": ["packages/tui/src/index.ts"],
       "@tui/*": ["packages/tui/src/*"],
       "@contracts": ["packages/contracts/src/index.ts"],

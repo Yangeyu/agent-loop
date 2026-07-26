@@ -16,7 +16,8 @@
 ## 数据流
 
 - 解析 `--agent / --session / --json / --tui / --output`。
-- `createAppRuntime()`（backend 组合根）装配运行时（测试/smoke 用 `createTestRuntime()`，默认 memory store）。
+- `createAppRuntime()`（`src/compose.ts`，唯一的 provider 绑定点）装配运行时
+  （测试/smoke 用 `createAppTestRuntime()`，默认 memory store）。
 - `runPrompt()` 跑一次完整 session；`attachConsoleLogger` 订阅 `runtime.events` 渲染。
 - `--output stream` 边收边打 reasoning/answer；`buffered` turn 完成后成块输出。
 

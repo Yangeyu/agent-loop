@@ -1,4 +1,4 @@
-import { createAppRuntime } from "@backend/compose"
+import { createAppRuntime } from "./compose"
 import { runPrompt } from "@harness"
 import { startTui } from "@tui"
 import { attachConsoleLogger, type OutputMode } from "./logger"

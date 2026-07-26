@@ -8,7 +8,6 @@
   },
   "dependencies": {
     "@agent-loop/harness": "workspace:*",
-    "@agent-loop/backend": "workspace:*",
     "@agent-loop/tui": "workspace:*"
   }
 }

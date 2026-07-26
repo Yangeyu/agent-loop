@@ -1,5 +1,5 @@
 // Public API barrel for the agent harness (engine).
-// Surfaces (cli/tui/backend) should import from "@harness" rather than reaching
+// Surfaces (cli/tui) should import from "@harness" rather than reaching
 // into internal file paths, so this barrel is the engine's public contract.
 
 // Runtime composition + lifecycle

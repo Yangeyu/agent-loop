@@ -19,7 +19,7 @@ clone — with these moving parts:
 
 ## Files
 
-Bun workspaces — `packages/*` (libraries) and `apps/*` (runnable surfaces). Cross-package imports use the aliases `@harness/*`, `@backend/*`, `@tui/*`, `@contracts`.
+Bun workspaces — `packages/*` (libraries) and `apps/*` (runnable surfaces). Cross-package imports use the aliases `@harness/*`, `@tui/*`, `@contracts`.
 
 - `packages/harness/`: the agent harness (engine). Key areas:
   - `src/agent/`: the agent kernel — blueprint/createAgent, the 5-hook middleware contract (`hooks.ts`), the loop (`loop.ts`), per-turn executor (`turn.ts`), policy, retry
@@ -28,17 +28,16 @@ Bun workspaces — `packages/*` (libraries) and `apps/*` (runnable surfaces). Cr
   - `src/agent/`: agents as self-contained modules (`lead/`, `general/`)
   - `src/tool/`: `defineTool` harness and built-in tools (`task`, `bash`, `read`, …)
   - `tests/`: centralized harness test suite, organized by source module area
-- `packages/backend/`: thin HTTP/SSE transport over the harness. `src/server.ts` SSE entry, `src/http/` routes+OpenAPI, `src/compose.ts` composition root, `src/board/` report domain module, `src/integrations/postgres/`
+  - `e2e/`: end-to-end cases against the real model, skipped without an API key
 - `packages/tui/`: `src/app.tsx` componentized OpenTUI/Solid terminal UI
-- `packages/contracts/`: wire types shared by backend and frontend (SSE `StreamEvent` etc.)
-- `apps/cli/`: `src/index.ts` CLI bootstrap and mode selection, `src/logger.ts` CLI UI renderer (`stream` / `buffered`)
-- `apps/frontend/`: minimal React chat client for the SSE API (imports `@agent-loop/contracts`)
+- `packages/contracts/`: the pure shared leaf — data model + event vocabulary the harness and surfaces speak
+- `apps/cli/`: `src/index.ts` CLI bootstrap and mode selection, `src/compose.ts` the composition root (the one place providers are bound), `src/logger.ts` CLI UI renderer (`stream` / `buffered`)
+- `skills/`: workspace skills, one directory per skill (`SKILL.md` + assets); discovered at startup
 - `bunfig.toml`: bun preload for OpenTUI Solid JSX transforms
 
 ## Import Conventions
 
-- Use per-package absolute aliases for project source modules: `@harness/*`, `@backend/*`, `@tui/*`, `@contracts` (registered in `tsconfig.base.json`). Example: `@harness/agent/loop`.
-- The frontend (browser) imports the wire contract by package name: `@agent-loop/contracts`.
+- Use per-package absolute aliases for project source modules: `@harness/*`, `@tui/*`, `@contracts` (registered in `tsconfig.base.json`). Example: `@harness/agent/loop`.
 - Do not use relative imports for project-internal modules unless there is a strong reason.
 - Do not add `.js` suffixes to TypeScript source imports.
 - `bun run build` bundles the CLI with `Bun.build` (alias resolution via tsconfig paths), emitting runnable ESM to `dist/`.
@@ -50,90 +49,18 @@ bun install
 bun run start "read packages/harness/src/agent/loop.ts and explain the loop"
 ```
 
-The project is now bun-first for local development:
+The project is bun-first for local development:
 
-- `bun run dev` starts the SSE backend in `bun --watch` mode and starts the `apps/frontend/` React dev server with the same resolved API base URL
 - `bun run start` runs the TypeScript CLI entrypoint directly
-- `bun run sse` starts a minimal SSE HTTP server on port `4444`
 - `bun run tui` opens the interactive TUI directly
 - `bun run build` bundles the CLI with Bun.build into `dist/`
 - `bun run test:harness` runs the centralized `packages/harness/tests` suite
+- `bun run test:harness:e2e` runs the `packages/harness/e2e` cases against the real model (needs `DASHSCOPE_API_KEY`; skipped without one)
 - `bun run test:tui` runs the focused `packages/tui/tests` suite
-
-The repo also includes a standalone minimal React frontend under `apps/frontend/`:
-
-```bash
-bun run dev
-```
-
-This gives you:
-
-- frontend HMR through Vite
-- backend auto-restart on `packages/backend/src/` changes through `bun --watch`
-- backend logs printed in the same terminal
-
-Or run them separately:
-
-```bash
-bun run sse
-cd apps/frontend
-bun install
-bun run dev
-```
-
-Then open:
-
-```bash
-http://localhost:5173
-```
-
-Override the backend base URL with `VITE_API_BASE_URL` when needed.
-
-The frontend transcript now renders one assistant message per submitted user prompt, then orders the inner content as alternating `CoT` and `build answer` blocks based on streamed turn output. Tool activity and delegated subagent steps stay inside that single assistant message instead of splitting into separate bubbles.
-
-SSE server example:
-
-```bash
-bun run sse
-curl -N -X POST http://localhost:4444/api/chat \
-  -H 'content-type: application/json' \
-  -d '{"text":"read packages/harness/src/agent/loop.ts and explain the loop"}'
-```
-
-If port `4444` is occupied, the server now automatically tries the next ports. You can also pin a port explicitly:
-
-```bash
-bun run sse --port 3100
-PORT=3100 bun run sse
-```
-
-The SSE endpoint emits frontend-friendly events modeled after the Vercel SDK stream shape:
-
-- `session-metadata`
-- `message-metadata`
-- `text-start`
-- `text-delta`
-- `reasoning-delta`
-- `tool-call`
-- `tool-result`
-- `finish`
-- `error`
-- `done`
-
-For streamed assistant output, `messageID` now identifies the whole reply to one user prompt, while `turnID` identifies an individual assistant step inside that reply.
-
-Online API docs are also available:
-
-```bash
-http://localhost:4444/openapi.json
-http://localhost:4444/docs
-```
-
-`/docs` uses Scalar to render the live OpenAPI document exposed by `/openapi.json`.
 
 Useful flags:
 
-- `--agent build`
+- `--agent <name>` to pick a primary agent (defaults to `lead`)
 - `--session <id>` to continue an existing session from the CLI
 - `--json` to print the full final session JSON after the live CLI UI
 - `--output stream|buffered`
@@ -163,19 +90,9 @@ You can also open the TUI and immediately submit a prompt:
 bun run tui "read packages/harness/src/agent/loop.ts and explain the loop"
 ```
 
-Available built-in tools now include `read`, `grep`, `bash`, `batch`, `task`, and `skill`.
+Built-in tools: `read`, `write`, `grep`, `bash`, `tavily`, `present_files`, `view_image`, `task` / `task_resume`, and `skill`.
 
-The runtime now also supports app-registered skills: the system prompt exposes the available skill list, and the model can call the `skill` tool to load a specialized workflow on demand instead of carrying every long instruction in the base prompt.
-
-There is also a minimal board report flow backed by PostgreSQL:
-
-```bash
-bun run start --agent board_report --output buffered "Analyze board <board-id> and return a structured report."
-```
-
-The default `build` agent routes board-report requests to the `board_report` specialist, which calls `board_snapshot`, reads from the Kiwoo business database, and emits a structured multi-chapter JSON report.
-
-For the board analysis workflow, the final `board_write` stage now saves the generated Markdown report under the current project's data directory and returns only the saved file path, instead of streaming the full report body back through the main chat transcript.
+The runtime supports skills discovered from `skills/`: the system prompt exposes the available skill list, and the model calls the `skill` tool to load a specialized workflow on demand instead of carrying every long instruction in the base prompt. Loading a skill also prints the absolute paths of its sibling assets, so the model can `read` them directly.
 
 Example with the simple CLI display:
 
@@ -228,9 +145,11 @@ Optional overrides:
 
 - `DASHSCOPE_BASE_URL` defaults to `https://dashscope.aliyuncs.com/compatible-mode/v1`
 - `MODEL_MAX_RETRIES`, `MODEL_RETRY_BASE_DELAY_MS`, `MODEL_RETRY_MAX_DELAY_MS` tune model retry behavior
-- `SESSION_MAX_STEPS` caps total assistant turns across a session
+- `SESSION_MAX_STEPS` caps total assistant turns across a session (kept well above any one agent's step cap)
+- `SKILLS_DIR` points at the workspace skills directory (default `./skills`; absent means no workspace skills)
 - `SUBAGENT_MAX_DEPTH` caps child-session delegation depth
-- `TURN_TIMEOUT_MS`, `TURN_MAX_TOOL_CALLS`, `REPEATED_TOOL_FAILURE_THRESHOLD` tune per-turn execution limits
+- `TURN_TIMEOUT_MS`, `REPEATED_TOOL_FAILURE_THRESHOLD` tune per-turn execution limits
+- `RUN_MAX_TOOL_CALLS` caps tool calls across a whole agent run (an agent may override it); `TOOL_MAX_CONCURRENCY` caps parallel calls within one turn
 
 Useful smoke checks:
 
