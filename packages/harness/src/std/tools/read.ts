@@ -50,14 +50,6 @@ export const ReadTool = defineTool({
   describe(args, ctx) {
     return { verb: "read", target: ctx.workspace.resolve(args.filePath) }
   },
-  beforeExecute({ args, ctx }) {
-    return {
-      metadata: {
-        filePath: ctx.workspace.resolve(args.filePath),
-        format: args.format ?? "text",
-      },
-    }
-  },
   mapError({ args, toolID, error }) {
     if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
       return {
@@ -95,9 +87,8 @@ export const ReadTool = defineTool({
       },
       output: truncated.text,
       metadata: {
-        filePath: target,
-        extension: ext,
-        format: requestedFormat,
+        // truncated is the one the model must not miss: it changes whether the
+        // output can be trusted as the whole file.
         bytes: stat.bytes,
         characters: content.length,
         truncated: truncated.truncated,

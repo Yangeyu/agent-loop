@@ -32,7 +32,7 @@ describe("workspace writes", () => {
     const result = await workspace.write(target, "<!doctype html>")
 
     expect(readFileSync(target, "utf8")).toBe("<!doctype html>")
-    expect(result).toEqual({ created: true, bytesWritten: 15, totalBytes: 15 })
+    expect(result).toEqual({ created: true, bytes: 15 })
   })
 
   it("replaces the previous contents rather than adding to them", async () => {
@@ -43,7 +43,7 @@ describe("workspace writes", () => {
     const second = await workspace.write(target, "<body>")
 
     expect(readFileSync(target, "utf8")).toBe("<body>")
-    expect(second).toEqual({ created: false, bytesWritten: 6, totalBytes: 6 })
+    expect(second).toEqual({ created: false, bytes: 6 })
   })
 
   it("never exposes a half-written file to a concurrent reader", async () => {

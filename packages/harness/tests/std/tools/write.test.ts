@@ -4,11 +4,6 @@ import { mkdirSync, mkdtempSync, readFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { WriteTool } from "@harness/std/tools/write"
-import type { ToolContext, ToolMetadata } from "@harness/types"
-
-function metadataOf(result: { metadata?: ToolMetadata }) {
-  return (result.metadata ?? {}) as Record<string, unknown>
-}
 
 describe("WriteTool", () => {
   it("creates the file and its parent directories", async () => {
@@ -18,8 +13,9 @@ describe("WriteTool", () => {
     const result = await WriteTool.execute({ filePath: target, content: "<!doctype html>" }, createToolContext())
 
     expect(readFileSync(target, "utf8")).toBe("<!doctype html>")
-    expect(metadataOf(result).created).toBe(true)
-    expect(metadataOf(result).totalBytes).toBe(15)
+    // Reported in the sentence rather than a metadata block — the model already
+    // sent the path and the content, so restating them as JSON buys nothing.
+    expect(result.output).toBe(`Created ${target} (15 bytes).`)
   })
 
   it("replaces the file wholesale, discarding what was there", async () => {
@@ -39,7 +35,7 @@ describe("WriteTool", () => {
 
     const result = await WriteTool.execute({ filePath: target, content: "洞察" }, createToolContext())
 
-    expect(metadataOf(result).bytesWritten).toBe(6)
+    expect(result.output).toContain("(6 bytes)")
   })
 
   it("keeps the output to one line instead of echoing the content back", async () => {

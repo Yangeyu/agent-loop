@@ -34,11 +34,6 @@ export const EditTool = defineTool({
   describe(args, ctx) {
     return { verb: "edit", target: ctx.workspace.resolve(args.filePath) }
   },
-  beforeExecute({ args, ctx }) {
-    return {
-      metadata: { filePath: ctx.workspace.resolve(args.filePath), replaceAll: args.replaceAll ?? false },
-    }
-  },
   // Only classifies what execute() could not: execute throws its own refusals
   // (no match, ambiguous, no-op) already typed, and defineTool leaves those
   // alone rather than running them through here.
@@ -119,8 +114,7 @@ function planEdit(args: EditArgs, target: string, content: string): WorkspaceCha
         excerpt(updated, firstLine),
       ].join("\n"),
       metadata: {
-        filePath: target,
-        replaceAll: args.replaceAll ?? false,
+        // Only what the excerpt above does not already show.
         replacements,
         line: firstLine,
         bytes: Buffer.byteLength(updated, "utf8"),

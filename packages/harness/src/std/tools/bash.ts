@@ -63,9 +63,7 @@ export const BashTool = defineTool({
       metadata: {
         exitCode: result.exitCode,
         timedOut: result.timedOut,
-        succeeded: result.exitCode === 0 && !result.timedOut,
         workdir,
-        command: args.command,
       },
     }
   },

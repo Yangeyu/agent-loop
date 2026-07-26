@@ -51,8 +51,10 @@ describe("read", () => {
     const result = await ReadTool.execute({ filePath: "/tmp/agent-loop-read-file-test.txt" }, createToolContext())
 
     expect(result.output).toBe("hello\nworld")
-    expect(result.metadata?.format).toBe("text")
+    // truncated is what the model must be able to trust: false means the output
+    // above really is the whole file.
     expect(result.metadata?.truncated).toBe(false)
+    expect(result.metadata?.bytes).toBe(11)
   })
 })
 

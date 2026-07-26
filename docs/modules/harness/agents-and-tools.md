@@ -50,7 +50,12 @@ gate(beforeToolCall) → 参数校验 → describe → 开 ToolPart → beforeEx
   于是 `part.created` 一次到位，不需要后续更新来补。`ctx` 只给 `workspace`/`config`——
   路径要和工具执行时用同样的方式解析，行里显示的才是这次调用真正会碰的那个文件；
   而 part 此刻还不存在，写 metadata、嵌套调用这些都刻意不给。
-- 其余横切逻辑仍在 hook：`beforeExecute`（执行前的 metadata）、
+- `metadata` 会被序列化成 `<metadata>` 一并发给模型（见 `llm/message.ts`），所以它**只放 output 与
+  title 说不出来的事实**。`beforeExecute` 里写 `{ filePath: args.filePath }` 这类是把模型自己刚发出的
+  参数读回给它——三处重复（title、output、metadata）每次调用都要付一遍上下文；失败路径也不需要，
+  `tool-error` 本来就带完整 `input`。派生字段同理（`succeeded` 可由 `exitCode`/`timedOut` 算出）。
+- 其余横切逻辑仍在 hook：`beforeExecute`（执行前的 metadata，现在只有 grep 的搜索根、bash 的
+  workdir 这类调用方推不出来的事实还用它）、
   `mapError`（把失败映射成稳定 `ErrorInfo.code`）、`afterExecute`/`normalizeMetadata`（修整结果与 metadata）。
 - `ToolContext` 提供受控的 `executeTool()`，让嵌套工具调用复用标准执行路径，而不绕开
   core/tool-part（ToolPartTracker）/budget/event 边界。

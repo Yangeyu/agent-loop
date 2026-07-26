@@ -19,9 +19,6 @@ export const WriteTool = defineTool({
   describe(args, ctx) {
     return { verb: "write", target: ctx.workspace.resolve(args.filePath) }
   },
-  beforeExecute({ args, ctx }) {
-    return { metadata: { filePath: ctx.workspace.resolve(args.filePath) } }
-  },
   mapError({ args, toolID, error }) {
     const code = error && typeof error === "object" && "code" in error ? error.code : undefined
     if (code === "EISDIR") {
@@ -52,17 +49,13 @@ export const WriteTool = defineTool({
     // running — see workspace/local.ts.
     const written = await ctx.workspace.write(target, args.content)
 
-    // One line on purpose: the model already holds the content it just sent, so
-    // echoing it back would double the context cost of every write.
+    // One line, and no metadata block: the model already holds the content it
+    // just sent and the arguments it sent them with. Repeating the path and the
+    // byte count as JSON would spend context restating what this sentence and
+    // the call's own title already say.
     return {
-      display: { summary: formatBytes(written.totalBytes) },
-      output: `Wrote ${written.bytesWritten} bytes to ${target}.`,
-      metadata: {
-        filePath: target,
-        created: written.created,
-        bytesWritten: written.bytesWritten,
-        totalBytes: written.totalBytes,
-      },
+      display: { summary: formatBytes(written.bytes) },
+      output: `${written.created ? "Created" : "Replaced"} ${target} (${written.bytes} bytes).`,
     }
   },
 })

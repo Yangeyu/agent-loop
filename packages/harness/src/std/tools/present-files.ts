@@ -18,14 +18,6 @@ export const PresentFilesTool = defineTool({
   describe(args) {
     return { verb: "present", target: args.title ?? args.paths[0] }
   },
-  beforeExecute({ args }) {
-    return {
-      metadata: {
-        artifactType: "files",
-        fileCount: args.paths.length,
-      },
-    }
-  },
   mapError({ args, toolID, error }) {
     if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
       return {

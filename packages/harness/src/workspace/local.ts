@@ -113,8 +113,7 @@ export function createWorkspace(root: string = "."): Workspace {
       }
 
       await writeAtomic(target, content)
-      const bytesWritten = Buffer.byteLength(content, "utf8")
-      return { created: !existing, bytesWritten, totalBytes: bytesWritten }
+      return { created: !existing, bytes: Buffer.byteLength(content, "utf8") }
     },
 
     async mutate(target, change) {

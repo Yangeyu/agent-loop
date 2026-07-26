@@ -35,12 +35,9 @@ export const GrepTool = defineTool({
   },
   async beforeExecute({ args, ctx }) {
     const roots = (await resolveGrepRoots(ctx.workspace)).map((root) => ctx.workspace.relative(root))
-    return {
-      metadata: {
-        pattern: args.pattern,
-        roots,
-      },
-    }
+    // The roots are the one fact the caller cannot derive: which directories
+    // this tool decided to search.
+    return { metadata: { roots } }
   },
   mapError({ args, toolID, error }) {
     if (error instanceof SyntaxError) {
@@ -87,7 +84,6 @@ export const GrepTool = defineTool({
       },
       output: matches.length ? matches.join("\n") : `No matches for ${args.pattern}`,
       metadata: {
-        pattern: args.pattern,
         roots: roots.map((root) => ctx.workspace.relative(root)),
         filesScanned: fileCount,
         matchCount: matches.length,

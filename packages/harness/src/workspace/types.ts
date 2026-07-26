@@ -13,11 +13,10 @@ export type WorkspaceStat = {
   readonly isFile: boolean
 }
 
-/** The outcome of a write: enough for a caller to report what changed. */
+/** The outcome of a write: whether the file was new, and how big it now is. */
 export type WorkspaceWriteResult = {
   readonly created: boolean
-  readonly bytesWritten: number
-  readonly totalBytes: number
+  readonly bytes: number
 }
 
 /**
