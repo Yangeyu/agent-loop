@@ -25,6 +25,7 @@ export function createLeadAgent(deps: { model: Model; summarizer: Model }): Agen
       task: true,
       task_resume: true,
       read: true,
+      write: true,
       grep: true,
       tavily: true,
       present_files: true,
@@ -32,7 +33,11 @@ export function createLeadAgent(deps: { model: Model; summarizer: Model }): Agen
       skill: true,
       view_image: true,
     },
-    steps: 12,
+    // The lead runs whole deliverables in one context: loading a skill, reading
+    // its assets, then emitting a long document across several bounded writes.
+    // Both bounds are sized for that shape rather than for a short Q&A turn.
+    steps: 20,
+    maxToolCalls: 32,
     middleware: [...baseMiddleware(), subagentList, viewImage, createCompaction({ summarizer: deps.summarizer })],
   })
 }

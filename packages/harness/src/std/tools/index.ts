@@ -6,6 +6,7 @@ import { SkillTool } from "@harness/std/tools/skill"
 import { TaskResumeTool, TaskTool } from "@harness/std/tools/task"
 import { TavilyTool } from "@harness/std/tools/tavily"
 import { createViewImageTool } from "@harness/std/tools/view-image"
+import { WriteTool } from "@harness/std/tools/write"
 import type { Model } from "@harness/llm/types"
 import type { AnyToolDefinition } from "@harness/types"
 
@@ -21,6 +22,7 @@ export function createCoreTools(deps: { visionModel: Model }): AnyToolDefinition
     TaskResumeTool,
     BashTool,
     ReadTool,
+    WriteTool,
     GrepTool,
     TavilyTool,
     PresentFilesTool,

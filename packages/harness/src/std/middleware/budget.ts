@@ -1,6 +1,6 @@
 // Enforces step, session-step and tool-call budgets. Holds the per-loop tool
 // call counter in closure and shapes the stop notes when a budget breaks.
-import type { TurnExecutionPolicy } from "@harness/agent/policy"
+import { isFinalAllowedStep, type TurnBudgetPolicy } from "@harness/agent/policy"
 import type { MiddlewareFactory, TurnOutcome } from "@harness/agent/hooks"
 
 export const budget: MiddlewareFactory = () => {
@@ -10,11 +10,18 @@ export const budget: MiddlewareFactory = () => {
     name: "budget",
 
     beforeTurn(ctx) {
-      if (ctx.policy.budget.maxSteps <= 0) {
+      if (ctx.policy.budget.sessionStepsRemaining <= 0) {
         return {
           proceed: false,
           reason: "step_budget_reached",
           note: "\n\n[Stopped: total session step budget reached]",
+        }
+      }
+      if (ctx.policy.budget.maxAgentSteps <= 0) {
+        return {
+          proceed: false,
+          reason: "step_budget_reached",
+          note: "\n\n[Stopped: agent step budget reached]",
         }
       }
       return { proceed: true }
@@ -22,11 +29,11 @@ export const budget: MiddlewareFactory = () => {
 
     beforeToolCall(ctx) {
       toolCalls += 1
-      if (toolCalls > ctx.policy.budget.maxToolCalls) {
+      if (toolCalls > ctx.policy.budget.maxRunToolCalls) {
         return {
           action: "deny",
           error: {
-            message: `Tool call budget exceeded for turn (${ctx.policy.budget.maxToolCalls})`,
+            message: `Tool call budget exceeded for this run (${ctx.policy.budget.maxRunToolCalls})`,
             retryable: false,
             code: "tool_budget_exceeded",
           },
@@ -39,13 +46,13 @@ export const budget: MiddlewareFactory = () => {
     judgeTurn(ctx, judgment) {
       const outcome = judgment.outcome
       if (outcome.kind !== "continue") return judgment
-      if (ctx.step < ctx.policy.budget.maxSteps) return judgment
+      if (!isFinalAllowedStep(ctx.policy.budget, ctx.step)) return judgment
 
       // Record the forced stop on the terminal (the engine applies it) instead
       // of writing the message directly.
       const terminal = judgment.terminal?.ok ? { ...judgment.terminal, finishReason: "stop" as const } : judgment.terminal
 
-      const stopReason = resolveStepBudgetStopReason(ctx.policy)
+      const stopReason = resolveStepBudgetStopReason(ctx.policy.budget)
       if (outcome.reason === "empty_assistant") {
         return {
           ...judgment,
@@ -66,9 +73,7 @@ export const budget: MiddlewareFactory = () => {
   }
 }
 
-function resolveStepBudgetStopReason(policy: TurnExecutionPolicy) {
-  if (policy.budget.sessionStepsRemaining <= policy.budget.maxAgentSteps) {
-    return "total session step budget reached"
-  }
+function resolveStepBudgetStopReason(budget: TurnBudgetPolicy) {
+  if (budget.sessionStepsRemaining <= 1) return "total session step budget reached"
   return "max steps reached"
 }

@@ -126,7 +126,7 @@ async function runToolCalls(
 
   const tracked = calls.map((call) => ({ call, tracker: recorder.trackToolCall(call) }))
 
-  // Run the batch with at most `maxToolCalls` in flight at once, keeping outcomes
+  // Run the batch with at most `toolConcurrency` in flight at once, keeping outcomes
   // in issue order regardless of completion order. The bound is a fresh per-turn
   // number, not a shared semaphore, so a parent turn delegating to subagents that
   // themselves fan out tools never contends on one counter and cannot deadlock.

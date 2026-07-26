@@ -90,6 +90,16 @@ judgeTurn              # 一次裁决：terminal（仅干净收束时开放）+ 
   `break/assistant_error`。
 - **状态事实来源**：`Sessions` 维护 `messages` 与 `parts`，是项目里最核心的状态来源；
   读取得到的是不可变快照（copy-on-write），持有者无法绕过聚合改状态。
+- **预算的作用域各不相同**，读 `TurnBudgetPolicy` 字段名而不是靠直觉：
+  - 工具调用：middleware 栈在 `runLoop` 的 while 之外构建一次，所以 budget middleware 的计数器
+    **跨整个 run 累加**——`maxRunToolCalls`（agent 的 `maxToolCalls` ?? `config.run_max_tool_calls`）
+    是一次 run 的总闸；限制单 turn 并发扇出的是另一个数 `toolConcurrency`。两者混淆会让一次正常的
+    长交付物在中途被拒。
+  - 步数：`maxAgentSteps`（本 run，与从 1 递增的 `ctx.step` 比）与 `sessionStepsRemaining`
+    （整个 session，随 assistant 消息递减）是**两个独立判据**，由 `isFinalAllowedStep()` 统一裁决，
+    budget middleware 与 context-assembly 共用它，保证"最后一步"的提示与真正的停止不会错位。
+    绝不要把两者 `min()` 成一个数：递增的计数器与递减的余额会在中点相遇，让每个 run 只能用掉
+    会话预算的一半——这曾经真实地把长文档渲染腰斩在一半。
 
 ## 扩展点
 

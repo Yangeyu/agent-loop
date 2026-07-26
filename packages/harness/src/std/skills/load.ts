@@ -18,7 +18,7 @@ const SKILL_FILE = "SKILL.md"
  * composition error, not a runtime condition.
  *
  * @param filePath - path to the skill markdown file
- * @returns the parsed SkillInfo (location is the resolved file path)
+ * @returns the parsed SkillInfo (location is the resolved file path, dir its parent)
  */
 export function loadSkillFile(filePath: string): SkillInfo {
   const target = resolve(filePath)
@@ -36,6 +36,7 @@ export function loadSkillFile(filePath: string): SkillInfo {
     description,
     location: target,
     content: body.trim(),
+    dir: dirname(target),
   }
 }
 
@@ -44,11 +45,19 @@ export function loadSkillFile(filePath: string): SkillInfo {
  * a SKILL.md is loaded as one skill (subdirectories without one are skipped,
  * so skills can keep sibling asset folders). Returned sorted by name.
  *
+ * A missing directory throws, since a composition root that names a skills
+ * directory should learn it is wrong. Pass `optional` for a conventional
+ * location (e.g. a workspace's `./skills`) where absence means "no skills"
+ * rather than a misconfiguration.
+ *
  * @param dir - the skills root directory
+ * @param options.optional - treat a missing directory as empty instead of throwing
  * @returns the discovered skills
  */
-export function loadSkillsFromDir(dir: string): SkillInfo[] {
+export function loadSkillsFromDir(dir: string, options?: { optional?: boolean }): SkillInfo[] {
   const root = resolve(dir)
+  if (options?.optional && !existsSync(root)) return []
+
   const skills: SkillInfo[] = []
 
   for (const entry of readdirSync(root, { withFileTypes: true })) {

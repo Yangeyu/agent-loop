@@ -63,5 +63,13 @@ describe("loadSkillsFromDir", () => {
     const skills = loadSkillsFromDir(root)
 
     expect(skills.map((skill) => skill.name)).toEqual(["alpha", "beta"])
+    expect(skills.map((skill) => skill.dir)).toEqual([join(root, "alpha"), join(root, "beta")])
+  })
+
+  it("throws on a missing directory, but treats it as empty when optional", () => {
+    const missing = join(mkdtempSync(join(tmpdir(), "skills-")), "absent")
+
+    expect(() => loadSkillsFromDir(missing)).toThrow()
+    expect(loadSkillsFromDir(missing, { optional: true })).toEqual([])
   })
 })

@@ -19,11 +19,21 @@ export type TimeoutPolicy = {
   turnTimeoutMs: number
 }
 
-/** Resolved step/tool/depth budgets for a turn (enforced by budget middleware). */
+/**
+ * Resolved step/tool/depth budgets for a turn (enforced by budget middleware).
+ *
+ * The step caps are deliberately kept as two independent numbers rather than
+ * one combined limit: `maxAgentSteps` bounds the current run (compared against
+ * a step counter that climbs from 1), while the session numbers bound the
+ * session across all of its runs. Collapsing them with a `min()` would compare
+ * a climbing counter against a shrinking remainder, and the two would meet
+ * halfway — capping every run at half the session budget.
+ */
 export type TurnBudgetPolicy = {
-  maxSteps: number
   maxAgentSteps: number
-  maxToolCalls: number
+  // Scoped to the whole run, not one turn: the budget middleware is built once
+  // per run, so its tool-call counter accumulates across every turn in the loop.
+  maxRunToolCalls: number
   maxSessionSteps: number
   sessionStepsUsed: number
   sessionStepsRemaining: number
@@ -66,15 +76,29 @@ export function resolveTurnExecutionPolicy(config: Config, agent: AgentDefinitio
     },
     toolConcurrency: config.tool_max_concurrency,
     budget: {
-      maxSteps: Math.min(maxAgentSteps, sessionStepsRemaining),
       maxAgentSteps,
-      maxToolCalls: config.turn_max_tool_calls,
+      maxRunToolCalls: agent.maxToolCalls ?? config.run_max_tool_calls,
       maxSessionSteps: config.session_max_steps,
       sessionStepsUsed,
       sessionStepsRemaining,
       maxSubagentDepth: config.subagent_max_depth,
     },
   }
+}
+
+/**
+ * Whether the given step is the last one this run may take — because the agent's
+ * own step cap is reached, or because the session has one step left to spend.
+ *
+ * Shared by the budget middleware (which stops here) and context assembly
+ * (which warns the model here), so the warning and the stop cannot drift apart.
+ *
+ * @param budget - the resolved budgets for this turn
+ * @param step - the current 1-based step within the run
+ * @returns true when no further step is allowed after this one
+ */
+export function isFinalAllowedStep(budget: TurnBudgetPolicy, step: number) {
+  return step >= budget.maxAgentSteps || budget.sessionStepsRemaining <= 1
 }
 
 /**

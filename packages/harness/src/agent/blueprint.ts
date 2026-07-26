@@ -18,6 +18,9 @@ export type AgentDefinition = {
   instructions: string[]
   tools: Record<string, boolean>
   steps?: number
+  // Cap on tool calls across the agent's whole run, mirroring how `steps` caps
+  // its turns. Falls back to the runtime default when unset.
+  maxToolCalls?: number
   format?: OutputFormat
   // Executed when an AgentRun is created; returns the middleware that compose
   // this agent's capabilities (loop-scoped, instantiated per run).
@@ -35,6 +38,7 @@ export type AgentSpec = {
   instructions?: string[]
   tools?: Record<string, boolean>
   steps?: number
+  maxToolCalls?: number
   format?: OutputFormat
   middleware?: MiddlewareFactory[]
 }
@@ -49,6 +53,7 @@ export function defineAgent(spec: AgentSpec): AgentDefinition {
     instructions: spec.instructions ?? [],
     tools: spec.tools ?? {},
     steps: spec.steps,
+    maxToolCalls: spec.maxToolCalls,
     format: spec.format,
     assemble: () => ({ middleware }),
   }

@@ -20,6 +20,7 @@ export function createGeneralAgent(deps: { model: Model }): AgentDefinition {
     instructions: [...BASE_AGENT_INSTRUCTIONS, ...GENERAL_INSTRUCTIONS],
     tools: {
       read: true,
+      write: true,
       grep: true,
       tavily: true,
       present_files: true,
