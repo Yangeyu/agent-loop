@@ -1,11 +1,18 @@
 import { describe, expect, it } from "bun:test"
-import { defineHarnessAgent } from "@harness/agent/registry"
+import { defineHarnessAgent } from "@harness/registry"
 import { mkdtempSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { baseMiddleware, createDashScopeModel, createTestRuntime, runPrompt } from "@harness"
-import { createReadTool } from "@harness/std/tools/read"
-import type { ToolPart } from "@harness/types"
+import {
+  baseMiddleware,
+  createTestRuntime,
+  runPrompt,
+} from "@harness"
+import {
+  createDashScopeModel,
+} from "@agent-core"
+import { createReadTool } from "@harness/tools/read"
+import type { ToolPart } from "@agent-core/types"
 
 import { createWorkspace } from "@harness/workspace"
 

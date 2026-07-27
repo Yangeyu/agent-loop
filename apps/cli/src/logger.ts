@@ -2,7 +2,7 @@
 // channel (telemetry) into terminal output. Stream text is keyed by the turn's
 // assistant message id; `part.delta` carries the part type, so the renderer
 // needs no store access and no part bookkeeping beyond the turn header state.
-import type { LoopEvent, RuntimeEventBus, StateEvent, ToolDisplay, ToolPart } from "@harness"
+import type { LoopEvent, RuntimeEventBus, StateEvent, ToolDisplay, ToolPart } from "@agent-core"
 
 export type OutputMode = "stream" | "buffered"
 

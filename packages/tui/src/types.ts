@@ -1,4 +1,5 @@
-import type { ImageSource, RuntimeContext, ToolDisplay } from "@harness"
+import type { RuntimeContext } from "@harness"
+import type { ImageSource, ToolDisplay } from "@agent-core"
 
 export type ComposerSubmitInput = {
   text: string

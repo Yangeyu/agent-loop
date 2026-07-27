@@ -14,6 +14,7 @@
     "test:e2e": "bun test e2e"
   },
   "dependencies": {
+    "@agent-loop/agent-core": "workspace:*",
     "officeparser": "^7.2.1",
     "openai": "^6.42.0",
     "zod": "^3.25.76",

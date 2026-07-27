@@ -1,9 +1,9 @@
 import { getConfig, type Config } from "@harness/config"
-import { createAgentRegistry, type AgentRegistry } from "@harness/agent/registry"
-import type { EngineDeps } from "@harness/agent/context"
-import { createRuntimeEvents } from "@harness/event/bus"
-import { createSkillRegistry, type SkillRegistry } from "@harness/skill/registry"
-import { createSessionPersistence, Sessions } from "@harness/session"
+import { createAgentRegistry, type AgentRegistry } from "@harness/registry"
+import type { EngineDeps } from "@agent-core"
+import { createRuntimeEvents } from "@agent-core"
+import { createSkillRegistry, type SkillRegistry } from "@harness/skills/registry"
+import { createSessionPersistence, Sessions } from "@agent-core"
 import { createWorkspace, type Workspace } from "@harness/workspace"
 
 /**

@@ -2,14 +2,14 @@
 // agent/tool factories it wants, and hands the flat lists here — there is no
 // plugin or registration indirection in between.
 import { createRuntimeContext, type RuntimeContext } from "@harness/runtime/context"
-import { runSession } from "@harness/agent/loop"
+import { runSession } from "@harness/session"
 import { loadConfigFromEnv, type Config } from "@harness/config"
-import type { HarnessAgent } from "@harness/agent/registry"
-import type { Model } from "@harness/llm/types"
-import { createCoreAgents } from "@harness/std/agents"
-import { createCoreTools } from "@harness/std/tools"
-import type { SkillInfo } from "@harness/skill/types"
-import type { ImageSource, OutputFormat } from "@harness/types"
+import type { HarnessAgent } from "@harness/registry"
+import type { Model } from "@agent-core"
+import { createCoreAgents } from "@harness/agents"
+import { createCoreTools } from "@harness/tools"
+import type { SkillInfo } from "@harness/skills/types"
+import type { ImageSource, OutputFormat } from "@agent-core"
 
 /**
  * The composed capability set a runtime is assembled from. Tools are absent on

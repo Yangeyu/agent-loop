@@ -15,12 +15,12 @@
     "types": ["node", "bun"],
     "baseUrl": ".",
     "paths": {
+      "@agent-core": ["packages/agent-core/src/index.ts"],
+      "@agent-core/*": ["packages/agent-core/src/*"],
       "@harness": ["packages/harness/src/index.ts"],
       "@harness/*": ["packages/harness/src/*"],
       "@tui": ["packages/tui/src/index.ts"],
-      "@tui/*": ["packages/tui/src/*"],
-      "@contracts": ["packages/contracts/src/index.ts"],
-      "@contracts/*": ["packages/contracts/src/*"]
+      "@tui/*": ["packages/tui/src/*"]
     }
   }
 }

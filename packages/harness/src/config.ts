@@ -1,5 +1,5 @@
 import { z } from "zod"
-import type { SessionPersistenceConfig } from "@harness/session/persistence"
+import type { CoreConfig } from "@agent-core"
 
 // Shared with the retry middleware, so its default and the config default are
 // one number rather than two that agree today.
@@ -36,19 +36,8 @@ const ConfigSchema = z.object({
   compaction_retain_ratio: z.coerce.number().gt(0).lt(1).default(COMPACTION_DEFAULTS.retainRatio),
 })
 
-/**
- * The engine's own knobs: what a loop needs to bound a turn and persist a
- * session, and nothing about what the orchestration layer happens to do with
- * files, skills, or delegation.
- */
-export type CoreConfig = Pick<
-  z.infer<typeof ConfigSchema>,
-  "session_max_steps" | "turn_timeout_ms" | "run_max_tool_calls" | "tool_max_concurrency"
-> &
-  SessionPersistenceConfig
-
-/** The orchestration layer's config: the engine's, plus what the bricks need. */
-export type Config = z.infer<typeof ConfigSchema> & SessionPersistenceConfig
+/** The orchestration layer's config: the engine's knobs, plus what the bricks need. */
+export type Config = z.infer<typeof ConfigSchema> & CoreConfig
 
 let cachedConfig: Config | undefined
 

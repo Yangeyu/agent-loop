@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test"
 import { createTraceFolder } from "@tui/trace"
 import type { TraceEntry } from "@tui/types"
-import type { LoopEvent, StateEvent, ToolDisplay, ToolPart } from "@harness"
+import type { LoopEvent, StateEvent, ToolDisplay, ToolPart } from "@agent-core"
 
 const ROOT = "session-root"
 const CHILD = "session-child"

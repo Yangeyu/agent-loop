@@ -3,11 +3,13 @@ import { readFileSync, rmSync } from "node:fs"
 import { join } from "node:path"
 import {
   createCoreTestRuntime,
-  createDashScopeModel,
   loadSkillsFromDir,
   runPrompt,
 } from "@harness"
-import type { ToolPart } from "@harness/types"
+import {
+  createDashScopeModel,
+} from "@agent-core"
+import type { ToolPart } from "@agent-core/types"
 
 // End-to-end against the real configured model (DashScope). Skipped when no API
 // key is present so the default suite never depends on the network.

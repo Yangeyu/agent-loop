@@ -1,4 +1,4 @@
-import type { ImageSource } from "@harness"
+import type { ImageSource } from "@agent-core"
 import { spawnSync } from "node:child_process"
 import path from "node:path"
 

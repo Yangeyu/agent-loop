@@ -1,6 +1,9 @@
-// Public API barrel for the agent harness (engine).
-// Surfaces (cli/tui) should import from "@harness" rather than reaching
-// into internal file paths, so this barrel is the engine's public contract.
+// Public API of the orchestration layer: the standard agent set, the tools and
+// skills they run on, and the runtime that assembles them.
+//
+// This barrel deliberately does not re-export @agent-core. A surface that needs
+// the loop's own contracts — Model, defineTool, the hook types — depends on that
+// package directly; passing them through here would make the two look like one.
 
 // Runtime composition + lifecycle
 export {
@@ -12,80 +15,55 @@ export {
 } from "@harness/runtime/bootstrap"
 export type { RuntimeAssembly } from "@harness/runtime/bootstrap"
 export type { RuntimeContext } from "@harness/runtime/context"
-export type { EventChannel, RuntimeEventBus } from "@harness/event/bus"
+export { runSession } from "@harness/session"
+export type { RunSessionInput, SessionDeps } from "@harness/session"
 
-// Engine entry
-export { runSession } from "@harness/agent/loop"
-
-// Config
-export { loadConfigFromEnv, getConfig } from "@harness/config"
+// Config: the engine's knobs plus what the bricks need
+export { loadConfigFromEnv, getConfig, COMPACTION_DEFAULTS, RETRY_DEFAULTS } from "@harness/config"
 export type { Config } from "@harness/config"
 
-// The agent kernel: blueprint + the standalone runnable atom
-export { defineAgent } from "@harness/agent/blueprint"
-export { createAgentRegistry, defineHarnessAgent } from "@harness/agent/registry"
-export type { AgentMode, AgentRegistry, HarnessAgent } from "@harness/agent/registry"
-export type { AgentDefinition, AgentSpec } from "@harness/agent/blueprint"
-export { createAgent } from "@harness/agent/create-agent"
-export type { StandaloneAgentSpec } from "@harness/agent/create-agent"
-export { createCoreAgents, createGeneralAgent, createLeadAgent } from "@harness/std/agents"
-export { baseMiddleware } from "@harness/std/agents/shared/base-middleware"
+// Agents: the standard set, and the registry that resolves them by name
+export { createCoreAgents, createGeneralAgent, createLeadAgent } from "@harness/agents"
+export { baseMiddleware } from "@harness/agents/shared/base-middleware"
+export { createAgentRegistry, defineHarnessAgent } from "@harness/registry"
+export type { AgentMode, AgentRegistry, HarnessAgent } from "@harness/registry"
 
-// Middleware library + hook contracts. Middleware that also contributes a prompt
-// fragment exports both halves (budget/stepGuidance, structuredOutput/…Prompt).
+// Middleware library. Middleware that also contributes a prompt fragment exports
+// both halves (budget/stepGuidance, structuredOutput/…Prompt).
 export {
+  budget,
+  createCompaction,
   createRetry,
+  doomLoop,
   promptAssembly,
+  stepGuidance,
   structuredOutput,
   structuredOutputPrompt,
-  budget,
-  stepGuidance,
-  doomLoop,
-  createCompaction,
   viewImage,
   type RetryOptions,
-} from "@harness/std/middleware"
+} from "@harness/middleware"
+export type { CompactionOptions } from "@harness/middleware/compaction"
 
 // Prompt composition: the shared slot vocabulary. Every fragment itself lives
 // with its owner — see engineConventions (agents/shared), createAvailableSkills
 // (tools/skill), createSubagentList (tools/task).
-export { SLOT_ORDER } from "@harness/std/prompt"
-export type { PromptContributor, PromptSlot, SystemSection } from "@harness/std/prompt"
-export { engineConventions } from "@harness/std/agents/shared/base-prompt"
-export { createAvailableSkills } from "@harness/std/tools/skill"
-export { createSubagentList } from "@harness/std/tools/task"
-export type {
-  ContextDraft,
-  HookContext,
-  Middleware,
-  MiddlewareFactory,
-  ToolCall,
-  ToolGate,
-  ToolOutcome,
-  TurnGate,
-  TurnJudgment,
-  TurnOutcome,
-  TurnTerminal,
-} from "@harness/agent/hooks"
-
-// Sessions: the aggregate (single writer of session state) + persistence contract
-export { Sessions } from "@harness/session"
-export type { SessionPersistence } from "@harness/session"
+export { SLOT_ORDER } from "@harness/prompt"
+export type { PromptContributor, PromptSlot, SystemSection } from "@harness/prompt"
+export { engineConventions } from "@harness/agents/shared/base-prompt"
+export { createAvailableSkills } from "@harness/tools/skill"
+export { createSubagentList } from "@harness/tools/task"
 
 // Tools
-export { defineTool } from "@harness/tool/tool"
-export { createCoreTools } from "@harness/std/tools"
-export type { TaskArgs, TaskResumeArgs } from "@harness/std/tools/task"
+export { createCoreTools } from "@harness/tools"
+export type { CoreToolDeps } from "@harness/tools"
+export type { TaskArgs, TaskResumeArgs } from "@harness/tools/task"
 
 // Skills: the data contract + the filesystem discovery brick (SKILL.md dirs)
-export type { SkillInfo } from "@harness/skill/types"
-export { loadSkillFile, loadSkillsFromDir } from "@harness/std/skills/load"
+export type { SkillInfo } from "@harness/skills/types"
+export { createSkillRegistry } from "@harness/skills/registry"
+export type { SkillRegistry } from "@harness/skills/registry"
+export { loadSkillFile, loadSkillsFromDir } from "@harness/skills/load"
 
-// LLM: the Model abstraction + provider model factories
-export { createDashScopeModel, createOpenAICompatModel } from "@harness/llm/index"
-export type { Model, ModelCapabilities, ProviderModelSpec, DashScopeConfig, OpenAICompatModelConfig } from "@harness/llm/index"
-
-// Utilities
-
-// Shared runtime types (AgentInfo, SessionInfo, createID, message/part types, …)
-export * from "@harness/types"
+// The local file tree tools resolve paths against
+export { createWorkspace } from "@harness/workspace"
+export type { Workspace } from "@harness/workspace"

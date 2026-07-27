@@ -1,75 +1,63 @@
 /// <reference types="bun" />
 
 // Enforces the monorepo dependency direction:
-//   contracts <- harness <- surfaces (one-way). Contracts is the pure shared
-//   leaf (data model + event vocabulary); the harness builds on it; surfaces
-//   (tui, cli) build on the harness. The engine never depends on a surface.
+//   agent-core <- harness <- surfaces (one-way). agent-core is the general agent
+//   loop; harness orchestrates it into a working coding agent; surfaces (tui,
+//   cli) drive the harness. Nothing below ever depends on something above.
 import { Glob } from "bun"
 import { readFileSync } from "node:fs"
 
 type Rule = {
   pkg: string
   dir: string
+  // Restricts the rule to one file inside `dir`; omitted means every file.
+  file?: string
   forbid: RegExp
   why: string
 }
 
 const rules: Rule[] = [
+  // The data model is the pure leaf: it is the sole basis on which an event
+  // consumer rebuilds state, so it may import nothing at all.
+  {
+    pkg: "agent-core-model",
+    dir: "packages/agent-core/src",
+    file: "model.ts",
+    forbid: /from\s+["'](?!\.)/,
+    why: "the data model must depend on nothing — it is what a consumer folds events into",
+  },
+  {
+    pkg: "agent-core",
+    dir: "packages/agent-core/src",
+    forbid: /from\s+["']@(harness|tui)(\/|["'])/,
+    why: "agent-core is the general loop: it must not know about orchestration (skills, workspace, multiple agents) or any surface",
+  },
   {
     pkg: "harness",
     dir: "packages/harness/src",
     forbid: /from\s+["']@tui(\/|["'])/,
-    why: "harness is the engine: it must not depend on any surface (tui/cli)",
+    why: "harness is the engine side: it must not depend on any surface (tui/cli)",
   },
-  {
-    pkg: "contracts",
-    dir: "packages/contracts/src",
-    forbid: /from\s+["']@(harness|tui)(\/|["'])/,
-    why: "contracts is a pure wire-type leaf: it must not import any other workspace package",
-  },
-  // Consume the harness only through its public barrel ("@harness"), never deep
-  // internal paths ("@harness/..."), so the engine keeps a curated public contract.
+  // Consume each package only through its public barrel, never deep internal
+  // paths, so both keep a curated public contract.
   ...["packages/tui/src", "apps/cli/src"].map((dir) => ({
     pkg: dir.split("/")[1],
     dir,
-    forbid: /from\s+["']@harness\//,
-    why: 'import the harness via its barrel ("@harness"), not deep paths ("@harness/...") — add to the barrel if a symbol is missing',
+    forbid: /from\s+["']@(harness|agent-core)\//,
+    why: 'import via the package barrel ("@harness" / "@agent-core"), not deep paths — add to the barrel if a symbol is missing',
   })),
-  // Layering inside the harness — a straight line, outward only:
-  //   contracts <- substrate (event/llm/session/tool/skill contracts, lib)
-  //             <- agent (the kernel atom) <- std (bricks) <- runtime <- surfaces.
-  //
-  // The agent kernel may use the substrate and its own files — never the std
-  // brick layer (middleware, concrete agents/tools) or the composition layer
-  // (runtime). Behavior enters the kernel through hook/blueprint contracts,
-  // not imports.
   {
-    pkg: "harness-kernel",
-    dir: "packages/harness/src/agent",
-    forbid: /from\s+["']@harness\/(std\/|runtime\/)/,
-    why: "the agent kernel must not import std bricks or the runtime composition layer — extend via hooks/blueprints instead",
-  },
-  // The substrate (bus, model port, session state, tool/skill contracts) sits
-  // below the kernel: it must not reach up into agent/std/runtime.
-  ...["event", "llm", "session", "tool", "skill", "lib"].map((name) => ({
-    pkg: "harness-substrate",
-    dir: `packages/harness/src/${name}`,
-    forbid: /from\s+["']@harness\/(agent\/|std\/|runtime\/)/,
-    why: "the substrate must not depend on the kernel, std bricks, or runtime — it is what those layers build on",
-  })),
-  // Std bricks compose kernel + substrate; only runtime assembles them.
-  {
-    pkg: "harness-std",
-    dir: "packages/harness/src/std",
-    forbid: /from\s+["']@harness\/runtime\//,
-    why: "std bricks must not depend on the runtime composition layer — runtime assembles std, not the reverse",
+    pkg: "harness",
+    dir: "packages/harness/src",
+    forbid: /from\s+["']@agent-core\//,
+    why: 'import the loop via its barrel ("@agent-core"), not deep paths',
   },
 ]
 
 let violations = 0
 
 for (const rule of rules) {
-  const glob = new Glob("**/*.{ts,tsx}")
+  const glob = new Glob(rule.file ?? "**/*.{ts,tsx}")
   for (const file of glob.scanSync(rule.dir)) {
     const path = `${rule.dir}/${file}`
     const lines = readFileSync(path, "utf8").split("\n")

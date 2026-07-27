@@ -7,7 +7,7 @@
 // from the ToolDisplay the tool itself declared; this file only decides which
 // row a fact belongs to. Special-casing a tool here would mean re-deriving what
 // the tool already stated, and drifting the moment its wording changed.
-import type { LoopEvent, StateEvent, ToolPart } from "@harness"
+import type { LoopEvent, StateEvent, ToolPart } from "@agent-core"
 import type { Setter } from "solid-js"
 import type { TraceEntry, TraceToolStatus } from "@tui/types"
 import { preview, shouldCollapse } from "@tui/theme"

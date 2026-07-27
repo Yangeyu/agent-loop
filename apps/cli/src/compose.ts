@@ -1,14 +1,8 @@
 // Composition root for the CLI surface. This is the ONE place providers are
 // bound: the models are built here, and everything downstream of them is the
 // harness's standard assembly.
-import {
-  createCoreRuntime,
-  createDashScopeModel,
-  getConfig,
-  loadSkillsFromDir,
-  type Config,
-  type RuntimeContext,
-} from "@harness"
+import { createCoreRuntime, getConfig, loadSkillsFromDir, type Config, type RuntimeContext } from "@harness"
+import { createDashScopeModel } from "@agent-core"
 
 const CHAT_MODEL_ID = "qwen3.7-plus"
 const SUMMARIZER_MODEL_ID = "qwen3.6-flash"
