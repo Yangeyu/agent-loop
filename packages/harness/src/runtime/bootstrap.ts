@@ -19,6 +19,12 @@ export type RuntimeAssembly = {
   skills?: SkillInfo[]
 }
 
+/**
+ * Assembles a runtime from explicit lists — the escape hatch for a set that is
+ * not the standard one. For the standard one, use createCoreRuntime.
+ *
+ * @param options - config plus the agents and skills to register
+ */
 export function createRuntime(options?: RuntimeAssembly): RuntimeContext {
   const runtime = createRuntimeContext({ config: options?.config })
   for (const agent of options?.agents ?? []) runtime.agent_registry.register(agent)

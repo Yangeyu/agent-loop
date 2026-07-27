@@ -10,7 +10,6 @@ const WriteParameters = z.object({
     .describe("The text to write. Written verbatim — no trailing newline is added."),
 })
 
-
 /** Builds the write tool bound to a workspace. */
 export function createWriteTool(deps: { workspace: Workspace }) {
   return defineTool({
@@ -22,7 +21,7 @@ export function createWriteTool(deps: { workspace: Workspace }) {
       return { verb: "write", target: deps.workspace.resolve(args.filePath) }
     },
     mapError({ args, toolID, code }) {
-          if (code === "EISDIR") {
+      if (code === "EISDIR") {
         return {
           message: `The ${toolID} tool failed: ${args.filePath} is a directory, not a file`,
           retryable: false,
@@ -36,7 +35,6 @@ export function createWriteTool(deps: { workspace: Workspace }) {
           code: "write_permission_denied",
         }
       }
-
     },
     async execute(args) {
       const target = deps.workspace.resolve(args.filePath)

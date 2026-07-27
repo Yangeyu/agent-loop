@@ -10,7 +10,6 @@ const PresentFilesParameters = z.object({
     .describe("Optional artifact title shown in the client UI"),
 })
 
-
 /** Builds the present-files tool bound to a workspace. */
 export function createPresentFilesTool(deps: { workspace: Workspace }) {
   return defineTool({
@@ -28,7 +27,6 @@ export function createPresentFilesTool(deps: { workspace: Workspace }) {
           code: "present_files_not_found",
         }
       }
-
     },
     async execute(args) {
       const files = await Promise.all(args.paths.map(async (item) => {

@@ -40,7 +40,6 @@ const ReadParameters = z.object({
     .describe("Maximum characters to return. Defaults to 100000."),
 })
 
-
 /** Builds the read tool bound to a workspace. */
 export function createReadTool(deps: { workspace: Workspace }) {
   return defineTool({
@@ -59,7 +58,6 @@ export function createReadTool(deps: { workspace: Workspace }) {
           code: "read_not_found",
         }
       }
-
     },
     async execute(args, ctx) {
       const target = deps.workspace.resolve(args.filePath)

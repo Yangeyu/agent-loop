@@ -7,6 +7,12 @@ import { createRuntimeEvents } from "@agent-core/event/bus"
 import { MemorySessionPersistence, Sessions } from "@agent-core/session"
 import type { ToolContext } from "@agent-core/types"
 
+/**
+ * Builds a ToolContext backed by in-memory sessions and a private event bus.
+ *
+ * @param overrides - fields to replace; state only the collaborator under test
+ * @returns a context a tool's execute() can be called with directly
+ */
 export function createToolContext(overrides?: Partial<ToolContext>): ToolContext {
   const events = createRuntimeEvents()
   return {

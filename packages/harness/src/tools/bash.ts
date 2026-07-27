@@ -14,7 +14,6 @@ const BashParameters = z.object({
     .describe("A brief explanation of what this command is doing"),
 })
 
-
 /** Builds the bash tool bound to a workspace. */
 export function createBashTool(deps: { workspace: Workspace }) {
   return defineTool({

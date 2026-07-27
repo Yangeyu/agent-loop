@@ -37,7 +37,6 @@ const TavilyParameters = z.object({
     .describe("Whether to include Tavily's synthesized answer. Defaults to true."),
 })
 
-
 export type TavilySearchOutput = {
   query: string
   answer?: string

@@ -23,7 +23,6 @@ const GrepParameters = z.object({
     .describe("The regex pattern to search for in the codebase"),
 })
 
-
 /** Builds the grep tool bound to a workspace. */
 export function createGrepTool(deps: { workspace: Workspace }) {
   return defineTool({
@@ -47,7 +46,6 @@ export function createGrepTool(deps: { workspace: Workspace }) {
           code: "grep_invalid_pattern",
         }
       }
-
     },
     async execute(args) {
       const roots = await resolveGrepRoots(deps.workspace)

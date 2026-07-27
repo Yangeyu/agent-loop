@@ -9,6 +9,12 @@ export type AgentMode = "primary" | "subagent"
 /** A blueprint plus its role in this runtime's agent set. */
 export type HarnessAgent = AgentDefinition & { mode: AgentMode }
 
+/**
+ * Defines an agent for this runtime: a loop blueprint plus its role in the set.
+ *
+ * @param spec - the blueprint spec, plus whether this agent is the entry point
+ *   or a delegation target
+ */
 export function defineHarnessAgent(spec: AgentSpec & { mode: AgentMode }): HarnessAgent {
   return { ...defineAgent(spec), mode: spec.mode }
 }

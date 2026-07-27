@@ -38,7 +38,6 @@ const ViewImageParameters = z.object({
     .describe("What to look for in the image. Defaults to a general description."),
 })
 
-
 /**
  * Builds the view_image tool around the injected vision model.
  *

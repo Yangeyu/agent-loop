@@ -15,6 +15,12 @@ export type FakeModelOptions = {
 
 const DEFAULT_SCRIPT: LLMChunk[] = [{ type: "finish", finishReason: "stop" }]
 
+/**
+ * Builds a Model that replays a script instead of calling a provider.
+ *
+ * @param options - the chunk script, spec overrides, and an optional call recorder
+ * @returns a Model satisfying the same port a real provider does
+ */
 export function createFakeModel(options: FakeModelOptions = {}): Model {
   const spec: ProviderModelSpec = {
     id: options.spec?.id ?? "fake-model",

@@ -48,7 +48,6 @@ export function createEditTool(deps: { workspace: Workspace }) {
           code: "edit_not_found",
         }
       }
-
     },
     async execute(args) {
       const target = deps.workspace.resolve(args.filePath)
