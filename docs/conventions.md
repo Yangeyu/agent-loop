@@ -13,9 +13,26 @@
   每个 agent 是一个自包含模块（`std/agents/lead/`、`std/agents/general/`），不是一张配置表。
 - **middleware（中间件）**：transform/decision 层。按 `agent/hooks.ts` 的生命周期介入——
   改写上下文、门控工具、塑形 turn 结果。它与只读的事件总线（`runtime/events.ts`）是两回事。
+- **prompt（组装轴）**：决定"这个 agent 对模型说什么、按什么顺序说"。与 middleware 是**两条正交
+  的轴**：middleware 数组的顺序是执行优先级，contributor 的 slot 是 prompt 顺序。轴只需要一套共享
+  词汇（`std/prompt.ts`），片段本身跟着拥有者走。内核只知道 `ContextDraft.system` 是一个有序字符串
+  列表，slot 词汇不进 `agent/`。
 
 > **原则：行为靠组合，不靠分支。** 想让引擎做新事，加一段 middleware 或一个工具，
 > 而不是在 core 里加 `if (agent === ...)`。
+
+> **原则：顺序要被声明，不能是排列的副产物。** 系统提示的顺序曾经取决于 middleware 在数组里
+> 的位置，于是它同时被三种语义共用，没有人真的决定过提示词长什么样。现在顺序由
+> `SLOT_ORDER` 一处决定：`promptAssembly` 是唯一写 `draft.system` 的 middleware，其余中间件
+> 只碰 `draft.messages` 或只做门控/裁决。
+
+> **原则：静态文本进 `instructions`，读 `ctx` 的才配 contributor。** 同一句话有两条路径进入
+> prompt，就等于没有单一真相。判据看它是否需要运行时信息，不看它属于谁。
+
+> **原则：一条轴不是一个模块。** 新概念不因为刚被命名就配一个目录。判断一段逻辑归属谁，
+> 看它**和谁共享不变量**，而不是看它属于哪条轴。`subagentList` 和 `task` 工具共享
+> "谁可被委派"，`stepGuidance` 和 `budget` 共享 `isFinalAllowedStep`——按轴收编会让这些
+> 不变量分居两处各写一遍，正是漂移的来源。轴要的只是一套共享词汇。
 
 ## 依赖与边界
 

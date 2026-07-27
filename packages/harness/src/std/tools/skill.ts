@@ -1,3 +1,4 @@
+import type { PromptContributor } from "@harness/std/prompt"
 import type { SkillInfo } from "@harness/skill/types"
 import { defineTool, ToolExecutionError } from "@harness/tool/tool"
 import type { Workspace } from "@harness/workspace"
@@ -6,6 +7,26 @@ import { z } from "zod"
 const SkillParameters = z.object({
   name: z.string().describe("The name of the skill to load"),
 })
+
+/**
+ * Prompt axis: announces what this tool can load. It ships with the tool because
+ * the announced set and the set `execute` accepts are the same registry read —
+ * an agent that enables `skill` registers this alongside it.
+ */
+export const availableSkills: PromptContributor = (ctx) => {
+  const skills = ctx.skill_registry.list()
+  if (skills.length === 0) return undefined
+
+  return {
+    slot: "capability",
+    text: [
+      "Use the skill tool when the task matches one of these specialized workflows.",
+      "<available_skills>",
+      ...skills.map((skill) => `- ${skill.name}: ${skill.description}`),
+      "</available_skills>",
+    ].join("\n"),
+  }
+}
 
 export const SkillTool = defineTool({
   id: "skill",

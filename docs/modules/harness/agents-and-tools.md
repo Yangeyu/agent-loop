@@ -12,8 +12,12 @@
 - `@harness/agent/blueprint.ts` — agent 蓝图：`defineAgent()`、`AgentDefinition`（能力 + `model`）。
 - `@harness/agent/create-agent.ts` — 独立原子入口 `createAgent()`（见 core-and-runtime）。
 - `@harness/std/agents/lead/`、`@harness/std/agents/general/` — 两个核心 agent 原子，各为自包含模块
-  （`index`（工厂）+ `prompt` + `middleware`）。
-- `@harness/std/agents/shared/` — `base-prompt`、`base-middleware`：agent 间复用的基线。
+  （`index`（工厂）+ `prompt`；有专属执行逻辑时才加 `middleware`）。
+- `@harness/std/agents/shared/` — `base-middleware.ts`（`baseMiddleware(prompt?)`，agent 复用的执行栈 +
+  普适 contributor）、`base-prompt.ts`（`engineConventions`）。
+- `@harness/std/prompt.ts` — prompt 组装的**共享词汇**：slot 定义、`SLOT_ORDER`、`PromptContributor`。
+  只有词汇，没有片段——每个片段跟着它的拥有者走。
+- `@harness/std/middleware/prompt-assembly.ts` — `promptAssembly()`，唯一写 `draft.system` 的 middleware。
 - `@harness/agent/registry.ts` — agent registry 工厂；实例由 `RuntimeContext.agent_registry` 持有。
 - `@harness/tool/tool.ts` — `defineTool()`，core tool harness 的统一入口。
 - `@harness/std/tools/index.ts` — `createCoreTools({ visionModel })` 汇总（view_image 需注入视觉模型）。
@@ -32,6 +36,39 @@
   prompt、middleware 组合在原子目录内装配，模型由组合根注入（provider 绑定只存在于
   `apps/cli/src/compose.ts` 一处）。引擎按名解析 agent，但不认识其内部——行为通过该 agent 的
   middleware 与工具进入循环。原子之间只经 registry 按名引用，禁止互相 import。
+
+**Prompt**：一个 agent 对模型说的话由**两类来源**汇合，经 `promptAssembly` 按 slot 渲染：
+
+```text
+AgentDefinition.instructions ──引擎 seed──┐
+                                          ├─► promptAssembly ─► draft.system: string[]
+PromptContributor[]（读 ctx 的动态片段）──┘        按 SLOT_ORDER 分组
+```
+
+- **slot 决定顺序，注册顺序不决定顺序**。`SLOT_ORDER = identity → convention → capability →
+  policy → volatile`（`std/prompt/section.ts`）。往 `baseMiddleware([...])` 末尾追加一个
+  contributor，是给 agent 加一项能力，不是往系统提示尾部追加一段话。
+- **两个直接后果**：agent 自己的身份声明必然排在最前（不再被通用前言压住）；每步都变的
+  `volatile`（步数提示）必然排在最后，其上全部是可被 provider 当作稳定前缀缓存的内容。
+- **静态文本进 `instructions`，读 `ctx` 的才配 contributor**。这是判据，不是偏好——同一句话
+  两条路径进入 prompt，就是"没有单一真相"，`deliverableGuidance` 曾经就是这个反例
+  （一个只 append 静态字符串、签名里 `ctx` 都用不上的 middleware），现已并回 `GENERAL_INSTRUCTIONS`。
+- **contributor 跟着拥有者走，不集中收编**。组装轴是一条轴，不是一个模块——它需要的只有一套
+  共享词汇（`std/prompt.ts`），不需要一个目录。每个片段和它描述的那件事同模块导出两半：
+
+  | contributor | 同模块的另一半 | 共享的那个东西 |
+  | --- | --- | --- |
+  | `stepGuidance` | `budget` middleware | `isFinalAllowedStep` |
+  | `structuredOutputPrompt` | `structuredOutput` middleware | `hasStructuredOutputFormat` |
+  | `availableSkills` | `skill` 工具 | `skill_registry.list()` |
+  | `subagentList` | `task` 工具 | `isDelegable`（准入判据） |
+  | `engineConventions` | 无（普适基线） | — |
+
+  判据是**它和谁共享不变量**。把它们收进一个 `std/prompt/` 目录，就等于让"告诉模型能委派谁"
+  和"决定能不能委派"分居两处，各写一遍 `mode === "subagent"`——广告的集合与受理的集合从此
+  可以悄悄分叉。
+- 装配点即索引：`baseMiddleware([...])` 的参数列出了这个 agent 说的全部动态片段，
+  一个 agent 开了哪个能力工具，就在这里传入对应的 contributor。
 
 **Tool**：一个 tool 经 `defineTool()` 走统一执行顺序：
 
@@ -103,12 +140,23 @@ gate(beforeToolCall) → 参数校验 → describe → 开 ToolPart → beforeEx
 - 新 tool：`defineTool()` 定义（schema/描述/执行放一起）；需要模型等依赖的导出工厂。加入
   `createCoreTools` 或消费方自己的工具列表，并为合适的 agent 开启。
 - 新 agent middleware：实现 `Middleware` hook，加入该 agent 的组合，而不是改引擎。
+- 新 prompt 片段：写一个 `PromptContributor` 并声明 slot——共享的放 `std/prompt/contributors.ts`，
+  agent 专属的放该 agent 的 `prompt.ts`，经 `baseMiddleware([...])` 传入。**不要**在 middleware 里
+  往 `draft.system` 追加。
 - 独立嵌入一个 agent：`agent/create-agent.ts` 的 `createAgent({ model, tools, middleware, instructions })`，
   不需要完整 runtime 装配。
 
 ## 约束与经验
 
 - **agent 即模块**：prompt、middleware、model 自包含在 agent 目录里；不要回到一张集中配置表。
+- **两条轴分开**：middleware 数组的顺序是**执行优先级**（gate 依次门控、fold 依次折叠），
+  contributor 的 slot 是**prompt 顺序**。这两件事曾经挤在同一个数组里——想调整提示词的排版，
+  唯一手段是改一个同时影响预算判定顺序的数组，于是没有人真的"决定"过系统提示长什么样，
+  它是排列的副产物。`promptAssembly` 是唯一写 `draft.system` 的 middleware；其余 middleware
+  只碰 `draft.messages`（如 view-image）或只做门控/裁决。
+- **内核不懂 prompt 语义**：slot 词汇整个住在 `std/prompt/`，`ContextDraft.system` 对内核而言
+  只是"一个有序字符串列表"。这不是洁癖——`PromptContributor` 是 std 的类型，把它写进
+  `agent/blueprint.ts` 会让内核反向依赖 std，依赖方向自己就否决了这个方案。
 - **不在 core 写死业务委派目标**：可委派范围在 `task` 工具层按 `mode === "subagent"` 过滤，registry 不加专用 API。
 - registry（agent/tool/skill）属于运行时依赖，由入口从 `RuntimeContext` 装配，经 `RuntimeDeps`/`ToolContext` 传递，不依赖模块级全局表。
 - tool 横切逻辑放 `defineTool()` 的 hook，不散落进 `execute()`；结果若要被后续轮次感知，必须写回 session part。

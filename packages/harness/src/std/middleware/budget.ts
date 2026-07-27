@@ -1,8 +1,31 @@
-// Enforces step, session-step and tool-call budgets. Holds the per-loop tool
-// call counter in closure and shapes the stop notes when a budget breaks.
+// The step/tool budget, both halves of it: the middleware that stops a run when
+// a budget breaks, and the prompt fragment that warns the model it is about to.
+// They ship together because they read the same predicate — a warning that could
+// drift from the stop it warns about is worse than no warning.
 import { isFinalAllowedStep, type TurnBudgetPolicy } from "@harness/agent/policy"
 import type { MiddlewareFactory } from "@harness/agent/hooks"
+import type { PromptContributor } from "@harness/std/prompt"
 
+/**
+ * Prompt axis: tells the model where it is in its step budget.
+ *
+ * This is the only fragment that changes between steps, which is why the slot
+ * vocabulary exists — it renders last, leaving everything above it stable.
+ */
+export const stepGuidance: PromptContributor = (ctx) => {
+  if (isFinalAllowedStep(ctx.policy.budget, ctx.step)) {
+    return {
+      slot: "volatile",
+      text: "This is your final allowed step. Conclude decisively and avoid leaving work unfinished.",
+    }
+  }
+  if (ctx.step > 1) {
+    return { slot: "volatile", text: "Continue the existing task and use any new context to make concrete progress." }
+  }
+  return undefined
+}
+
+/** Execution axis: enforces the step, session-step and tool-call budgets. */
 export const budget: MiddlewareFactory = () => {
   let toolCalls = 0
 

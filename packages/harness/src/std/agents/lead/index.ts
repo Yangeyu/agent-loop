@@ -1,10 +1,10 @@
-import { subagentList } from "@harness/std/agents/lead/middleware"
 import { LEAD_INSTRUCTIONS } from "@harness/std/agents/lead/prompt"
 import { baseMiddleware } from "@harness/std/agents/shared/base-middleware"
-import { BASE_AGENT_INSTRUCTIONS } from "@harness/std/agents/shared/base-prompt"
 import { defineAgent, type AgentDefinition } from "@harness/agent/blueprint"
 import type { Model } from "@harness/llm/types"
 import { createCompaction, viewImage } from "@harness/std/middleware"
+import { availableSkills } from "@harness/std/tools/skill"
+import { subagentList } from "@harness/std/tools/task"
 
 /**
  * Builds the primary orchestration agent. The atom declares what it needs (a
@@ -20,7 +20,7 @@ export function createLeadAgent(deps: { model: Model; summarizer: Model }): Agen
     description: "Primary orchestration agent and execution entry point.",
     mode: "primary",
     model: deps.model,
-    instructions: [...BASE_AGENT_INSTRUCTIONS, ...LEAD_INSTRUCTIONS],
+    instructions: LEAD_INSTRUCTIONS,
     tools: {
       task: true,
       task_resume: true,
@@ -40,6 +40,12 @@ export function createLeadAgent(deps: { model: Model; summarizer: Model }): Agen
     // Both bounds are sized for that shape rather than for a short Q&A turn.
     steps: 20,
     maxToolCalls: 32,
-    middleware: [...baseMiddleware(), subagentList, viewImage, createCompaction({ summarizer: deps.summarizer })],
+    // One contributor per capability-bearing tool above: `skill` announces what
+    // it can load, `task` announces who it can delegate to.
+    middleware: [
+      ...baseMiddleware([availableSkills, subagentList]),
+      viewImage,
+      createCompaction({ summarizer: deps.summarizer }),
+    ],
   })
 }

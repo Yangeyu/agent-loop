@@ -27,15 +27,27 @@ export type { StandaloneAgentSpec } from "@harness/agent/create-agent"
 export { createCoreAgents, createGeneralAgent, createLeadAgent } from "@harness/std/agents"
 export { baseMiddleware } from "@harness/std/agents/shared/base-middleware"
 
-// Middleware library + hook contracts
+// Middleware library + hook contracts. Middleware that also contributes a prompt
+// fragment exports both halves (budget/stepGuidance, structuredOutput/…Prompt).
 export {
-  contextAssembly,
+  promptAssembly,
   structuredOutput,
+  structuredOutputPrompt,
   budget,
+  stepGuidance,
   doomLoop,
   createCompaction,
   viewImage,
 } from "@harness/std/middleware"
+
+// Prompt composition: the shared slot vocabulary. Every fragment itself lives
+// with its owner — see engineConventions (agents/shared), availableSkills
+// (tools/skill), subagentList (tools/task).
+export { SLOT_ORDER } from "@harness/std/prompt"
+export type { PromptContributor, PromptSlot, SystemSection } from "@harness/std/prompt"
+export { engineConventions } from "@harness/std/agents/shared/base-prompt"
+export { availableSkills } from "@harness/std/tools/skill"
+export { subagentList } from "@harness/std/tools/task"
 export type {
   ContextDraft,
   HookContext,

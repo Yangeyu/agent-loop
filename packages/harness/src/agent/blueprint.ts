@@ -12,9 +12,10 @@ export type AgentDefinition = {
   description?: string
   mode: "primary" | "subagent"
   model: Model
-  // The agent's own instruction fragments; rendered by the context-assembly
-  // middleware alongside the shared base prompt. Named `instructions` (not
-  // `prompt`) so AgentDefinition stays structurally assignable to AgentInfo.
+  // The agent's own words. The engine seeds these into the context draft so an
+  // agent with zero middleware still speaks its blueprint; how they are ordered
+  // against everything else in the system prompt is std's business, not the
+  // kernel's (see std/prompt).
   instructions: string[]
   tools: Record<string, boolean>
   steps?: number

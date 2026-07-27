@@ -23,7 +23,7 @@ packages/
 │       ├── tool/             # 工具契约：defineTool + registry
 │       ├── skill/            # skill 契约 + registry
 │       ├── workspace/        # 本地文件树的所有者：types(契约) + local(原子写/按路径互斥)；工具的文件访问唯一入口
-│       ├── std/              # ★ 标准积木层：middleware/（compaction、budget、doom-loop…）、agents/（lead、general、shared）、tools/（createCoreTools 及内置工具）、skills/（SKILL.md 目录发现）
+│       ├── std/              # ★ 标准积木层：prompt.ts（slot 词汇）、middleware/（prompt-assembly、compaction、budget、doom-loop…）、agents/（lead、general、shared）、tools/（createCoreTools 及内置工具）、skills/（SKILL.md 目录发现）
 │       ├── runtime/          # 组合层：bootstrap（createRuntime/runPrompt）、context
 │       ├── config.ts         # 引擎行为配置解析与校验
 │       ├── types.ts          # 全局核心类型
@@ -68,6 +68,7 @@ skills/                       # 工作区技能：一目录一技能（SKILL.md 
 - **新 agent**：在 `std/agents/` 下新建原子模块（工厂：prompt + middleware，模型经参数注入），加入组合根的装配列表。
 - **新 tool**：`defineTool()` 定义后加入 `createCoreTools`（或消费方工具列表），并为合适的 agent 开启。
 - **新 middleware**：实现 `agent/hooks.ts` 的 `Middleware`（5 个 hook），加入 agent 的 middleware 组合。
+- **新 prompt 片段**：写一个 `PromptContributor` 并声明 slot，**放在它所描述的那个模块里**（工具/中间件/agent），由该 agent 的 `baseMiddleware([...])` 传入；顺序由 `SLOT_ORDER` 决定，不由注册位置决定。
 - **新 provider**：在 `llm/providers/` 新建 `create<Vendor>Model`，自带 `ConnectionSchema`；走 OpenAI 兼容端点就建在 `createOpenAICompatModel` 之上。
 - **新业务模块**：导出自己的 agent 工厂 + tools + skills，在 `compose.ts` 展开组合；
   纯提示词/流程类的能力优先做成 `skills/` 下的技能，不必写代码。

@@ -1,17 +1,25 @@
-// Structured output: contributes the JSON instruction, then — at the end-of-turn
-// judgment — parses the final text once the loop would otherwise break, either
-// attaching the structured result to the terminal or failing the turn on invalid
-// JSON. Turns that continue (tool calls, empty output) are never parsed.
+// Structured output spans both axes: it asks for JSON (prompt) and it enforces
+// JSON (judgment). Those halves ship as one module so the request and the check
+// cannot drift, but they enter through different doors — the contributor is
+// registered on the prompt axis, the middleware on the execution axis. The
+// shared `hasStructuredOutputFormat` predicate is what keeps them in step.
+//
+// The middleware parses the final text only once the loop would otherwise break,
+// either attaching the structured result to the terminal or failing the turn on
+// invalid JSON. Turns that continue (tool calls, empty output) are never parsed.
 import type { MiddlewareFactory } from "@harness/agent/hooks"
+import type { PromptContributor } from "@harness/std/prompt"
 import type { OutputFormat } from "@harness/types"
 
+/** Prompt axis: states the requested schema. Absent unless this turn asked for JSON. */
+export const structuredOutputPrompt: PromptContributor = (ctx) => {
+  const text = buildStructuredOutputSystemPrompt(ctx.format)
+  return text ? { slot: "policy", text } : undefined
+}
+
+/** Execution axis: parses and validates the final text against that request. */
 export const structuredOutput: MiddlewareFactory = () => ({
   name: "structured-output",
-
-  assembleContext(ctx, draft) {
-    const prompt = buildStructuredOutputSystemPrompt(ctx.format)
-    return prompt ? { ...draft, system: [...draft.system, prompt] } : draft
-  },
 
   judgeTurn(ctx, judgment) {
     if (!hasStructuredOutputFormat(ctx.format)) return judgment

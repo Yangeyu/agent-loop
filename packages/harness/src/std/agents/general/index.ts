@@ -1,9 +1,8 @@
-import { deliverableGuidance } from "@harness/std/agents/general/middleware"
 import { GENERAL_INSTRUCTIONS } from "@harness/std/agents/general/prompt"
 import { baseMiddleware } from "@harness/std/agents/shared/base-middleware"
-import { BASE_AGENT_INSTRUCTIONS } from "@harness/std/agents/shared/base-prompt"
 import { defineAgent, type AgentDefinition } from "@harness/agent/blueprint"
 import type { Model } from "@harness/llm/types"
+import { availableSkills } from "@harness/std/tools/skill"
 
 /**
  * Builds the general-purpose delegated subagent. The atom declares what it
@@ -17,7 +16,7 @@ export function createGeneralAgent(deps: { model: Model }): AgentDefinition {
     description: "General-purpose subagent for multistep delegated work.",
     mode: "subagent",
     model: deps.model,
-    instructions: [...BASE_AGENT_INSTRUCTIONS, ...GENERAL_INSTRUCTIONS],
+    instructions: GENERAL_INSTRUCTIONS,
     tools: {
       read: true,
       write: true,
@@ -29,6 +28,6 @@ export function createGeneralAgent(deps: { model: Model }): AgentDefinition {
       skill: true,
     },
     steps: 4,
-    middleware: [...baseMiddleware(), deliverableGuidance],
+    middleware: baseMiddleware([availableSkills]),
   })
 }

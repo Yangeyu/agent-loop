@@ -1,9 +1,34 @@
 import { getDelegationDepthInfo, resolveSessionDepth } from "@harness/agent/policy"
 import { runSession } from "@harness/agent/loop"
 import type { Sessions } from "@harness/session"
+import type { PromptContributor } from "@harness/std/prompt"
 import { defineTool } from "@harness/tool/tool"
 import type { AssistantMessage, ToolDefinition } from "@harness/types"
 import { z } from "zod"
+
+/**
+ * Prompt axis: gives `subagent_type` a real domain. It ships with the tool
+ * because `mode === "subagent"` is one admission rule, and stating it twice in
+ * two files is how the advertised set and the accepted set drift apart.
+ */
+export const subagentList: PromptContributor = (ctx) => {
+  const subagents = ctx.agent_registry.list().filter(isDelegable)
+  if (subagents.length === 0) return undefined
+
+  return {
+    slot: "capability",
+    text: [
+      "Delegate work to these subagents via the task tool's subagent_type argument:",
+      "<available_subagents>",
+      ...subagents.map((agent) => `- ${agent.name}: ${agent.description ?? "Specialist subagent"}`),
+      "</available_subagents>",
+    ].join("\n"),
+  }
+}
+
+function isDelegable(agent: { mode: string }) {
+  return agent.mode === "subagent"
+}
 
 const BaseTaskParameters = {
   description: z.string().trim().min(3).max(120)
@@ -90,7 +115,7 @@ function createTaskTool<P extends z.ZodTypeAny>(input: {
     },
     async execute(args, ctx) {
       const agent = ctx.agent_registry.list().find((candidate) => candidate.name === args.subagent_type)
-      if (!agent || agent.mode !== "subagent") {
+      if (!agent || !isDelegable(agent)) {
         throw new Error(`Agent ${args.subagent_type} is not available for task delegation`)
       }
 
