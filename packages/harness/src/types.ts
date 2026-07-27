@@ -16,6 +16,7 @@ import type { Workspace } from "@harness/workspace"
 import type { z } from "zod"
 
 export type {
+  ActivityStatus,
   AssistantMessage,
   CompactionPart,
   ErrorInfo,

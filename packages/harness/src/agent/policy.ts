@@ -1,18 +1,11 @@
 /**
- * Pure resolution of retry/timeout/budget numbers from config + agent + session.
+ * Pure resolution of timeout/budget numbers from config + agent + session.
  * Budgets are *resolved* here but *enforced* by the budget middleware.
  */
 import type { Config } from "@harness/config"
 import type { AgentDefinition } from "@harness/agent/blueprint"
 import type { Sessions } from "@harness/session"
 import type { SessionInfo } from "@harness/types"
-
-/** Retry backoff bounds for a single turn's model call. */
-export type RetryPolicy = {
-  maxRetries: number
-  baseDelayMs: number
-  maxDelayMs: number
-}
 
 /** Per-turn timeout bound. */
 export type TimeoutPolicy = {
@@ -40,9 +33,8 @@ export type TurnBudgetPolicy = {
   maxSubagentDepth: number
 }
 
-/** The full set of execution bounds for a turn: retry + timeout + budget. */
+/** The full set of execution bounds for a turn: timeout + budget. */
 export type TurnExecutionPolicy = {
-  retry: RetryPolicy
   timeout: TimeoutPolicy
   // Max tool calls executed in parallel within one turn's fan-out. Resolved per
   // turn (not a shared semaphore), so a parent turn delegating to subagents that
@@ -58,7 +50,7 @@ export type TurnExecutionPolicy = {
  * @param config - the runtime config
  * @param agent - the agent blueprint (its per-agent step cap)
  * @param session - the current session (to count steps already used)
- * @returns the resolved retry/timeout/budget policy
+ * @returns the resolved timeout/budget policy
  */
 export function resolveTurnExecutionPolicy(config: Config, agent: AgentDefinition, session: SessionInfo): TurnExecutionPolicy {
   const maxAgentSteps = agent.steps ?? Number.POSITIVE_INFINITY
@@ -66,11 +58,6 @@ export function resolveTurnExecutionPolicy(config: Config, agent: AgentDefinitio
   const sessionStepsRemaining = Math.max(0, config.session_max_steps - sessionStepsUsed)
 
   return {
-    retry: {
-      maxRetries: config.model_max_retries,
-      baseDelayMs: config.model_retry_base_delay_ms,
-      maxDelayMs: config.model_retry_max_delay_ms,
-    },
     timeout: {
       turnTimeoutMs: config.turn_timeout_ms,
     },

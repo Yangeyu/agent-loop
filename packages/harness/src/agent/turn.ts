@@ -1,14 +1,12 @@
 /**
- * runTurn: a single model turn. Wraps the stream in retry and accumulates output
- * through the TurnRecorder. Aborts, stream failures, and tool stops are absorbed
- * into the recorder (its terminal transition) here; a clean model finish is NOT
- * terminated here — its finishReason is returned open so the loop can pass it
- * through the judgeTurn hook and apply the terminal exactly once.
+ * runTurn: a single model turn, in two halves. The model call goes through the
+ * `wrapModelCall` onion and returns the tool calls it issued; the batch runs
+ * afterwards, outside the onion — so a middleware retrying a failed stream can
+ * never replay tools, because at that point none have run.
  *
- * Tool calls are collected as they stream, then executed as one bounded-concurrency
- * batch once the stream drains (the provider emits all calls before `finish`, so
- * the batch is the whole turn's tool set). Per-call execution (core/tool-call.ts)
- * is pure; the batch's outcomes are reduced here into a single continue/stop.
+ * Aborts, stream failures, and tool stops are absorbed into the recorder here;
+ * a clean model finish is not — its finishReason is returned open so the loop
+ * can pass it through afterTurn and apply the terminal exactly once.
  */
 import type { TurnContext } from "@harness/agent/context"
 import type { TurnRecorder } from "@harness/agent/recorder"
@@ -20,9 +18,9 @@ import {
   type PreparedToolCall,
   type ToolCallOutcome,
 } from "@harness/agent/tool-call"
-import type { MiddlewareStack, ToolCall } from "@harness/agent/hooks"
+import type { MiddlewareStack, ModelCallResult, ToolCall } from "@harness/agent/hooks"
 import type { LLMInput, ModelMessage } from "@harness/llm/types"
-import { classifyRetry, isAbortError, retry, retryDelay, toErrorInfo } from "@harness/agent/retry"
+import { classifyRetry, isAbortError, toErrorInfo } from "@harness/agent/retry"
 import type { FinishReason } from "@harness/types"
 
 /** The assembled model input for one turn: system fragments + transformed messages. */
@@ -32,8 +30,7 @@ export type TurnInput = {
 }
 
 /**
- * Runs one model turn: streams (with retry) into the recorder, dispatching tool
- * calls as they settle.
+ * Runs one model turn: the wrapped model call, then its tool batch.
  *
  * @param ctx - the immutable turn context
  * @param stack - the agent's middleware stack, for the per-turn hooks
@@ -48,19 +45,15 @@ export async function runTurn(
   input: TurnInput,
 ): Promise<{ sawToolCall: boolean; finishReason?: FinishReason }> {
   try {
-    const result = await retry({
-      abort: ctx.abort,
-      maxRetries: ctx.policy.retry.maxRetries,
-      shouldRetry(error: unknown) {
-        return classifyRetry(error).retryable && recorder.retries < ctx.policy.retry.maxRetries
-      },
-      getDelay: (attempt) => retryDelay(attempt, ctx.policy.retry),
-      onRetry: () => recorder.recordRetry(),
-      run: () => runStreamOnce(ctx, stack, recorder, input),
-    })
+    const call = await stack.wrapModelCall(ctx, buildLLMInput(ctx, input), (request) =>
+      streamModelCall(ctx, recorder, request),
+    )
 
-    if (result.kind === "completed") return { sawToolCall: result.sawToolCall, finishReason: result.finishReason }
-    return { sawToolCall: false }
+    if (call.toolCalls.length === 0) return { sawToolCall: false, finishReason: call.finishReason }
+
+    const decision = await runToolCalls(ctx, stack, recorder, [...call.toolCalls])
+    if (decision.kind === "stop") return { sawToolCall: false }
+    return { sawToolCall: true, finishReason: call.finishReason }
   } catch (error) {
     if (isAbortError(error)) {
       recorder.abort()
@@ -71,28 +64,28 @@ export async function runTurn(
   }
 }
 
-async function runStreamOnce(
+// The innermost layer of the wrapModelCall onion: one stream, drained into the
+// recorder. Tool calls are collected rather than dispatched — the turn's full
+// tool set is known only once the stream drains, and running them as one batch
+// is what lets them execute concurrently. Streaming creates no tool parts, so a
+// mid-stream error leaves no half-open call behind.
+async function streamModelCall(
   ctx: TurnContext,
-  stack: MiddlewareStack,
   recorder: TurnRecorder,
-  input: TurnInput,
-): Promise<{ kind: "completed"; sawToolCall: boolean; finishReason?: FinishReason } | { kind: "stop" }> {
-  const stream = ctx.model.stream(buildLLMInput(ctx, input))
+  request: LLMInput,
+): Promise<ModelCallResult> {
+  const stream = ctx.model.stream(request)
 
   recorder.enterPhase("streaming")
 
-  // Collect tool calls as they stream rather than dispatching inline: the turn's
-  // full tool set is known only once the stream drains, and running them as one
-  // batch is what lets them execute concurrently. Streaming creates no tool parts,
-  // so a mid-stream error leaves no half-open call behind.
-  const pendingCalls: ToolCall[] = []
+  const toolCalls: ToolCall[] = []
   let finishReason: FinishReason | undefined
 
   for await (const chunk of stream.fullStream) {
     ctx.abort.throwIfAborted()
 
     if (chunk.type === "tool-call") {
-      pendingCalls.push({ toolName: chunk.toolName, toolCallId: chunk.toolCallId, args: chunk.args })
+      toolCalls.push({ toolName: chunk.toolName, toolCallId: chunk.toolCallId, args: chunk.args })
       continue
     }
     if (chunk.type === "error") throw chunk.error
@@ -109,12 +102,7 @@ async function runStreamOnce(
     }
   }
 
-  if (pendingCalls.length > 0) {
-    const decision = await runToolCalls(ctx, stack, recorder, pendingCalls)
-    if (decision.kind === "stop") return { kind: "stop" }
-  }
-
-  return { kind: "completed", sawToolCall: pendingCalls.length > 0, finishReason }
+  return { finishReason, toolCalls }
 }
 
 /**

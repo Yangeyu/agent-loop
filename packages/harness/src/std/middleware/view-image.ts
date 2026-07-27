@@ -3,7 +3,7 @@
 // emits image blocks with their raw source (kept pure/sync), and this middleware
 // reads local `file` sources off disk and base64-encodes them. `base64` (pasted
 // screenshots) and `url` sources pass through untouched. Runs inside the
-// assembleContext fold (messages -> messages, no store writes), so it does not
+// beforeModelCall fold (messages -> messages, no store writes), so it does not
 // break fold purity.
 import { resolveImageSource } from "@harness/llm/image"
 import type { ModelContentBlock, ModelMessage } from "@harness/llm/types"
@@ -12,7 +12,7 @@ import type { MiddlewareFactory } from "@harness/agent/hooks"
 export const viewImage: MiddlewareFactory = () => ({
   name: "view-image",
 
-  async assembleContext(ctx, draft) {
+  async beforeModelCall(ctx, draft) {
     if (!ctx.model.spec.capabilities.vision) return draft
     return { ...draft, messages: await Promise.all(draft.messages.map(resolveMessageImages)) }
   },

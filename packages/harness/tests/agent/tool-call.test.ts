@@ -3,7 +3,7 @@ import { createToolContext } from "../support/tool-context"
 import { createAgentRegistry } from "@harness/agent/registry"
 import { defineAgent } from "@harness/agent/blueprint"
 import { loadConfigFromEnv } from "@harness/config"
-import { createTurnContext } from "@harness/agent/context"
+import { createRunContext, createTurnContext } from "@harness/agent/context"
 import { resolveTurnExecutionPolicy } from "@harness/agent/policy"
 import { TurnRecorder } from "@harness/agent/recorder"
 import { executeToolCall, openToolPart, prepareToolCall } from "@harness/agent/tool-call"
@@ -260,20 +260,6 @@ function createToolCallHarness(tool: ToolDefinition) {
     workspace: createWorkspace(),
   }
 
-  const ctx = createTurnContext({
-    deps,
-    agent,
-    model: agent.model,
-    policy: resolveTurnExecutionPolicy(config, agent, sessions.get(session.id)),
-    sessionID: session.id,
-    rootID: session.rootID,
-    user,
-    messageID: assistant.id,
-    tools: [tool],
-    step: 1,
-    abort: new AbortController().signal,
-  })
-
   // Appends the assistant message and owns the turn lifecycle.
   const recorder = new TurnRecorder({
     sessions,
@@ -286,6 +272,25 @@ function createToolCallHarness(tool: ToolDefinition) {
     assistant,
   })
   recorder.enterPhase("streaming")
+
+  const ctx = createTurnContext({
+    run: createRunContext({
+      deps,
+      agent,
+      model: agent.model,
+      sessionID: session.id,
+      abort: new AbortController().signal,
+    }),
+    deps,
+    policy: resolveTurnExecutionPolicy(config, agent, sessions.get(session.id)),
+    rootID: session.rootID,
+    user,
+    messageID: assistant.id,
+    tools: [tool],
+    step: 1,
+    abort: new AbortController().signal,
+    openActivity: (activity) => recorder.openActivity(activity),
+  })
 
   const stack = MiddlewareStack.build([])
 

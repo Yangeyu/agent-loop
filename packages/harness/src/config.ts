@@ -1,6 +1,10 @@
 import { z } from "zod"
 import type { SessionPersistenceConfig } from "@harness/session/persistence"
 
+// Shared with the retry middleware, so its default and the config default are
+// one number rather than two that agree today.
+export const RETRY_DEFAULTS = { maxRetries: 2, baseDelayMs: 500, maxDelayMs: 4000 }
+
 const ConfigSchema = z.object({
   session_store: z.enum(["memory", "file"]).default("memory"),
   session_store_dir: z.string().default("./data/sessions"),
@@ -12,9 +16,9 @@ const ConfigSchema = z.object({
   // read/write/bash tools are. Built-in skills ship with the code; these travel
   // with the workspace, so an absent default directory just means "none".
   skills_dir: z.string().default("./skills"),
-  model_max_retries: z.coerce.number().int().min(0).default(2),
-  model_retry_base_delay_ms: z.coerce.number().int().min(1).default(500),
-  model_retry_max_delay_ms: z.coerce.number().int().min(1).default(4000),
+  model_max_retries: z.coerce.number().int().min(0).default(RETRY_DEFAULTS.maxRetries),
+  model_retry_base_delay_ms: z.coerce.number().int().min(1).default(RETRY_DEFAULTS.baseDelayMs),
+  model_retry_max_delay_ms: z.coerce.number().int().min(1).default(RETRY_DEFAULTS.maxDelayMs),
   // Assistant turns across a whole session, spanning every run in it. A single
   // long deliverable can spend a run's worth of steps, so this sits well above
   // any one agent's cap rather than being the thing that cuts a run short.

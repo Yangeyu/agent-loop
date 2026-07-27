@@ -19,11 +19,13 @@ import { engineConventions } from "@harness/std/agents/shared/base-prompt"
 import type { MiddlewareFactory } from "@harness/agent/hooks"
 import {
   budget,
+  createRetry,
   doomLoop,
   promptAssembly,
   stepGuidance,
   structuredOutput,
   structuredOutputPrompt,
+  type RetryOptions,
 } from "@harness/std/middleware"
 import type { PromptContributor } from "@harness/std/prompt"
 
@@ -31,9 +33,16 @@ import type { PromptContributor } from "@harness/std/prompt"
  * Builds an agent's base middleware stack.
  *
  * @param prompt - contributors this agent adds, typically one per tool it enables
+ * @param retry - model-call retry bounds; defaults match the config's
  */
-export function baseMiddleware(prompt: readonly PromptContributor[] = []): MiddlewareFactory[] {
+export function baseMiddleware(
+  prompt: readonly PromptContributor[] = [],
+  retry?: RetryOptions,
+): MiddlewareFactory[] {
   return [
+    // Outermost, so every other middleware sees one settled model call rather
+    // than each failed attempt.
+    createRetry(retry),
     promptAssembly([engineConventions, structuredOutputPrompt, stepGuidance, ...prompt]),
     structuredOutput,
     budget,

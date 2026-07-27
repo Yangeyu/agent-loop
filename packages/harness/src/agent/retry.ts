@@ -1,19 +1,10 @@
 /**
- * Error classification + the generic retry driver shared by the turn loop.
- * classifyRetry decides what is retryable; retry() runs an operation with
- * exponential backoff and abort support.
+ * Failure classification for the model port: whether a provider error is worth
+ * another attempt, and how any thrown value becomes the ErrorInfo stored on a
+ * part. Anyone wrapping a model call needs this; the retry *policy* built on it
+ * is a middleware (std/middleware/retry.ts).
  */
 import type { ErrorInfo } from "@harness/types"
-import type { RetryPolicy } from "@harness/agent/policy"
-
-type RetryInput<T> = {
-  abort: AbortSignal
-  maxRetries: number
-  shouldRetry(error: unknown, attempt: number): boolean
-  getDelay(attempt: number): number
-  onRetry?(error: unknown, attempt: number): Promise<void> | void
-  run(): Promise<T>
-}
 
 /** The bucket an error falls into for retry/telemetry purposes. */
 export type RetryCategory =
@@ -114,56 +105,4 @@ export function toErrorInfo(error: unknown, retryable: boolean): ErrorInfo {
     message: String(error),
     retryable,
   }
-}
-
-/**
- * Exponential backoff delay for an attempt, capped at the policy's max.
- *
- * @param attempt - the 1-based retry attempt number
- * @param policy - the retry policy (base/max delays)
- * @returns the delay in milliseconds
- */
-export function retryDelay(attempt: number, policy: RetryPolicy): number {
-  return Math.min(policy.baseDelayMs * 2 ** (attempt - 1), policy.maxDelayMs)
-}
-
-function sleep(ms: number, abort: AbortSignal): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      abort.removeEventListener("abort", onAbort)
-      resolve()
-    }, ms)
-
-    const onAbort = () => {
-      clearTimeout(timeout)
-      reject(new DOMException("Aborted", "AbortError"))
-    }
-
-    abort.addEventListener("abort", onAbort, { once: true })
-  })
-}
-
-/**
- * Runs an operation with retries: on failure, consults shouldRetry, invokes the
- * optional onRetry, sleeps for getDelay, and tries again until maxRetries.
- *
- * @param input - the operation plus retry policy callbacks and abort signal
- * @returns the operation's resolved value
- * @throws the last error if retries are exhausted or shouldRetry returns false
- */
-export async function retry<T>(input: RetryInput<T>): Promise<T> {
-  for (let attempt = 0; attempt <= input.maxRetries; attempt += 1) {
-    try {
-      return await input.run()
-    } catch (error) {
-      const canRetry = attempt < input.maxRetries && input.shouldRetry(error, attempt)
-      if (!canRetry) throw error
-
-      const nextAttempt = attempt + 1
-      await input.onRetry?.(error, nextAttempt)
-      await sleep(input.getDelay(nextAttempt), input.abort)
-    }
-  }
-
-  throw new Error("Retry attempts exhausted")
 }

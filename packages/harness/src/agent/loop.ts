@@ -7,26 +7,28 @@
  * Lifecycle (this file is the authoritative ordering of the hook points):
  *
  *   runSession ── append user message ──► runLoop
+ *     beforeRun
  *     per step (one turn):
  *       TurnRecorder created (appends assistant message, emits turn.start)
  *       beforeTurn ──────────(gate stops)──► recorder.finish & return
- *       assembleContext                        (system + messages draft, after beforeTurn)
+ *       beforeModelCall                        (system + messages draft)
  *       runTurn:
- *         stream ─► tool dispatch (beforeToolCall → execute → afterToolCall)
- *                ─► returns the still-open finishReason on a clean finish
- *       judgeTurn ─► apply terminal (exactly once) ─► (break) return ; else next step
+ *         wrapModelCall( stream ) ─► tool batch (beforeToolCall → execute → afterToolCall)
+ *                                 ─► returns the still-open finishReason on a clean finish
+ *       afterTurn ─► apply terminal (exactly once) ─► (break) return ; else next step
+ *     afterRun (in a finally)
  *
  * The loop itself emits only session.start; turn-scoped telemetry (turn.start /
  * turn.phase / turn.end) is the recorder's, and all session content flows
  * through the Sessions aggregate, which emits the state channel by itself.
  */
 import type { AgentDefinition } from "@harness/agent/blueprint"
-import { createTurnContext, type EngineDeps } from "@harness/agent/context"
+import { createRunContext, createTurnContext, type EngineDeps } from "@harness/agent/context"
 import { baseOutcome } from "@harness/agent/outcome"
 import { createTurnAbortSignal, resolveTurnExecutionPolicy } from "@harness/agent/policy"
 import { TurnRecorder } from "@harness/agent/recorder"
 import { runTurn } from "@harness/agent/turn"
-import { MiddlewareStack } from "@harness/agent/hooks"
+import { MiddlewareStack, type TurnOutcomeReason } from "@harness/agent/hooks"
 import { toModelMessages } from "@harness/llm/message"
 import {
   createID,
@@ -105,99 +107,112 @@ export async function runLoop(
   const model = input.agent.model
   const stack = MiddlewareStack.build(input.agent.assemble().middleware)
   const rootAbort = input.abort ?? new AbortController().signal
+  const run = createRunContext({ deps, agent: input.agent, model, sessionID: input.sessionID, abort: rootAbort })
+
+  await stack.beforeRun(run)
 
   let step = 0
-  while (true) {
-    step += 1
-    const session = sessions.get(input.sessionID)
-    const user = resolveLastUserMessage(session)
-    const policy = resolveTurnExecutionPolicy(deps.config, input.agent, session)
-    const tools = [...(await deps.tool_registry.toolsForAgent(input.agent))]
+  let reason: TurnOutcomeReason = "completed_without_output"
 
-    const assistant: AssistantMessage = {
-      id: createID(),
-      role: "assistant",
-      parentID: user.id,
-      agent: input.agent.name,
-      model: { providerID: model.providerID, modelID: model.spec.id },
-      time: { created: Date.now() },
-    }
+  try {
+    while (true) {
+      step += 1
+      const session = sessions.get(input.sessionID)
+      const user = resolveLastUserMessage(session)
+      const policy = resolveTurnExecutionPolicy(deps.config, input.agent, session)
+      const tools = [...(await deps.tool_registry.toolsForAgent(input.agent))]
 
-    const turnAbort = createTurnAbortSignal({ parent: rootAbort, timeoutMs: policy.timeout.turnTimeoutMs })
-    const ctx = createTurnContext({
-      deps,
-      agent: input.agent,
-      model,
-      policy,
-      sessionID: input.sessionID,
-      rootID: session.rootID,
-      user,
-      messageID: assistant.id,
-      tools,
-      step,
-      abort: turnAbort.signal,
-    })
-
-    // Appends the assistant message and emits turn.start; from here the
-    // recorder owns the turn's accumulation and terminal transition.
-    const recorder = new TurnRecorder({
-      sessions,
-      loop: deps.events.loop,
-      sessionID: input.sessionID,
-      rootID: session.rootID,
-      agent: input.agent.name,
-      step,
-      maxSteps: policy.budget.maxAgentSteps,
-      assistant,
-    })
-
-    try {
-      const gate = await stack.beforeTurn(ctx)
-      if (!gate.proceed) {
-        recorder.finish("stop")
-        if (gate.note) recorder.appendNote(gate.note)
-        return sessions.get(input.sessionID)
+      const assistant: AssistantMessage = {
+        id: createID(),
+        role: "assistant",
+        parentID: user.id,
+        agent: input.agent.name,
+        model: { providerID: model.providerID, modelID: model.spec.id },
+        time: { created: Date.now() },
       }
 
-      // The engine seeds the draft with the agent's own instructions, so an
-      // agent with zero middleware still speaks its blueprint; middleware then
-      // wraps/extends the draft (base prompt, skills, structured output, …).
-      const draft = await stack.assembleContext(ctx, {
-        system: [...input.agent.instructions],
-        messages: toModelMessages(sessions.get(input.sessionID)),
+      const turnAbort = createTurnAbortSignal({ parent: rootAbort, timeoutMs: policy.timeout.turnTimeoutMs })
+
+      // Appends the assistant message and emits turn.start; from here the
+      // recorder owns the turn's accumulation and terminal transition. It comes
+      // before the context because the context borrows its activity emitter —
+      // turn-scoped loop telemetry has exactly one owner.
+      const recorder = new TurnRecorder({
+        sessions,
+        loop: deps.events.loop,
+        sessionID: input.sessionID,
+        rootID: session.rootID,
+        agent: input.agent.name,
+        step,
+        maxSteps: policy.budget.maxAgentSteps,
+        assistant,
       })
 
-      const { sawToolCall, finishReason } = await runTurn(ctx, stack, recorder, draft)
-
-      // One judgment per turn: the stack sees how the turn ended and settles the
-      // terminal (open only on a clean finish) and the loop continuation together.
-      const judgment = await stack.judgeTurn(ctx, {
-        finish: {
-          finishReason,
-          text: sessions.messageText(input.sessionID, assistant.id, { includeSynthetic: false }),
-        },
-        terminal: finishReason !== undefined ? { ok: true } : undefined,
-        outcome: baseOutcome(ctx, sawToolCall),
+      const ctx = createTurnContext({
+        run,
+        deps,
+        policy,
+        rootID: session.rootID,
+        user,
+        messageID: assistant.id,
+        tools,
+        step,
+        abort: turnAbort.signal,
+        openActivity: (activity) => recorder.openActivity(activity),
       })
 
-      let outcome = judgment.outcome
-      if (finishReason !== undefined) {
-        const terminal = judgment.terminal ?? { ok: true }
-        if (terminal.ok) {
-          recorder.finish(terminal.finishReason ?? finishReason, terminal.structured)
-        } else {
-          recorder.fail(terminal.error)
-          // A failed terminal must not let the loop keep going on a stale
-          // continue: default to breaking as an assistant error.
-          if (outcome.kind === "continue") outcome = { kind: "break", reason: "assistant_error" }
+      try {
+        const gate = await stack.beforeTurn(ctx)
+        if (!gate.proceed) {
+          reason = gate.reason
+          recorder.finish("stop")
+          if (gate.note) recorder.appendNote(gate.note)
+          return sessions.get(input.sessionID)
         }
-      }
 
-      if (outcome.kind === "break" && outcome.note) recorder.appendNote(outcome.note)
-      if (outcome.kind === "break") return sessions.get(input.sessionID)
-    } finally {
-      turnAbort.dispose()
+        // The engine seeds the draft with the agent's own instructions, so an
+        // agent with zero middleware still speaks its blueprint; middleware then
+        // wraps/extends the draft (base prompt, skills, structured output, …).
+        const draft = await stack.beforeModelCall(ctx, {
+          system: [...input.agent.instructions],
+          messages: toModelMessages(sessions.get(input.sessionID)),
+        })
+
+        const { sawToolCall, finishReason } = await runTurn(ctx, stack, recorder, draft)
+
+        // One judgment per turn: the stack sees how the turn ended and settles the
+        // terminal (open only on a clean finish) and the loop continuation together.
+        const judgment = await stack.afterTurn(ctx, {
+          finish: {
+            finishReason,
+            text: sessions.messageText(input.sessionID, assistant.id, { includeSynthetic: false }),
+          },
+          terminal: finishReason !== undefined ? { ok: true } : undefined,
+          outcome: baseOutcome(ctx, sawToolCall),
+        })
+
+        let outcome = judgment.outcome
+        if (finishReason !== undefined) {
+          const terminal = judgment.terminal ?? { ok: true }
+          if (terminal.ok) {
+            recorder.finish(terminal.finishReason ?? finishReason, terminal.structured)
+          } else {
+            recorder.fail(terminal.error)
+            // A failed terminal must not let the loop keep going on a stale
+            // continue: default to breaking as an assistant error.
+            if (outcome.kind === "continue") outcome = { kind: "break", reason: "assistant_error" }
+          }
+        }
+
+        reason = outcome.reason
+        if (outcome.kind === "break" && outcome.note) recorder.appendNote(outcome.note)
+        if (outcome.kind === "break") return sessions.get(input.sessionID)
+      } finally {
+        turnAbort.dispose()
+      }
     }
+  } finally {
+    await stack.afterRun(run, { steps: step, reason })
   }
 }
 

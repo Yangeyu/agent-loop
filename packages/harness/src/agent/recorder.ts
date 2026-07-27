@@ -13,11 +13,13 @@
  * previously shadowed the store on the turn context — phase, open part cursors,
  * counters — lives here, with the store as the only other copy.
  */
+import type { ActivityHandle } from "@harness/agent/hooks"
 import { ToolPartTracker } from "@harness/agent/tool-part"
 import type { EventChannel } from "@harness/event/bus"
 import type { Sessions } from "@harness/session"
 import {
   createID,
+  type ActivityStatus,
   type AssistantMessage,
   type ErrorInfo,
   type FinishReason,
@@ -44,7 +46,6 @@ export class TurnRecorder {
   private sawText = false
   private sawReasoning = false
   private toolCallCount = 0
-  private retryCount = 0
   private ended = false
   private readonly startedAt = Date.now()
   private current: AssistantMessage
@@ -84,11 +85,6 @@ export class TurnRecorder {
   /** How many tool calls this turn has issued. */
   get toolCalls(): number {
     return this.toolCallCount
-  }
-
-  /** How many model-call retries this turn has recorded. */
-  get retries(): number {
-    return this.retryCount
   }
 
   /**
@@ -190,9 +186,39 @@ export class TurnRecorder {
     })
   }
 
-  /** Records a model-call retry (feeds the retry budget check). */
-  recordRetry() {
-    this.retryCount += 1
+  /**
+   * Opens an activity for a named producer and emits its start. The handle is
+   * how a middleware reports what it is doing without holding the event bus.
+   *
+   * @param input - the producer's name, what it is doing, and optional detail
+   * @returns the handle that updates and closes this activity
+   */
+  openActivity(input: { source: string; label: string; detail?: string }): ActivityHandle {
+    const emit = (status: ActivityStatus, detail?: string) => {
+      this.input.loop.emit({
+        type: "turn.activity",
+        ...this.envelope(),
+        messageID: this.messageID,
+        source: input.source,
+        status,
+        label: input.label,
+        detail,
+      })
+    }
+
+    emit("start", input.detail)
+    let ended = false
+
+    return {
+      update(detail) {
+        if (!ended) emit("update", detail)
+      },
+      end(detail) {
+        if (ended) return
+        ended = true
+        emit("end", detail)
+      },
+    }
   }
 
   /** Terminates the turn as finished (model completed), optionally with structured output. */

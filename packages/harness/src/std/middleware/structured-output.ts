@@ -21,7 +21,7 @@ export const structuredOutputPrompt: PromptContributor = (ctx) => {
 export const structuredOutput: MiddlewareFactory = () => ({
   name: "structured-output",
 
-  judgeTurn(ctx, judgment) {
+  afterTurn(ctx, judgment) {
     if (!hasStructuredOutputFormat(ctx.format)) return judgment
     // Only judge a turn that ended cleanly and is about to conclude the loop:
     // intermediate tool-call turns have no final text to parse.

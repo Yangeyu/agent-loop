@@ -66,7 +66,7 @@ export const budget: MiddlewareFactory = () => {
       return { action: "proceed" }
     },
 
-    judgeTurn(ctx, judgment) {
+    afterTurn(ctx, judgment) {
       const outcome = judgment.outcome
       if (outcome.kind !== "continue") return judgment
       if (!isFinalAllowedStep(ctx.policy.budget, ctx.step)) return judgment

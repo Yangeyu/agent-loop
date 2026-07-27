@@ -247,15 +247,18 @@ export type StateEvent =
 // Loop events — emitted by the engine; the live activity protocol of the loop.
 // ---------------------------------------------------------------------------
 // Loop events answer "what is the loop busy with right now" and nothing more:
-// a run began, a turn began, the turn changed phase, the turn ended. Every fact
-// that must survive replay travels on the state channel instead. `messageID` is
-// the assistant message the turn produces.
+// a run began, a turn began, the turn changed phase, a participant reported an
+// activity, the turn ended. Every fact that must survive replay travels on the
+// state channel instead. `messageID` is the assistant message the turn produces.
 
 export type LoopEnvelope = {
   readonly sessionID: string
   readonly rootID: string
   readonly agent: string
 }
+
+/** The three points of one reported activity. */
+export type ActivityStatus = "start" | "update" | "end"
 
 export type LoopEvent =
   | (LoopEnvelope & { readonly type: "session.start"; readonly text: string })
@@ -268,6 +271,26 @@ export type LoopEvent =
       readonly maxSteps: number
     })
   | (LoopEnvelope & { readonly type: "turn.phase"; readonly messageID: string; readonly phase: TurnPhase })
+  // What a participant other than the loop itself is busy with. `phase` covers
+  // the loop's own steps; this covers everything the loop delegates — compacting
+  // history, retrying a model call — which would otherwise be indistinguishable
+  // from a stalled turn.
+  //
+  // The payload is semantic rather than an open `data` bag, for the same reason
+  // ToolDisplay is: a consumer must be able to render it without branching on
+  // who produced it.
+  | (LoopEnvelope & {
+      readonly type: "turn.activity"
+      readonly messageID: string
+      // The producer, for correlating one activity's start/update/end — not a
+      // discriminant to render on.
+      readonly source: string
+      readonly status: ActivityStatus
+      // What it is doing, in the producer's own words: "compacting history".
+      readonly label: string
+      // Optional refinement: "attempt 2 of 3", "12k → 4k tokens".
+      readonly detail?: string
+    })
   | (LoopEnvelope & {
       readonly type: "turn.end"
       readonly messageID: string

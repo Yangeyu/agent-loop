@@ -20,7 +20,15 @@ function assembleApp(config: Config) {
   const summarizer = createDashScopeModel({ modelID: SUMMARIZER_MODEL_ID })
 
   return {
-    agents: createCoreAgents({ model: chat, summarizer }),
+    agents: createCoreAgents({
+      model: chat,
+      summarizer,
+      retry: {
+        maxRetries: config.model_max_retries,
+        baseDelayMs: config.model_retry_base_delay_ms,
+        maxDelayMs: config.model_retry_max_delay_ms,
+      },
+    }),
     // The chat model is multimodal; view_image reuses it as the vision model.
     tools: createCoreTools({ visionModel: chat }),
     // Skills come from the workspace's own skills_dir, discovered from where the

@@ -20,7 +20,7 @@ export function promptAssembly(contributors: readonly PromptContributor[]): Midd
   return () => ({
     name: "prompt-assembly",
 
-    async assembleContext(ctx, draft) {
+    async beforeModelCall(ctx, draft) {
       // The engine seeds the draft with the agent's own `instructions` so an
       // agent with zero middleware still speaks its blueprint. Those fragments
       // are the identity slot's content — the agent's words are not a separate

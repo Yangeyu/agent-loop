@@ -3,14 +3,16 @@ import { baseMiddleware } from "@harness/std/agents/shared/base-middleware"
 import { defineAgent, type AgentDefinition } from "@harness/agent/blueprint"
 import type { Model } from "@harness/llm/types"
 import { availableSkills } from "@harness/std/tools/skill"
+import type { RetryOptions } from "@harness/std/middleware"
 
 /**
  * Builds the general-purpose delegated subagent. The atom declares what it
  * needs (a Model); the composition root decides which provider satisfies it.
  *
  * @param deps.model - the chat model this agent runs on
+ * @param deps.retry - model-call retry bounds
  */
-export function createGeneralAgent(deps: { model: Model }): AgentDefinition {
+export function createGeneralAgent(deps: { model: Model; retry?: RetryOptions }): AgentDefinition {
   return defineAgent({
     name: "general",
     description: "General-purpose subagent for multistep delegated work.",
@@ -28,6 +30,6 @@ export function createGeneralAgent(deps: { model: Model }): AgentDefinition {
       skill: true,
     },
     steps: 4,
-    middleware: baseMiddleware([availableSkills]),
+    middleware: baseMiddleware([availableSkills], deps.retry),
   })
 }

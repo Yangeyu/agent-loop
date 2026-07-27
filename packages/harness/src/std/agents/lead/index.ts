@@ -2,7 +2,7 @@ import { LEAD_INSTRUCTIONS } from "@harness/std/agents/lead/prompt"
 import { baseMiddleware } from "@harness/std/agents/shared/base-middleware"
 import { defineAgent, type AgentDefinition } from "@harness/agent/blueprint"
 import type { Model } from "@harness/llm/types"
-import { createCompaction, viewImage } from "@harness/std/middleware"
+import { createCompaction, viewImage, type RetryOptions } from "@harness/std/middleware"
 import { availableSkills } from "@harness/std/tools/skill"
 import { subagentList } from "@harness/std/tools/task"
 
@@ -13,8 +13,9 @@ import { subagentList } from "@harness/std/tools/task"
  *
  * @param deps.model - the chat model this agent runs on
  * @param deps.summarizer - the model compaction summarizes older history with
+ * @param deps.retry - model-call retry bounds
  */
-export function createLeadAgent(deps: { model: Model; summarizer: Model }): AgentDefinition {
+export function createLeadAgent(deps: { model: Model; summarizer: Model; retry?: RetryOptions }): AgentDefinition {
   return defineAgent({
     name: "lead",
     description: "Primary orchestration agent and execution entry point.",
@@ -43,7 +44,7 @@ export function createLeadAgent(deps: { model: Model; summarizer: Model }): Agen
     // One contributor per capability-bearing tool above: `skill` announces what
     // it can load, `task` announces who it can delegate to.
     middleware: [
-      ...baseMiddleware([availableSkills, subagentList]),
+      ...baseMiddleware([availableSkills, subagentList], deps.retry),
       viewImage,
       createCompaction({ summarizer: deps.summarizer }),
     ],

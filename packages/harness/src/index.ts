@@ -30,6 +30,7 @@ export { baseMiddleware } from "@harness/std/agents/shared/base-middleware"
 // Middleware library + hook contracts. Middleware that also contributes a prompt
 // fragment exports both halves (budget/stepGuidance, structuredOutput/…Prompt).
 export {
+  createRetry,
   promptAssembly,
   structuredOutput,
   structuredOutputPrompt,
@@ -38,6 +39,7 @@ export {
   doomLoop,
   createCompaction,
   viewImage,
+  type RetryOptions,
 } from "@harness/std/middleware"
 
 // Prompt composition: the shared slot vocabulary. Every fragment itself lives

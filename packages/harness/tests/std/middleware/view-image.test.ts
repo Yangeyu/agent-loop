@@ -6,7 +6,7 @@ import { viewImage } from "@harness/std/middleware/view-image"
 import type { HookContext } from "@harness/agent/hooks"
 import type { ModelMessage } from "@harness/llm/types"
 
-const assemble = viewImage().assembleContext!
+const assemble = viewImage().beforeModelCall!
 // The middleware only reads ctx.model.spec.capabilities.vision; stub a vision model.
 const ctx = { model: { spec: { capabilities: { vision: true } } } } as unknown as HookContext
 
