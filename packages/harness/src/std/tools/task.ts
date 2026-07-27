@@ -1,33 +1,54 @@
-import { getDelegationDepthInfo, resolveSessionDepth } from "@harness/agent/policy"
 import { runSession } from "@harness/agent/loop"
+import type { AgentRegistry, HarnessAgent } from "@harness/agent/registry"
+import type { Config } from "@harness/config"
 import type { Sessions } from "@harness/session"
 import type { PromptContributor } from "@harness/std/prompt"
 import { defineTool } from "@harness/tool/tool"
 import type { AssistantMessage, ToolDefinition } from "@harness/types"
 import { z } from "zod"
 
+/** What delegation needs: who may be delegated to, and how deep it may go. */
+export type TaskDeps = { agents: AgentRegistry; config: Config }
+
 /**
  * Prompt axis: gives `subagent_type` a real domain. It ships with the tool
  * because `mode === "subagent"` is one admission rule, and stating it twice in
  * two files is how the advertised set and the accepted set drift apart.
  */
-export const subagentList: PromptContributor = (ctx) => {
-  const subagents = ctx.agent_registry.list().filter(isDelegable)
-  if (subagents.length === 0) return undefined
+export function createSubagentList(deps: { agents: AgentRegistry }): PromptContributor {
+  return () => {
+    const subagents = deps.agents.list().filter(isDelegable)
+    if (subagents.length === 0) return undefined
 
-  return {
-    slot: "capability",
-    text: [
-      "Delegate work to these subagents via the task tool's subagent_type argument:",
-      "<available_subagents>",
-      ...subagents.map((agent) => `- ${agent.name}: ${agent.description ?? "Specialist subagent"}`),
-      "</available_subagents>",
-    ].join("\n"),
+    return {
+      slot: "capability",
+      text: [
+        "Delegate work to these subagents via the task tool's subagent_type argument:",
+        "<available_subagents>",
+        ...subagents.map((agent) => `- ${agent.name}: ${agent.description ?? "Specialist subagent"}`),
+        "</available_subagents>",
+      ].join("\n"),
+    }
   }
 }
 
-function isDelegable(agent: { mode: string }) {
+function isDelegable(agent: HarnessAgent) {
   return agent.mode === "subagent"
+}
+
+// Delegation depth is measured by walking the session tree, which only this tool
+// does: a session's parent chain is a fact about the store, but "how deep may we
+// delegate" is a fact about delegation. It lives with the tool that asks.
+function resolveSessionDepth(sessions: Sessions, sessionID: string) {
+  let depth = 0
+  let current = sessions.get(sessionID)
+
+  while (current.parentID) {
+    depth += 1
+    current = sessions.get(current.parentID)
+  }
+
+  return depth
 }
 
 const BaseTaskParameters = {
@@ -49,23 +70,29 @@ export const TaskResumeParameters = z.object({
 export type TaskArgs = z.infer<typeof TaskParameters>
 export type TaskResumeArgs = z.infer<typeof TaskResumeParameters>
 
-export const TaskTool: ToolDefinition<TaskArgs> = createTaskTool({
-  id: "task",
-  description:
-    "Start a new subagent in a new child session. Always use this to begin delegated work and do not pass any previous task id.",
-  parameters: TaskParameters,
-  resume: false,
-})
+/** Builds the task tool: starts a subagent in a fresh child session. */
+export function createTaskTool(deps: TaskDeps): ToolDefinition<TaskArgs> {
+  return defineDelegationTool(deps, {
+    id: "task",
+    description:
+      "Start a new subagent in a new child session. Always use this to begin delegated work and do not pass any previous task id.",
+    parameters: TaskParameters,
+    resume: false,
+  })
+}
 
-export const TaskResumeTool: ToolDefinition<TaskResumeArgs> = createTaskTool({
-  id: "task_resume",
-  description:
-    "Resume an existing delegated subagent using a previously returned task_id from the current parent session. Use this only when you intentionally continue that exact child session.",
-  parameters: TaskResumeParameters,
-  resume: true,
-})
+/** Builds the task_resume tool: continues a child session this session started. */
+export function createTaskResumeTool(deps: TaskDeps): ToolDefinition<TaskResumeArgs> {
+  return defineDelegationTool(deps, {
+    id: "task_resume",
+    description:
+      "Resume an existing delegated subagent using a previously returned task_id from the current parent session. Use this only when you intentionally continue that exact child session.",
+    parameters: TaskResumeParameters,
+    resume: true,
+  })
+}
 
-function createTaskTool<P extends z.ZodTypeAny>(input: {
+function defineDelegationTool<P extends z.ZodTypeAny>(deps: TaskDeps, input: {
   id: string
   description: string
   parameters: P
@@ -114,20 +141,16 @@ function createTaskTool<P extends z.ZodTypeAny>(input: {
       }
     },
     async execute(args, ctx) {
-      const agent = ctx.agent_registry.list().find((candidate) => candidate.name === args.subagent_type)
+      const agent = deps.agents.list().find((candidate) => candidate.name === args.subagent_type)
       if (!agent || !isDelegable(agent)) {
         throw new Error(`Agent ${args.subagent_type} is not available for task delegation`)
       }
 
       const sessions = ctx.sessions
-      const depth = getDelegationDepthInfo({
-        sessions,
-        sessionID: ctx.sessionID,
-        maxDepth: ctx.config.subagent_max_depth,
-      })
-
-      if (!depth.allowed) {
-        throw new Error(`Subagent depth limit reached: attempted depth ${depth.nextDepth}, max ${depth.maxDepth}`)
+      const maxDepth = deps.config.subagent_max_depth
+      const nextDepth = resolveSessionDepth(sessions, ctx.sessionID) + 1
+      if (nextDepth > maxDepth) {
+        throw new Error(`Subagent depth limit reached: attempted depth ${nextDepth}, max ${maxDepth}`)
       }
 
       const child = input.resume
@@ -143,21 +166,21 @@ function createTaskTool<P extends z.ZodTypeAny>(input: {
             sessions,
           })
 
+      // Re-checked on the child itself: a resumed session's depth is whatever
+      // its own parent chain says, not one more than the caller's.
       const childDepth = resolveSessionDepth(sessions, child.id)
-      if (childDepth > ctx.config.subagent_max_depth) {
-        throw new Error(`Subagent depth limit reached: attempted depth ${childDepth}, max ${ctx.config.subagent_max_depth}`)
+      if (childDepth > maxDepth) {
+        throw new Error(`Subagent depth limit reached: attempted depth ${childDepth}, max ${maxDepth}`)
       }
 
+      // The subagent shares the parent's session store and event bus; the tools
+      // it runs share the workspace they were built with, which is what makes
+      // concurrent delegation safe without the two sessions coordinating.
       await runSession({
-        config: ctx.config,
-        agent_registry: ctx.agent_registry,
-        skill_registry: ctx.skill_registry,
+        config: deps.config,
         sessions: ctx.sessions,
-        tool_registry: ctx.tool_registry,
         events: ctx.events,
-        // The subagent shares the parent's workspace: that shared owner is what
-        // makes concurrent delegation safe without the two sessions coordinating.
-        workspace: ctx.workspace,
+        agent_registry: deps.agents,
       }, {
         sessionID: child.id,
         text: args.prompt,

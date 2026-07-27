@@ -3,7 +3,11 @@ import { createToolContext } from "../../support/tool-context"
 import { mkdirSync, mkdtempSync, readFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { WriteTool } from "@harness/std/tools/write"
+import { createWriteTool } from "@harness/std/tools/write"
+
+import { createWorkspace } from "@harness/workspace"
+
+const WriteTool = createWriteTool({ workspace: createWorkspace() })
 
 describe("WriteTool", () => {
   it("creates the file and its parent directories", async () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test"
-import { baseMiddleware, createTestRuntime, defineAgent, runPrompt, type Config } from "@harness"
+import { defineHarnessAgent } from "@harness/agent/registry"
+import { baseMiddleware, createTestRuntime, runPrompt } from "@harness"
 import { createCompaction, resolveCutBoundary } from "@harness/std/middleware/compaction"
 import type { LLMChunk } from "@harness/llm/types"
 import type { SessionMessage } from "@harness/types"
@@ -13,20 +14,20 @@ const ANSWER_SCRIPT: LLMChunk[] = [
 // A primary agent whose main model and (injected) summarizer model are both fakes,
 // so compaction runs deterministically and we can observe whether the dedicated
 // summarizer — not the main model — produced the summary.
-async function buildRuntime(config?: Partial<Config>) {
+async function buildRuntime(compaction?: { triggerRatio?: number; retainRatio?: number }) {
   const summarizerCalls: string[] = []
   const summarizer = createFakeModel({
     chunks: ANSWER_SCRIPT,
     spec: { id: "qwen3.6-flash" },
     onStream: () => summarizerCalls.push("qwen3.6-flash"),
   })
-  const agent = defineAgent({
+  const agent = defineHarnessAgent({
     name: "lead",
     mode: "primary",
     model: createFakeModel({ chunks: ANSWER_SCRIPT, spec: { id: "qwen3.7-plus", contextWindow: 262144 } }),
-    middleware: [...baseMiddleware(), createCompaction({ summarizer })],
+    middleware: [...baseMiddleware(), createCompaction({ summarizer, ...compaction })],
   })
-  const runtime = await createTestRuntime({ agents: [agent], config })
+  const runtime = await createTestRuntime({ agents: [agent] })
   return { runtime, summarizerCalls }
 }
 
@@ -70,10 +71,7 @@ describe("compaction middleware (integration)", () => {
 
   it("keeps the recent half and replaces the older half with a summary when over threshold", async () => {
     // Force the trigger: threshold = contextWindow × ratio ≈ a few tokens.
-    const { runtime, summarizerCalls } = await buildRuntime({
-      compaction_trigger_ratio: 0.00001,
-      compaction_retain_ratio: 0.5,
-    })
+    const { runtime, summarizerCalls } = await buildRuntime({ triggerRatio: 0.00001, retainRatio: 0.5 })
 
     const compactions: { parts: Record<string, readonly unknown[]> }[] = []
     runtime.events.state.subscribe((event) => {

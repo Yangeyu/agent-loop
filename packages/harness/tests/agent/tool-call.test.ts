@@ -1,7 +1,6 @@
 import { describe, expect, it } from "bun:test"
 import { createToolContext } from "../support/tool-context"
-import { createAgentRegistry } from "@harness/agent/registry"
-import { defineAgent } from "@harness/agent/blueprint"
+import { defineHarnessAgent } from "@harness/agent/registry"
 import { loadConfigFromEnv } from "@harness/config"
 import { createRunContext, createTurnContext } from "@harness/agent/context"
 import { resolveTurnExecutionPolicy } from "@harness/agent/policy"
@@ -10,15 +9,15 @@ import { executeToolCall, openToolPart, prepareToolCall } from "@harness/agent/t
 import { MiddlewareStack } from "@harness/agent/hooks"
 import { createRuntimeEvents } from "@harness/event/bus"
 import { MemorySessionPersistence, Sessions } from "@harness/session"
-import { createSkillRegistry } from "@harness/skill/registry"
-import { ReadTool } from "@harness/std/tools/read"
+import { createReadTool } from "@harness/std/tools/read"
 import { normalizeTavilyResponse } from "@harness/std/tools/tavily"
 import { defineTool } from "@harness/tool/tool"
-import { createToolRegistry } from "@harness/tool/registry"
 import { createWorkspace } from "@harness/workspace"
 import type { AssistantMessage, ToolDefinition, ToolDisplay, ToolPart, UserMessage } from "@harness/types"
 import { z } from "zod"
 import { createFakeModel } from "../support/fake-model"
+
+const ReadTool = createReadTool({ workspace: createWorkspace() })
 
 const stubModel = createFakeModel()
 
@@ -224,13 +223,7 @@ function createToolCallHarness(tool: ToolDefinition) {
   const sessions = new Sessions(new MemorySessionPersistence(), events.state)
   const session = sessions.create({ title: "Test session" })
 
-  const agent = defineAgent({ name: "lead", mode: "primary", steps: 4, model: stubModel })
-  const agent_registry = createAgentRegistry()
-  agent_registry.register(agent)
-
-  const skill_registry = createSkillRegistry()
-  const tool_registry = createToolRegistry()
-  tool_registry.register(tool)
+  const agent = defineHarnessAgent({ name: "lead", mode: "primary", steps: 4, model: stubModel })
 
   const user: UserMessage = {
     id: "user-1",
@@ -250,15 +243,7 @@ function createToolCallHarness(tool: ToolDefinition) {
     time: { created: Date.now() },
   }
 
-  const deps = {
-    config,
-    agent_registry,
-    skill_registry,
-    sessions,
-    tool_registry,
-    events,
-    workspace: createWorkspace(),
-  }
+  const deps = { config, sessions, events }
 
   // Appends the assistant message and owns the turn lifecycle.
   const recorder = new TurnRecorder({
@@ -283,7 +268,6 @@ function createToolCallHarness(tool: ToolDefinition) {
     }),
     deps,
     policy: resolveTurnExecutionPolicy(config, agent, sessions.get(session.id)),
-    rootID: session.rootID,
     user,
     messageID: assistant.id,
     tools: [tool],

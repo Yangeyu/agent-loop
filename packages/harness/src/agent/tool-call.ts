@@ -83,7 +83,7 @@ export async function prepareToolCall(
     ok: true,
     tool,
     args: parsed.data,
-    display: tool.describe?.(parsed.data, { workspace: ctx.workspace, config: ctx.config }),
+    display: tool.describe?.(parsed.data),
   }
 }
 
@@ -192,12 +192,8 @@ function createToolContext(
 ): ToolContext {
   return {
     config: ctx.config,
-    agent_registry: ctx.agent_registry,
-    skill_registry: ctx.skill_registry,
     sessions: ctx.sessions,
-    tool_registry: ctx.tool_registry,
     events: ctx.events,
-    workspace: ctx.workspace,
     sessionID: ctx.sessionID,
     messageID: ctx.messageID,
     agent: ctx.agent.name,

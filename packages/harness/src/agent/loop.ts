@@ -39,6 +39,9 @@ import {
   type UserMessage,
 } from "@harness/types"
 
+/** Resolving an agent by name is a lookup the loop itself never performs. */
+export type SessionDeps = EngineDeps & { agent_registry: { get(name: string): AgentDefinition; defaultAgent(): AgentDefinition } }
+
 /** A request to run a session turn-loop from a new user message. */
 export type RunSessionInput = {
   sessionID: string
@@ -60,7 +63,7 @@ export type RunSessionInput = {
  * @param input - the session id, user text, and optional agent/format/images
  * @returns the session after the loop breaks
  */
-export async function runSession(deps: EngineDeps, input: RunSessionInput): Promise<SessionInfo> {
+export async function runSession(deps: SessionDeps, input: RunSessionInput): Promise<SessionInfo> {
   const sessions = deps.sessions
   const session = sessions.get(input.sessionID)
   const agent = deps.agent_registry.get(input.agent ?? deps.agent_registry.defaultAgent().name)
@@ -120,7 +123,6 @@ export async function runLoop(
       const session = sessions.get(input.sessionID)
       const user = resolveLastUserMessage(session)
       const policy = resolveTurnExecutionPolicy(deps.config, input.agent, session)
-      const tools = [...(await deps.tool_registry.toolsForAgent(input.agent))]
 
       const assistant: AssistantMessage = {
         id: createID(),
@@ -152,10 +154,9 @@ export async function runLoop(
         run,
         deps,
         policy,
-        rootID: session.rootID,
         user,
         messageID: assistant.id,
-        tools,
+        tools: input.agent.tools,
         step,
         abort: turnAbort.signal,
         openActivity: (activity) => recorder.openActivity(activity),

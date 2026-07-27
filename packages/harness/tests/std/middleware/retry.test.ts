@@ -3,10 +3,10 @@
 // stream is re-issued at all, and that each attempt is *visible* — before this,
 // a backoff was indistinguishable from a hung turn on any surface.
 import { describe, expect, it } from "bun:test"
+import { defineHarnessAgent } from "@harness/agent/registry"
 import {
   createRetry,
   createTestRuntime,
-  defineAgent,
   runPrompt,
   type LoopEvent,
 } from "@harness"
@@ -38,7 +38,7 @@ function flakyModel(failures: number, error: () => Error) {
 }
 
 function run(model: Model, maxRetries: number) {
-  const agent = defineAgent({
+  const agent = defineHarnessAgent({
     name: "retrier",
     mode: "primary",
     model,

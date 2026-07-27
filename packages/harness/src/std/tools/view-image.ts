@@ -43,8 +43,9 @@ const ViewImageParameters = z.object({
  * Builds the view_image tool around the injected vision model.
  *
  * @param deps.model - the multimodal Model that performs the vision call
+ * @param deps.workspace - the file tree a local image path resolves against
  */
-export function createViewImageTool(deps: { model: Model }): AnyToolDefinition {
+export function createViewImageTool(deps: { model: Model; workspace: Workspace }): AnyToolDefinition {
   return defineTool({
     id: "view_image",
     description:
@@ -59,7 +60,7 @@ export function createViewImageTool(deps: { model: Model }): AnyToolDefinition {
       }
     },
     async execute(args, ctx) {
-      const source = toImageSource(ctx.workspace, args.image)
+      const source = toImageSource(deps.workspace, args.image)
       const description = await describeImage(ctx, deps.model, source, args.prompt ?? DEFAULT_PROMPT)
       return { output: description }
     },

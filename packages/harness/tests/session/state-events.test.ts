@@ -3,8 +3,9 @@
 // must reproduce exactly the session the aggregate stored — if these diverge,
 // a write bypassed the aggregate or an event misdescribes its write.
 import { describe, expect, it } from "bun:test"
+import { defineHarnessAgent } from "@harness/agent/registry"
 import { applyStateEvent, emptyProjection, type SessionProjection } from "@contracts"
-import { baseMiddleware, createTestRuntime, defineAgent, runPrompt, type StateEvent } from "@harness"
+import { baseMiddleware, createTestRuntime, runPrompt, type StateEvent } from "@harness"
 import type { LLMChunk } from "@harness/llm/types"
 import { createFakeModel } from "../support/fake-model"
 
@@ -17,7 +18,7 @@ const TURN_SCRIPT: LLMChunk[] = [
 ]
 
 async function buildRuntime() {
-  const agent = defineAgent({
+  const agent = defineHarnessAgent({
     name: "lead",
     mode: "primary",
     steps: 4,

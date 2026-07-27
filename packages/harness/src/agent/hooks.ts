@@ -18,11 +18,9 @@
 // to the engine through hook return values, never by assigning context fields.
 // Session state is reached through `ctx.sessions` (the single-writer aggregate).
 import type { AgentDefinition } from "@harness/agent/blueprint"
-import type { Config } from "@harness/config"
+import type { CoreConfig } from "@harness/config"
 import type { LLMInput, Model, ModelMessage } from "@harness/llm/types"
 import type { TurnExecutionPolicy } from "@harness/agent/policy"
-import type { RuntimeEventBus } from "@harness/event/bus"
-import type { SkillInfo } from "@harness/skill/types"
 import type { Sessions } from "@harness/session"
 import type { ErrorInfo, FinishReason, OutputFormat, ToolExecuteResult } from "@harness/types"
 
@@ -47,15 +45,8 @@ export type TurnOutcomeReason =
 
 /** Run-scoped context: what holds still for the whole loop. */
 export type RunContext = {
-  readonly config: Config
+  readonly config: CoreConfig
   readonly sessions: Sessions
-  readonly events: RuntimeEventBus
-  // Read-only lookups middleware actually uses: agent listing (delegation
-  // prompts) and skill listing (context assembly). Structural on purpose — the
-  // hook contract names only the capability, not the registry implementation.
-  // Tool resolution is an engine/tool-context concern and deliberately absent.
-  readonly agent_registry: { list(): AgentDefinition[] }
-  readonly skill_registry: { list(): SkillInfo[] }
   readonly agent: AgentDefinition
   readonly sessionID: string
   // The run's root abort. Turn-scoped hooks see a narrower one (below).
@@ -68,8 +59,6 @@ export type RunContext = {
 
 /** Turn-scoped context: the run context plus what this turn resolved. */
 export type HookContext = RunContext & {
-  // The root of this session's delegation tree, for loop-event envelopes.
-  readonly rootID: string
   // This turn's assistant message — the record every turn-scoped hook reads or patches.
   readonly messageID: string
   readonly step: number

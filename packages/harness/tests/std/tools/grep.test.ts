@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { createToolContext } from "../../support/tool-context"
-import { GrepTool } from "@harness/std/tools/grep"
+import { createGrepTool } from "@harness/std/tools/grep"
 import { createWorkspace } from "@harness/workspace"
 
 function createTree() {
@@ -14,8 +14,9 @@ function createTree() {
   return root
 }
 
-function contextFor(root: string) {
-  return createToolContext({ workspace: createWorkspace(root) })
+// The tool is bound to the tree it searches, so a test builds one per tree.
+function grepIn(root: string) {
+  return createGrepTool({ workspace: createWorkspace(root) })
 }
 
 describe("GrepTool", () => {
@@ -25,21 +26,21 @@ describe("GrepTool", () => {
     // never directly in it.
     const root = createTree()
 
-    const result = await GrepTool.execute({ pattern: "marker" }, contextFor(root))
+    const result = await grepIn(root).execute({ pattern: "marker" }, createToolContext())
 
     expect(result.output).toContain("deep.ts")
     expect(result.metadata?.matchCount).toBe(1)
   })
 
   it("reports no matches without failing when the pattern is absent", async () => {
-    const result = await GrepTool.execute({ pattern: "definitely_absent_xyz" }, contextFor(createTree()))
+    const result = await grepIn(createTree()).execute({ pattern: "definitely_absent_xyz" }, createToolContext())
 
     expect(result.metadata?.matchCount).toBe(0)
     expect(result.output).toContain("No matches")
   })
 
   it("rejects an invalid regular expression with a stable code", async () => {
-    const attempt = GrepTool.execute({ pattern: "([unclosed" }, contextFor(createTree()))
+    const attempt = grepIn(createTree()).execute({ pattern: "([unclosed" }, createToolContext())
 
     await expect(attempt).rejects.toMatchObject({ info: { code: "grep_invalid_pattern" } })
   })

@@ -41,54 +41,57 @@ const ReadParameters = z.object({
 })
 
 
-export const ReadTool = defineTool({
-  id: "read",
-  description:
-    "Read a local file and return its text content. Reads UTF-8 text files directly, and extracts text from Office/PDF documents such as DOCX, PPTX, XLSX, ODT, ODP, ODS, RTF, and PDF.",
-  parameters: ReadParameters,
-  describe(args, ctx) {
-    return { verb: "read", target: ctx.workspace.resolve(args.filePath) }
-  },
-  mapError({ args, toolID, code }) {
-    if (code === "ENOENT") {
-      return {
-        message: `The ${toolID} tool failed: file not found at ${args.filePath}`,
-        retryable: false,
-        code: "read_not_found",
+/** Builds the read tool bound to a workspace. */
+export function createReadTool(deps: { workspace: Workspace }) {
+  return defineTool({
+    id: "read",
+    description:
+      "Read a local file and return its text content. Reads UTF-8 text files directly, and extracts text from Office/PDF documents such as DOCX, PPTX, XLSX, ODT, ODP, ODS, RTF, and PDF.",
+    parameters: ReadParameters,
+    describe(args) {
+      return { verb: "read", target: deps.workspace.resolve(args.filePath) }
+    },
+    mapError({ args, toolID, code }) {
+      if (code === "ENOENT") {
+        return {
+          message: `The ${toolID} tool failed: file not found at ${args.filePath}`,
+          retryable: false,
+          code: "read_not_found",
+        }
       }
-    }
 
-  },
-  async execute(args, ctx) {
-    const target = ctx.workspace.resolve(args.filePath)
-    const stat = await ctx.workspace.stat(target)
-    if (!stat) throw Object.assign(new Error(`file not found at ${args.filePath}`), { code: "ENOENT" })
-    if (!stat.isFile) throw new Error(`${args.filePath} is not a file`)
-    if (stat.bytes > DEFAULT_MAX_BYTES) {
-      throw new Error(`file is too large (${stat.bytes} bytes, limit ${DEFAULT_MAX_BYTES} bytes)`)
-    }
+    },
+    async execute(args, ctx) {
+      const target = deps.workspace.resolve(args.filePath)
+      const stat = await deps.workspace.stat(target)
+      if (!stat) throw Object.assign(new Error(`file not found at ${args.filePath}`), { code: "ENOENT" })
+      if (!stat.isFile) throw new Error(`${args.filePath} is not a file`)
+      if (stat.bytes > DEFAULT_MAX_BYTES) {
+        throw new Error(`file is too large (${stat.bytes} bytes, limit ${DEFAULT_MAX_BYTES} bytes)`)
+      }
 
-    const ext = path.extname(target).toLowerCase()
-    const maxChars = args.maxChars ?? DEFAULT_MAX_CHARS
-    const requestedFormat = args.format ?? "text"
-    const content = await readFileAsText(ctx.workspace, target, ext, requestedFormat, ctx.abort)
-    const truncated = truncateText(content.trim(), maxChars)
+      const ext = path.extname(target).toLowerCase()
+      const maxChars = args.maxChars ?? DEFAULT_MAX_CHARS
+      const requestedFormat = args.format ?? "text"
+      const content = await readFileAsText(deps.workspace, target, ext, requestedFormat, ctx.abort)
+      const truncated = truncateText(content.trim(), maxChars)
 
-    return {
-      display: {
-        summary: truncated.truncated ? `${formatBytes(stat.bytes)}, truncated` : formatBytes(stat.bytes),
-      },
-      output: truncated.text,
-      metadata: {
-        // truncated is the one the model must not miss: it changes whether the
-        // output can be trusted as the whole file.
-        bytes: stat.bytes,
-        characters: content.length,
-        truncated: truncated.truncated,
-      },
-    }
-  },
-})
+      return {
+        display: {
+          summary: truncated.truncated ? `${formatBytes(stat.bytes)}, truncated` : formatBytes(stat.bytes),
+        },
+        output: truncated.text,
+        metadata: {
+          // truncated is the one the model must not miss: it changes whether the
+          // output can be trusted as the whole file.
+          bytes: stat.bytes,
+          characters: content.length,
+          truncated: truncated.truncated,
+        },
+      }
+    },
+  })
+}
 
 async function readFileAsText(
   workspace: Workspace,

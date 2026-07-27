@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test"
-import { baseMiddleware, createTestRuntime, defineAgent, defineTool, runPrompt } from "@harness"
+import { defineHarnessAgent } from "@harness/agent/registry"
+import { baseMiddleware, createTestRuntime, defineTool, runPrompt } from "@harness"
 import type { LLMChunk, LLMInput, Model } from "@harness/llm/types"
 import type { AssistantMessage, ToolPart } from "@harness/types"
 import { z } from "zod"
@@ -57,15 +58,15 @@ async function run(
     format?: { type: "json_schema"; schema: Record<string, unknown> }
   },
 ) {
-  const agent = defineAgent({
+  const agent = defineHarnessAgent({
     name: "runner",
     mode: "primary",
     model,
-    tools: Object.fromEntries((options?.tools ?? []).map((tool) => [tool.id, true])),
+    tools: options?.tools ?? [],
     steps: options?.steps,
     middleware: baseMiddleware(),
   })
-  const runtime = await createTestRuntime({ agents: [agent], tools: options?.tools ?? [] })
+  const runtime = await createTestRuntime({ agents: [agent] })
   const session = await runPrompt({ runtime, agent: "runner", text: "go", format: options?.format })
   const assistants = runtime.sessions
     .get(session.id)

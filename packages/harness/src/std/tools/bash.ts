@@ -1,3 +1,4 @@
+import type { Workspace } from "@harness/workspace"
 import { spawn } from "node:child_process"
 import { defineTool } from "@harness/tool/tool"
 import { z } from "zod"
@@ -14,59 +15,62 @@ const BashParameters = z.object({
 })
 
 
-export const BashTool = defineTool({
-  id: "bash",
-  description: "Run a shell command in the local workspace and return stdout, stderr, and exit status.",
-  parameters: BashParameters,
-  describe(args) {
-    return { verb: "bash", target: args.description ?? args.command }
-  },
-  beforeExecute({ args, ctx }) {
-    return {
-      metadata: {
-        workdir: ctx.workspace.resolve(args.workdir ?? "."),
-        timeout: args.timeout ?? 120000,
-      },
-    }
-  },
-  mapError({ toolID, error }) {
-    const message = error instanceof Error ? error.message : String(error)
-    if (message === "Bash command aborted") {
+/** Builds the bash tool bound to a workspace. */
+export function createBashTool(deps: { workspace: Workspace }) {
+  return defineTool({
+    id: "bash",
+    description: "Run a shell command in the local workspace and return stdout, stderr, and exit status.",
+    parameters: BashParameters,
+    describe(args) {
+      return { verb: "bash", target: args.description ?? args.command }
+    },
+    beforeExecute({ args }) {
       return {
-        message: `The ${toolID} tool failed: command aborted before completion`,
-        retryable: false,
-        code: "bash_aborted",
+        metadata: {
+          workdir: deps.workspace.resolve(args.workdir ?? "."),
+          timeout: args.timeout ?? 120000,
+        },
       }
-    }
+    },
+    mapError({ toolID, error }) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (message === "Bash command aborted") {
+        return {
+          message: `The ${toolID} tool failed: command aborted before completion`,
+          retryable: false,
+          code: "bash_aborted",
+        }
+      }
 
-    return {
-      message: `The ${toolID} tool failed: ${message}`,
-      retryable: false,
-      code: "tool_execution_failed",
-    }
-  },
-  async execute(args, ctx) {
-    const workdir = ctx.workspace.resolve(args.workdir ?? ".")
-    const timeout = args.timeout ?? 120000
+      return {
+        message: `The ${toolID} tool failed: ${message}`,
+        retryable: false,
+        code: "tool_execution_failed",
+      }
+    },
+    async execute(args, ctx) {
+      const workdir = deps.workspace.resolve(args.workdir ?? ".")
+      const timeout = args.timeout ?? 120000
 
-    const result = await runCommand({
-      command: args.command,
-      workdir,
-      timeout,
-      abort: ctx.abort,
-    })
-
-    return {
-      display: { summary: result.timedOut ? "timed out" : `exit ${result.exitCode ?? "null"}` },
-      output: formatOutput(result),
-      metadata: {
-        exitCode: result.exitCode,
-        timedOut: result.timedOut,
+      const result = await runCommand({
+        command: args.command,
         workdir,
-      },
-    }
-  },
-})
+        timeout,
+        abort: ctx.abort,
+      })
+
+      return {
+        display: { summary: result.timedOut ? "timed out" : `exit ${result.exitCode ?? "null"}` },
+        output: formatOutput(result),
+        metadata: {
+          exitCode: result.exitCode,
+          timedOut: result.timedOut,
+          workdir,
+        },
+      }
+    },
+  })
+}
 
 async function runCommand(input: {
   command: string

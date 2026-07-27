@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test"
-import { baseMiddleware, createTestRuntime, defineAgent, defineTool, runPrompt } from "@harness"
+import { defineHarnessAgent } from "@harness/agent/registry"
+import { baseMiddleware, createTestRuntime, defineTool, runPrompt } from "@harness"
 import type { LLMChunk, LLMInput, Model } from "@harness/llm/types"
 import type { ToolPart } from "@harness/types"
 import { z } from "zod"
@@ -55,16 +56,15 @@ async function measurePeakInFlight(input: { ids: string[]; limit: number }) {
       },
     })
 
-  const agent = defineAgent({
+  const agent = defineHarnessAgent({
     name: "runner",
     mode: "primary",
     model: callsThenAnswer(input.ids.map((id) => ({ toolCallId: `call-${id}`, toolName: id, args: {} }))),
-    tools: Object.fromEntries(input.ids.map((id) => [id, true])),
+    tools: input.ids.map(probe),
     middleware: baseMiddleware(),
   })
   const runtime = await createTestRuntime({
     agents: [agent],
-    tools: input.ids.map(probe),
     config: { tool_max_concurrency: input.limit },
   })
 

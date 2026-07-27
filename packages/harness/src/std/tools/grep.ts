@@ -24,62 +24,65 @@ const GrepParameters = z.object({
 })
 
 
-export const GrepTool = defineTool({
-  id: "grep",
-  description: "Search for a regular expression across TypeScript files in the workspace (packages/ and apps/).",
-  parameters: GrepParameters,
-  describe(args) {
-    return { verb: "grep", target: args.pattern }
-  },
-  async beforeExecute({ ctx }) {
-    const roots = (await resolveGrepRoots(ctx.workspace)).map((root) => ctx.workspace.relative(root))
-    // The roots are the one fact the caller cannot derive: which directories
-    // this tool decided to search.
-    return { metadata: { roots } }
-  },
-  mapError({ args, toolID, error }) {
-    if (error instanceof SyntaxError) {
+/** Builds the grep tool bound to a workspace. */
+export function createGrepTool(deps: { workspace: Workspace }) {
+  return defineTool({
+    id: "grep",
+    description: "Search for a regular expression across TypeScript files in the workspace (packages/ and apps/).",
+    parameters: GrepParameters,
+    describe(args) {
+      return { verb: "grep", target: args.pattern }
+    },
+    async beforeExecute() {
+      const roots = (await resolveGrepRoots(deps.workspace)).map((root) => deps.workspace.relative(root))
+      // The roots are the one fact the caller cannot derive: which directories
+      // this tool decided to search.
+      return { metadata: { roots } }
+    },
+    mapError({ args, toolID, error }) {
+      if (error instanceof SyntaxError) {
+        return {
+          message: `The ${toolID} tool failed: invalid regular expression ${JSON.stringify(args.pattern)}`,
+          retryable: false,
+          code: "grep_invalid_pattern",
+        }
+      }
+
+    },
+    async execute(args) {
+      const roots = await resolveGrepRoots(deps.workspace)
+      const pattern = new RegExp(args.pattern)
+      const matches: string[] = []
+      let fileCount = 0
+
+      for (const root of roots) {
+        for (const absolute of await deps.workspace.listFiles(root, { recursive: true })) {
+          const relative = deps.workspace.relative(absolute)
+          if (!relative.endsWith(".ts") && !relative.endsWith(".tsx")) continue
+          if (GREP_SKIP.test(relative)) continue
+          fileCount += 1
+          const content = await deps.workspace.readText(absolute)
+          const lines = content.split("\n")
+          lines.forEach((line: string, index: number) => {
+            pattern.lastIndex = 0
+            if (pattern.test(line)) {
+              matches.push(`${relative}:${index + 1}: ${line.trim()}`)
+            }
+          })
+        }
+      }
+
       return {
-        message: `The ${toolID} tool failed: invalid regular expression ${JSON.stringify(args.pattern)}`,
-        retryable: false,
-        code: "grep_invalid_pattern",
+        display: {
+          summary: matches.length ? `${matches.length} in ${fileCount} files` : "no matches",
+        },
+        output: matches.length ? matches.join("\n") : `No matches for ${args.pattern}`,
+        metadata: {
+          roots: roots.map((root) => deps.workspace.relative(root)),
+          filesScanned: fileCount,
+          matchCount: matches.length,
+        },
       }
-    }
-
-  },
-  async execute(args, ctx) {
-    const roots = await resolveGrepRoots(ctx.workspace)
-    const pattern = new RegExp(args.pattern)
-    const matches: string[] = []
-    let fileCount = 0
-
-    for (const root of roots) {
-      for (const absolute of await ctx.workspace.listFiles(root, { recursive: true })) {
-        const relative = ctx.workspace.relative(absolute)
-        if (!relative.endsWith(".ts") && !relative.endsWith(".tsx")) continue
-        if (GREP_SKIP.test(relative)) continue
-        fileCount += 1
-        const content = await ctx.workspace.readText(absolute)
-        const lines = content.split("\n")
-        lines.forEach((line: string, index: number) => {
-          pattern.lastIndex = 0
-          if (pattern.test(line)) {
-            matches.push(`${relative}:${index + 1}: ${line.trim()}`)
-          }
-        })
-      }
-    }
-
-    return {
-      display: {
-        summary: matches.length ? `${matches.length} in ${fileCount} files` : "no matches",
-      },
-      output: matches.length ? matches.join("\n") : `No matches for ${args.pattern}`,
-      metadata: {
-        roots: roots.map((root) => ctx.workspace.relative(root)),
-        filesScanned: fileCount,
-        matchCount: matches.length,
-      },
-    }
-  },
-})
+    },
+  })
+}

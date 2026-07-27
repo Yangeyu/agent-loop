@@ -1,10 +1,15 @@
 import { describe, expect, it } from "bun:test"
+import { defineHarnessAgent } from "@harness/agent/registry"
 import { mkdtempSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { baseMiddleware, createDashScopeModel, createTestRuntime, defineAgent, runPrompt } from "@harness"
-import { ReadTool } from "@harness/std/tools/read"
+import { baseMiddleware, createDashScopeModel, createTestRuntime, runPrompt } from "@harness"
+import { createReadTool } from "@harness/std/tools/read"
 import type { ToolPart } from "@harness/types"
+
+import { createWorkspace } from "@harness/workspace"
+
+const ReadTool = createReadTool({ workspace: createWorkspace() })
 
 // End-to-end against the real configured model (DashScope). Skipped when no API
 // key is present so the default suite never depends on the network.
@@ -22,16 +27,14 @@ describe("parallel tools (e2e)", () => {
 
       // A minimal agent with only `read`, driven by the real model: the e2e is
       // the model itself choosing to fan out two real reads through the loop.
-      const agent = defineAgent({
+      const agent = defineHarnessAgent({
         name: "reader",
         mode: "primary",
         model: createDashScopeModel({ modelID: "qwen3.7-plus" }),
-        tools: { read: true },
+        tools: [ReadTool],
         middleware: baseMiddleware(),
       })
-      const runtime = await createTestRuntime({
-        agents: [agent], tools: [ReadTool],
-      })
+      const runtime = await createTestRuntime({ agents: [agent] })
 
       const session = await runPrompt({
         runtime,

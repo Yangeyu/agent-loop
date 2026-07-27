@@ -3,8 +3,12 @@ import { createToolContext } from "../../support/tool-context"
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { EditTool } from "@harness/std/tools/edit"
+import { createEditTool } from "@harness/std/tools/edit"
 import type { ToolMetadata } from "@harness/types"
+
+import { createWorkspace } from "@harness/workspace"
+
+const EditTool = createEditTool({ workspace: createWorkspace() })
 
 const SOURCE = [
   "export function greet(name: string) {",

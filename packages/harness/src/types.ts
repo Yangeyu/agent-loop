@@ -1,7 +1,8 @@
 // Engine-side types. The session data model and event vocabulary live in
 // @contracts (the shared leaf); this module re-exports them for harness code
 // and adds the engine-only types (tool contracts).
-import type { EngineDeps } from "@harness/agent/context"
+import type { RuntimeEventBus } from "@harness/event/bus"
+import type { Sessions } from "@harness/session"
 import type {
   ErrorInfo,
   OutputFormat,
@@ -11,8 +12,7 @@ import type {
   ToolDisplayPatch,
   ToolMetadata,
 } from "@contracts"
-import type { Config } from "@harness/config"
-import type { Workspace } from "@harness/workspace"
+import type { CoreConfig } from "@harness/config"
 import type { z } from "zod"
 
 export type {
@@ -50,16 +50,6 @@ export type {
   UserMessage,
 } from "@contracts"
 
-export type AgentInfo = {
-  name: string
-  description?: string
-  mode: "primary" | "subagent"
-  prompt?: string
-  tools?: Record<string, boolean>
-  steps?: number
-  format?: OutputFormat
-}
-
 export type ToolExecuteResult = {
   // A patch: the result states how the call went; what it was about was already
   // established by beforeExecute (see resolveDisplay in agent/tool-part.ts).
@@ -75,18 +65,18 @@ export type SessionHistoryMessage = {
 }
 
 /**
- * What `describe` may consult: the ambient collaborators, and none of the
- * per-call machinery. A path has to be resolved the same way the tool will
- * resolve it, so the row names the same file the call will actually touch.
- * Everything tied to the call itself — metadata writes, nested execution — is
- * deliberately absent: at describe time the part does not exist yet.
+ * What a tool call may consult. Listed explicitly rather than derived from the
+ * engine's dependencies: when it was `EngineDeps & {...}`, "a tool needs X"
+ * silently became "the engine must hold X", which is how a file tree and a
+ * skill catalogue ended up inside the loop.
+ *
+ * A tool that needs anything beyond this holds it in the closure it was built
+ * with — see createReadTool({ workspace }), createTaskTool({ agents, config }).
  */
-export type ToolDescribeContext = {
-  workspace: Workspace
-  config: Config
-}
-
-export type ToolContext = EngineDeps & {
+export type ToolContext = {
+  config: CoreConfig
+  sessions: Sessions
+  events: RuntimeEventBus
   sessionID: string
   // The assistant message (turn record) this tool call belongs to.
   messageID: string
@@ -116,8 +106,11 @@ export type ToolDefinition<TArgs = unknown> = {
    * because it runs before the tool part is opened so that `part.created`
    * already carries the full display. Anything that needs to do work belongs in
    * execute; this only names the call.
+   *
+   * It takes the args and nothing else: a tool that must resolve a path the
+   * same way execute will resolves it against the workspace it was built with.
    */
-  describe?(args: TArgs, ctx: ToolDescribeContext): ToolDisplayPatch
+  describe?(args: TArgs): ToolDisplayPatch
   parameters: z.ZodType<TArgs>
   validate(args: unknown):
     | {

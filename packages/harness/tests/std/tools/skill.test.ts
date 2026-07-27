@@ -4,14 +4,17 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { createSkillRegistry } from "@harness/skill/registry"
+import { createWorkspace } from "@harness/workspace"
 import type { SkillInfo } from "@harness/skill/types"
 import { loadSkillFile } from "@harness/std/skills/load"
-import { SkillTool } from "@harness/std/tools/skill"
+import { createSkillTool } from "@harness/std/tools/skill"
 
-function createContext(skills: SkillInfo[]) {
-  const skill_registry = createSkillRegistry()
-  for (const skill of skills) skill_registry.register(skill)
-  return createToolContext({ skill_registry })
+// The tool holds its own catalogue, so a test builds one around the skills it
+// is asserting on.
+function skillTool(skills: SkillInfo[]) {
+  const registry = createSkillRegistry()
+  for (const skill of skills) registry.register(skill)
+  return createSkillTool({ skills: registry, workspace: createWorkspace() })
 }
 
 function makeSkill(assets: Record<string, string>) {
@@ -26,7 +29,7 @@ describe("SkillTool", () => {
   it("lists sibling assets by absolute path and excludes SKILL.md itself", async () => {
     const { dir, skill } = makeSkill({ "template.html": "<html>", "design.md": "# design" })
 
-    const result = await SkillTool.execute({ name: "render" }, createContext([skill]))
+    const result = await skillTool([skill]).execute({ name: "render" }, createToolContext())
 
     expect(result.output).toContain(`Directory: ${dir}`)
     expect(result.output).toContain(`- ${join(dir, "design.md")}`)
@@ -37,7 +40,7 @@ describe("SkillTool", () => {
   it("omits the asset section for a skill with no sibling files", async () => {
     const { skill } = makeSkill({})
 
-    const result = await SkillTool.execute({ name: "render" }, createContext([skill]))
+    const result = await skillTool([skill]).execute({ name: "render" }, createToolContext())
 
     expect(result.output).not.toContain("Assets")
     expect(result.output).toContain("Location:")
@@ -51,7 +54,7 @@ describe("SkillTool", () => {
       content: "body",
     }
 
-    const result = await SkillTool.execute({ name: "inline" }, createContext([inline]))
+    const result = await skillTool([inline]).execute({ name: "inline" }, createToolContext())
 
     expect(result.output).not.toContain("Assets")
   })

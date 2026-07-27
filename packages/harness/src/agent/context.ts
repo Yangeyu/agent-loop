@@ -6,45 +6,32 @@
  * TurnRecorder — context carries no mutable state, so nothing can hold a stale
  * shadow of the store.
  */
-import type { AgentRegistry } from "@harness/agent/registry"
-import type { Config } from "@harness/config"
+import type { CoreConfig } from "@harness/config"
 import type { RuntimeEventBus } from "@harness/event/bus"
 import type { Model } from "@harness/llm/types"
 import type { TurnExecutionPolicy } from "@harness/agent/policy"
 import type { AgentDefinition } from "@harness/agent/blueprint"
 import type { ActivityEmitter, RunContext, StackContext } from "@harness/agent/hooks"
 import type { Sessions } from "@harness/session"
-import type { SkillRegistry } from "@harness/skill/registry"
-import type { ToolRegistry } from "@harness/tool/registry"
 import type { ToolDefinition, UserMessage } from "@harness/types"
-import type { Workspace } from "@harness/workspace"
 
-/** The engine's dependency surface — the kernel owns this contract; the runtime
- * layer's RuntimeContext is exactly one of these plus nothing else. */
+/**
+ * The engine's dependency surface: the three collaborators a loop cannot be
+ * written without. Everything an agent's tools happen to need — a file tree, a
+ * skill catalogue, other agents — reaches them through the closures they were
+ * built with, not through here.
+ */
 export type EngineDeps = {
-  config: Config
+  config: CoreConfig
   sessions: Sessions
   events: RuntimeEventBus
-  agent_registry: AgentRegistry
-  skill_registry: SkillRegistry
-  tool_registry: ToolRegistry
-  // The local file tree as an owned collaborator. Tools go through it instead of
-  // `node:fs` + `process.cwd()`, which is what makes concurrent file work safe
-  // without the engine knowing anything about what a tool does.
-  workspace: Workspace
 }
 
-/** The engine-internal turn context: StackContext plus the turn's resolved
- * inputs. The full registries live here (not on the hook views): tool resolution
- * and agent lookup are engine/tool-context concerns, and middleware never
- * performs them. */
+/** The engine-internal turn context: StackContext plus the turn's resolved inputs. */
 export type TurnContext = StackContext & {
   readonly user: UserMessage
   readonly tools: ToolDefinition[]
-  readonly agent_registry: AgentRegistry
-  readonly skill_registry: SkillRegistry
-  readonly tool_registry: ToolRegistry
-  readonly workspace: Workspace
+  readonly events: RuntimeEventBus
 }
 
 /**
@@ -63,9 +50,6 @@ export function createRunContext(input: {
   return {
     config: input.deps.config,
     sessions: input.deps.sessions,
-    events: input.deps.events,
-    agent_registry: input.deps.agent_registry,
-    skill_registry: input.deps.skill_registry,
     agent: input.agent,
     sessionID: input.sessionID,
     abort: input.abort,
@@ -76,15 +60,14 @@ export function createRunContext(input: {
 /**
  * Assembles the per-turn TurnContext from the run context and turn inputs.
  *
- * @param input - the run context and engine deps, plus this turn's policy, ids,
- *   user message, assistant message id, tools, step number, and abort signal
+ * @param input - the run context and engine deps, plus this turn's policy, user
+ *   message, assistant message id, tools, step number, abort, and emitter
  * @returns the immutable turn context
  */
 export function createTurnContext(input: {
   run: RunContext
   deps: EngineDeps
   policy: TurnExecutionPolicy
-  rootID: string
   user: UserMessage
   messageID: string
   tools: ToolDefinition[]
@@ -94,13 +77,7 @@ export function createTurnContext(input: {
 }): TurnContext {
   return {
     ...input.run,
-    // The narrow list-only views on RunContext widen back to the real
-    // registries here: tool resolution and agent lookup are engine concerns.
-    agent_registry: input.deps.agent_registry,
-    skill_registry: input.deps.skill_registry,
-    tool_registry: input.deps.tool_registry,
-    workspace: input.deps.workspace,
-    rootID: input.rootID,
+    events: input.deps.events,
     messageID: input.messageID,
     step: input.step,
     policy: input.policy,

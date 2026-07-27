@@ -4,33 +4,95 @@
 import { createRuntimeContext, type RuntimeContext } from "@harness/runtime/context"
 import { runSession } from "@harness/agent/loop"
 import { loadConfigFromEnv, type Config } from "@harness/config"
-import type { AgentDefinition } from "@harness/agent/blueprint"
+import type { HarnessAgent } from "@harness/agent/registry"
+import type { Model } from "@harness/llm/types"
+import { createCoreAgents } from "@harness/std/agents"
+import { createCoreTools } from "@harness/std/tools"
 import type { SkillInfo } from "@harness/skill/types"
-import type { AnyToolDefinition, ImageSource, OutputFormat } from "@harness/types"
+import type { ImageSource, OutputFormat } from "@harness/types"
 
-/** The composed capability set a runtime is assembled from. */
+/**
+ * The composed capability set a runtime is assembled from. Tools are absent on
+ * purpose: an agent holds its own tools now, so there is nothing left for a
+ * runtime-wide tool list to do.
+ */
 export type RuntimeAssembly = {
   config?: Config
-  agents?: AgentDefinition[]
-  tools?: AnyToolDefinition[]
+  agents?: HarnessAgent[]
   skills?: SkillInfo[]
 }
 
 export function createRuntime(options?: RuntimeAssembly): RuntimeContext {
   const runtime = createRuntimeContext({ config: options?.config })
-  for (const tool of options?.tools ?? []) runtime.tool_registry.register(tool)
   for (const agent of options?.agents ?? []) runtime.agent_registry.register(agent)
   for (const skill of options?.skills ?? []) runtime.skill_registry.register(skill)
   return runtime
 }
 
-export function createTestRuntime(options?: Omit<RuntimeAssembly, "config"> & { config?: Partial<Config> }): RuntimeContext {
-  const config = {
-    ...loadConfigFromEnv({ ...process.env, SESSION_STORE: "memory" }),
-    ...(options?.config ?? {}),
-  }
+/**
+ * Assembles the standard agent set on a runtime: skills, then the core tools
+ * built against this runtime's collaborators, then the agents holding those
+ * tools. A surface supplies only the models — that is the one decision this
+ * cannot make for it.
+ *
+ * The order is load-bearing. The task tool reads the agent registry at call
+ * time, so it can be built before the agents exist; the agents cannot be built
+ * before their tools do.
+ *
+ * @param options - the chat and summarizer models, plus optional config/skills
+ * @returns the assembled runtime
+ */
+export function createCoreRuntime(options: {
+  chat: Model
+  summarizer: Model
+  config?: Config
+  skills?: SkillInfo[]
+}): RuntimeContext {
+  const runtime = createRuntimeContext({ config: options.config })
+  for (const skill of options.skills ?? []) runtime.skill_registry.register(skill)
 
-  return createRuntime({ ...options, config })
+  const tools = createCoreTools({
+    // The chat model is multimodal; view_image reuses it as the vision model.
+    visionModel: options.chat,
+    workspace: runtime.workspace,
+    skills: runtime.skill_registry,
+    agents: runtime.agent_registry,
+    config: runtime.config,
+  })
+
+  const agents = createCoreAgents({
+    model: options.chat,
+    summarizer: options.summarizer,
+    tools,
+    skills: runtime.skill_registry,
+    agents: runtime.agent_registry,
+    retry: {
+      maxRetries: runtime.config.model_max_retries,
+      baseDelayMs: runtime.config.model_retry_base_delay_ms,
+      maxDelayMs: runtime.config.model_retry_max_delay_ms,
+    },
+  })
+  for (const agent of agents) runtime.agent_registry.register(agent)
+
+  return runtime
+}
+
+export function createTestRuntime(options?: Omit<RuntimeAssembly, "config"> & { config?: Partial<Config> }): RuntimeContext {
+  return createRuntime({ ...options, config: testConfig(options?.config) })
+}
+
+/** createCoreRuntime on in-memory config — the standard set, as tests get it. */
+export function createCoreTestRuntime(options: {
+  chat: Model
+  summarizer: Model
+  config?: Partial<Config>
+  skills?: SkillInfo[]
+}): RuntimeContext {
+  return createCoreRuntime({ ...options, config: testConfig(options.config) })
+}
+
+function testConfig(overrides?: Partial<Config>): Config {
+  return { ...loadConfigFromEnv({ ...process.env, SESSION_STORE: "memory" }), ...(overrides ?? {}) }
 }
 
 export async function runPrompt(options: {

@@ -2,10 +2,8 @@ import { describe, expect, it } from "bun:test"
 import { readFileSync, rmSync } from "node:fs"
 import { join } from "node:path"
 import {
-  createCoreAgents,
-  createCoreTools,
+  createCoreTestRuntime,
   createDashScopeModel,
-  createTestRuntime,
   loadSkillsFromDir,
   runPrompt,
 } from "@harness"
@@ -32,9 +30,9 @@ describe("editorial-data-story render (e2e)", () => {
       // step/tool budgets that have to be large enough to reach the closing tag.
       const chat = createDashScopeModel({ modelID: "qwen3.7-plus" })
       const summarizer = createDashScopeModel({ modelID: "qwen3.6-flash" })
-      const runtime = createTestRuntime({
-        agents: createCoreAgents({ model: chat, summarizer }),
-        tools: createCoreTools({ visionModel: chat }),
+      const runtime = createCoreTestRuntime({
+        chat,
+        summarizer,
         skills: loadSkillsFromDir(SKILLS_DIR),
       })
 

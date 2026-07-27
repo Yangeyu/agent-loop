@@ -1,4 +1,5 @@
 import type { PromptContributor } from "@harness/std/prompt"
+import type { SkillRegistry } from "@harness/skill/registry"
 import type { SkillInfo } from "@harness/skill/types"
 import { defineTool, ToolExecutionError } from "@harness/tool/tool"
 import type { Workspace } from "@harness/workspace"
@@ -8,53 +9,61 @@ const SkillParameters = z.object({
   name: z.string().describe("The name of the skill to load"),
 })
 
+/** What the skill tool and its announcement both read. */
+export type SkillDeps = { skills: SkillRegistry; workspace: Workspace }
+
 /**
  * Prompt axis: announces what this tool can load. It ships with the tool because
  * the announced set and the set `execute` accepts are the same registry read —
  * an agent that enables `skill` registers this alongside it.
  */
-export const availableSkills: PromptContributor = (ctx) => {
-  const skills = ctx.skill_registry.list()
-  if (skills.length === 0) return undefined
+export function createAvailableSkills(deps: { skills: SkillRegistry }): PromptContributor {
+  return () => {
+    const skills = deps.skills.list()
+    if (skills.length === 0) return undefined
 
-  return {
-    slot: "capability",
-    text: [
-      "Use the skill tool when the task matches one of these specialized workflows.",
-      "<available_skills>",
-      ...skills.map((skill) => `- ${skill.name}: ${skill.description}`),
-      "</available_skills>",
-    ].join("\n"),
+    return {
+      slot: "capability",
+      text: [
+        "Use the skill tool when the task matches one of these specialized workflows.",
+        "<available_skills>",
+        ...skills.map((skill) => `- ${skill.name}: ${skill.description}`),
+        "</available_skills>",
+      ].join("\n"),
+    }
   }
 }
 
-export const SkillTool = defineTool({
-  id: "skill",
-  description: "Load a specialized skill that provides domain-specific instructions and workflows.",
-  parameters: SkillParameters,
-  describe(args) {
-    return { verb: "skill", target: args.name }
-  },
-  async execute(args, ctx) {
-    const skill = ctx.skill_registry.get(args.name)
-    if (!skill) {
-      const available = ctx.skill_registry.list().map((item) => item.name)
-      throw new ToolExecutionError({
-        message: `Unknown skill: ${args.name}. Available skills: ${available.join(", ") || "none"}`,
-        retryable: false,
-        code: "skill_not_found",
-      })
-    }
+/** Builds the skill tool bound to a skill catalogue and a workspace. */
+export function createSkillTool(deps: SkillDeps) {
+  return defineTool({
+    id: "skill",
+    description: "Load a specialized skill that provides domain-specific instructions and workflows.",
+    parameters: SkillParameters,
+    describe(args) {
+      return { verb: "skill", target: args.name }
+    },
+    async execute(args) {
+      const skill = deps.skills.get(args.name)
+      if (!skill) {
+        const available = deps.skills.list().map((item) => item.name)
+        throw new ToolExecutionError({
+          message: `Unknown skill: ${args.name}. Available skills: ${available.join(", ") || "none"}`,
+          retryable: false,
+          code: "skill_not_found",
+        })
+      }
 
-    return {
-      output: await renderSkillContent(ctx.workspace, skill),
-      metadata: {
-        name: skill.name,
-        location: skill.location,
-      },
-    }
-  },
-})
+      return {
+        output: await renderSkillContent(deps.workspace, skill),
+        metadata: {
+          name: skill.name,
+          location: skill.location,
+        },
+      }
+    },
+  })
+}
 
 async function renderSkillContent(workspace: Workspace, skill: SkillInfo) {
   return [

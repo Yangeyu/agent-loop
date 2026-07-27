@@ -1,14 +1,15 @@
 // Proactive compaction as explicit session maintenance, run at beforeTurn (an
-// already-effectful pre-flight point — keeps transformMessages a pure fold).
-// When the estimated context exceeds contextWindow × compaction_trigger_ratio,
-// it keeps the recent half of the conversation (cut at a user-message boundary)
-// and replaces the older half with a single summary, persisted via replaceHistory.
+// already-effectful pre-flight point — keeps beforeModelCall a pure fold).
+// When the estimated context exceeds contextWindow × triggerRatio, it keeps the
+// recent half of the conversation (cut at a user-message boundary) and replaces
+// the older half with a single summary, persisted via replaceHistory.
 //
 // The summarizer Model is injected by the composition root and invoked
 // single-shot via .stream() — never through the loop, so compaction stays free
 // of tools/middleware/budgets and re-entrancy-safe. The gating threshold reads
 // the agent's own model spec (ctx.model.spec), so a subagent on a smaller window
 // compacts at the right point.
+import { COMPACTION_DEFAULTS } from "@harness/config"
 import type { LLMInput, Model } from "@harness/llm/types"
 import type { HookContext, MiddlewareFactory } from "@harness/agent/hooks"
 import { estimateModelTokens } from "@harness/std/middleware/token-estimate"
@@ -29,12 +30,22 @@ const COMPACTOR_INSTRUCTIONS = [
   ].join(" "),
 ]
 
+/** Where compaction triggers and how much history it keeps. */
+export type CompactionOptions = {
+  summarizer: Model
+  triggerRatio?: number
+  retainRatio?: number
+}
+
 /**
  * Builds the compaction middleware around the injected summarizer model.
  *
- * @param opts.summarizer - the Model that summarizes the older history half
+ * @param opts - the summarizing Model, and optional trigger/retain ratios
  */
-export function createCompaction(opts: { summarizer: Model }): MiddlewareFactory {
+export function createCompaction(opts: CompactionOptions): MiddlewareFactory {
+  const triggerRatio = opts.triggerRatio ?? COMPACTION_DEFAULTS.triggerRatio
+  const retainRatio = opts.retainRatio ?? COMPACTION_DEFAULTS.retainRatio
+
   return () => {
     const summarizer = opts.summarizer
     return {
@@ -47,10 +58,10 @@ export function createCompaction(opts: { summarizer: Model }): MiddlewareFactory
         // relative to history, and the 0.75 ratio leaves headroom, so estimating
         // messages alone is sufficient to gate.
         const estimate = estimateModelTokens([], messages)
-        const threshold = ctx.model.spec.contextWindow * ctx.config.compaction_trigger_ratio
+        const threshold = ctx.model.spec.contextWindow * triggerRatio
         if (estimate < threshold) return { proceed: true }
 
-        const cut = resolveCutBoundary(session.messages, ctx.config.compaction_retain_ratio)
+        const cut = resolveCutBoundary(session.messages, retainRatio)
         if (cut === undefined) return { proceed: true }
 
         const older = session.messages.slice(0, cut)

@@ -1,16 +1,31 @@
-import type { AgentDefinition } from "@harness/agent/blueprint"
+// Agent lookup by name, plus the one attribute the orchestration layer adds to
+// a blueprint: whether an agent is the entry point or something to delegate to.
+//
+// `mode` lives here rather than on AgentDefinition because a general loop runs
+// one agent and has no notion of delegation. Its only two readers are in this
+// layer: `defaultAgent` below, and the task tool's admission check.
+import { defineAgent, type AgentDefinition, type AgentSpec } from "@harness/agent/blueprint"
+
+export type AgentMode = "primary" | "subagent"
+
+/** A blueprint plus its role in this runtime's agent set. */
+export type HarnessAgent = AgentDefinition & { mode: AgentMode }
+
+export function defineHarnessAgent(spec: AgentSpec & { mode: AgentMode }): HarnessAgent {
+  return { ...defineAgent(spec), mode: spec.mode }
+}
 
 export type AgentRegistry = {
-  agents: Map<string, AgentDefinition>
-  register(agent: AgentDefinition): void
-  get(name: string): AgentDefinition
-  list(): AgentDefinition[]
-  defaultAgent(): AgentDefinition
+  agents: Map<string, HarnessAgent>
+  register(agent: HarnessAgent): void
+  get(name: string): HarnessAgent
+  list(): HarnessAgent[]
+  defaultAgent(): HarnessAgent
 }
 
 export function createAgentRegistry(): AgentRegistry {
   return {
-    agents: new Map<string, AgentDefinition>(),
+    agents: new Map<string, HarnessAgent>(),
 
     register(agent) {
       const existing = this.agents.get(agent.name)

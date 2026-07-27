@@ -2,9 +2,8 @@
  * Pure resolution of timeout/budget numbers from config + agent + session.
  * Budgets are *resolved* here but *enforced* by the budget middleware.
  */
-import type { Config } from "@harness/config"
+import type { CoreConfig } from "@harness/config"
 import type { AgentDefinition } from "@harness/agent/blueprint"
-import type { Sessions } from "@harness/session"
 import type { SessionInfo } from "@harness/types"
 
 /** Per-turn timeout bound. */
@@ -30,7 +29,6 @@ export type TurnBudgetPolicy = {
   maxSessionSteps: number
   sessionStepsUsed: number
   sessionStepsRemaining: number
-  maxSubagentDepth: number
 }
 
 /** The full set of execution bounds for a turn: timeout + budget. */
@@ -52,7 +50,7 @@ export type TurnExecutionPolicy = {
  * @param session - the current session (to count steps already used)
  * @returns the resolved timeout/budget policy
  */
-export function resolveTurnExecutionPolicy(config: Config, agent: AgentDefinition, session: SessionInfo): TurnExecutionPolicy {
+export function resolveTurnExecutionPolicy(config: CoreConfig, agent: AgentDefinition, session: SessionInfo): TurnExecutionPolicy {
   const maxAgentSteps = agent.steps ?? Number.POSITIVE_INFINITY
   const sessionStepsUsed = countAssistantTurns(session)
   const sessionStepsRemaining = Math.max(0, config.session_max_steps - sessionStepsUsed)
@@ -68,7 +66,6 @@ export function resolveTurnExecutionPolicy(config: Config, agent: AgentDefinitio
       maxSessionSteps: config.session_max_steps,
       sessionStepsUsed,
       sessionStepsRemaining,
-      maxSubagentDepth: config.subagent_max_depth,
     },
   }
 }
@@ -96,48 +93,6 @@ export function isFinalAllowedStep(budget: TurnBudgetPolicy, step: number) {
  */
 function countAssistantTurns(session: SessionInfo) {
   return session.messages.filter((message) => message.role === "assistant").length
-}
-
-/**
- * Walks the parent chain to compute a session's delegation depth.
- *
- * @param sessions - the session aggregate, to resolve parent sessions
- * @param sessionID - the session whose depth to measure
- * @returns the depth (0 for a root session)
- */
-export function resolveSessionDepth(sessions: Sessions, sessionID: string) {
-  let depth = 0
-  let current = sessions.get(sessionID)
-
-  while (current.parentID) {
-    depth += 1
-    current = sessions.get(current.parentID)
-  }
-
-  return depth
-}
-
-/**
- * Computes whether delegating one level deeper from a session is within the depth
- * cap, returning the current/next depth alongside the verdict.
- *
- * @param input - the session aggregate, the session id, and the max allowed depth
- * @returns current/next depth, the cap, and whether delegation is allowed
- */
-export function getDelegationDepthInfo(input: {
-  sessions: Sessions
-  sessionID: string
-  maxDepth: number
-}) {
-  const currentDepth = resolveSessionDepth(input.sessions, input.sessionID)
-  const nextDepth = currentDepth + 1
-
-  return {
-    currentDepth,
-    nextDepth,
-    maxDepth: input.maxDepth,
-    allowed: nextDepth <= input.maxDepth,
-  }
 }
 
 /**

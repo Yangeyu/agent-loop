@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test"
-import { defineAgent } from "@harness/agent/blueprint"
+import { defineHarnessAgent } from "@harness/agent/registry"
 import { isFinalAllowedStep, resolveTurnExecutionPolicy } from "@harness/agent/policy"
 import { loadConfigFromEnv, type Config } from "@harness/config"
 import { createDashScopeModel } from "@harness/llm/providers/dashscope"
@@ -28,7 +28,7 @@ function makeSession(assistantTurns: number): SessionInfo {
 
 function resolve(input: { agentSteps: number; assistantTurns: number; config?: Partial<Config> }) {
   const config = { ...loadConfigFromEnv({}), ...input.config }
-  const agent = defineAgent({ name: "lead", mode: "primary", model, steps: input.agentSteps })
+  const agent = defineHarnessAgent({ name: "lead", mode: "primary", model, steps: input.agentSteps })
   return resolveTurnExecutionPolicy(config, agent, makeSession(input.assistantTurns)).budget
 }
 
@@ -63,8 +63,8 @@ describe("resolveTurnExecutionPolicy budgets", () => {
 
   it("prefers a per-agent tool-call cap over the runtime default", () => {
     const config = { ...loadConfigFromEnv({}), run_max_tool_calls: 32 }
-    const declared = defineAgent({ name: "lead", mode: "primary", model, maxToolCalls: 64 })
-    const inherited = defineAgent({ name: "general", mode: "subagent", model })
+    const declared = defineHarnessAgent({ name: "lead", mode: "primary", model, maxToolCalls: 64 })
+    const inherited = defineHarnessAgent({ name: "general", mode: "subagent", model })
 
     expect(resolveTurnExecutionPolicy(config, declared, makeSession(0)).budget.maxRunToolCalls).toBe(64)
     expect(resolveTurnExecutionPolicy(config, inherited, makeSession(0)).budget.maxRunToolCalls).toBe(32)

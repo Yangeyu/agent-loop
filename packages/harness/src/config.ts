@@ -4,6 +4,7 @@ import type { SessionPersistenceConfig } from "@harness/session/persistence"
 // Shared with the retry middleware, so its default and the config default are
 // one number rather than two that agree today.
 export const RETRY_DEFAULTS = { maxRetries: 2, baseDelayMs: 500, maxDelayMs: 4000 }
+export const COMPACTION_DEFAULTS = { triggerRatio: 0.75, retainRatio: 0.5 }
 
 const ConfigSchema = z.object({
   session_store: z.enum(["memory", "file"]).default("memory"),
@@ -31,10 +32,22 @@ const ConfigSchema = z.object({
   // tool_max_concurrency.
   run_max_tool_calls: z.coerce.number().int().min(1).default(32),
   tool_max_concurrency: z.coerce.number().int().min(1).default(4),
-  compaction_trigger_ratio: z.coerce.number().gt(0).max(1).default(0.75),
-  compaction_retain_ratio: z.coerce.number().gt(0).lt(1).default(0.5),
+  compaction_trigger_ratio: z.coerce.number().gt(0).max(1).default(COMPACTION_DEFAULTS.triggerRatio),
+  compaction_retain_ratio: z.coerce.number().gt(0).lt(1).default(COMPACTION_DEFAULTS.retainRatio),
 })
 
+/**
+ * The engine's own knobs: what a loop needs to bound a turn and persist a
+ * session, and nothing about what the orchestration layer happens to do with
+ * files, skills, or delegation.
+ */
+export type CoreConfig = Pick<
+  z.infer<typeof ConfigSchema>,
+  "session_max_steps" | "turn_timeout_ms" | "run_max_tool_calls" | "tool_max_concurrency"
+> &
+  SessionPersistenceConfig
+
+/** The orchestration layer's config: the engine's, plus what the bricks need. */
 export type Config = z.infer<typeof ConfigSchema> & SessionPersistenceConfig
 
 let cachedConfig: Config | undefined

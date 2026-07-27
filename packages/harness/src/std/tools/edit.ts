@@ -1,3 +1,4 @@
+import type { Workspace } from "@harness/workspace"
 import { defineTool, ToolExecutionError } from "@harness/tool/tool"
 import type { ToolExecuteResult } from "@harness/types"
 import type { WorkspaceChange } from "@harness/workspace"
@@ -26,53 +27,56 @@ export const EditParameters = z.object({
 
 export type EditArgs = z.infer<typeof EditParameters>
 
-export const EditTool = defineTool({
-  id: "edit",
-  description:
-    "Replace an exact snippet of text in an existing file. The snippet must match the file verbatim and appear exactly once, unless replaceAll is set. This is also how a long document is built: write its skeleton first, then replace each placeholder with the real content — every step leaves the file valid, and a placeholder that has gone missing fails loudly instead of appending blindly.",
-  parameters: EditParameters,
-  describe(args, ctx) {
-    return { verb: "edit", target: ctx.workspace.resolve(args.filePath) }
-  },
-  // Only classifies what execute() could not: execute throws its own refusals
-  // (no match, ambiguous, no-op) already typed, and defineTool leaves those
-  // alone rather than running them through here.
-  mapError({ args, toolID, code }) {
-    if (code === "ENOENT") {
-      return {
-        message: `The ${toolID} tool failed: file not found at ${args.filePath}`,
-        retryable: false,
-        code: "edit_not_found",
+/** Builds the edit tool bound to a workspace. */
+export function createEditTool(deps: { workspace: Workspace }) {
+  return defineTool({
+    id: "edit",
+    description:
+      "Replace an exact snippet of text in an existing file. The snippet must match the file verbatim and appear exactly once, unless replaceAll is set. This is also how a long document is built: write its skeleton first, then replace each placeholder with the real content — every step leaves the file valid, and a placeholder that has gone missing fails loudly instead of appending blindly.",
+    parameters: EditParameters,
+    describe(args) {
+      return { verb: "edit", target: deps.workspace.resolve(args.filePath) }
+    },
+    // Only classifies what execute() could not: execute throws its own refusals
+    // (no match, ambiguous, no-op) already typed, and defineTool leaves those
+    // alone rather than running them through here.
+    mapError({ args, toolID, code }) {
+      if (code === "ENOENT") {
+        return {
+          message: `The ${toolID} tool failed: file not found at ${args.filePath}`,
+          retryable: false,
+          code: "edit_not_found",
+        }
       }
-    }
 
-  },
-  async execute(args, ctx) {
-    const target = ctx.workspace.resolve(args.filePath)
+    },
+    async execute(args) {
+      const target = deps.workspace.resolve(args.filePath)
 
-    if (args.oldString === args.newString) {
-      // A no-op edit means the model believes it changed something it did not.
-      // Reporting success would let that belief stand.
-      throw new ToolExecutionError({
-        message: `The edit tool failed: oldString and newString are identical, so this edit would change nothing`,
-        retryable: false,
-        code: "edit_no_op",
-      })
-    }
+      if (args.oldString === args.newString) {
+        // A no-op edit means the model believes it changed something it did not.
+        // Reporting success would let that belief stand.
+        throw new ToolExecutionError({
+          message: `The edit tool failed: oldString and newString are identical, so this edit would change nothing`,
+          retryable: false,
+          code: "edit_no_op",
+        })
+      }
 
-    // A guard, not a precondition: an absent file is left to mutate, whose read
-    // raises the ENOENT that mapError turns into edit_not_found.
-    const stat = await ctx.workspace.stat(target)
-    if (stat && stat.bytes > MAX_BYTES) {
-      throw new Error(`file is too large (${stat.bytes} bytes, limit ${MAX_BYTES} bytes)`)
-    }
+      // A guard, not a precondition: an absent file is left to mutate, whose read
+      // raises the ENOENT that mapError turns into edit_not_found.
+      const stat = await deps.workspace.stat(target)
+      if (stat && stat.bytes > MAX_BYTES) {
+        throw new Error(`file is too large (${stat.bytes} bytes, limit ${MAX_BYTES} bytes)`)
+      }
 
-    // The read, the match, and the write are one exclusive step for this path.
-    // Two edits to the same file therefore queue instead of both reading the
-    // original — and this tool needs to know nothing about the other one.
-    return await ctx.workspace.mutate(target, (content) => planEdit(args, target, content))
-  },
-})
+      // The read, the match, and the write are one exclusive step for this path.
+      // Two edits to the same file therefore queue instead of both reading the
+      // original — and this tool needs to know nothing about the other one.
+      return await deps.workspace.mutate(target, (content) => planEdit(args, target, content))
+    },
+  })
+}
 
 // Pure: given the file's current text, decides the new text and the result to
 // report. Every refusal is a throw, and throwing from inside mutate leaves the

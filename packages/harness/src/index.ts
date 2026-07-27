@@ -5,6 +5,8 @@
 // Runtime composition + lifecycle
 export {
   createRuntime,
+  createCoreRuntime,
+  createCoreTestRuntime,
   createTestRuntime,
   runPrompt,
 } from "@harness/runtime/bootstrap"
@@ -21,6 +23,8 @@ export type { Config } from "@harness/config"
 
 // The agent kernel: blueprint + the standalone runnable atom
 export { defineAgent } from "@harness/agent/blueprint"
+export { createAgentRegistry, defineHarnessAgent } from "@harness/agent/registry"
+export type { AgentMode, AgentRegistry, HarnessAgent } from "@harness/agent/registry"
 export type { AgentDefinition, AgentSpec } from "@harness/agent/blueprint"
 export { createAgent } from "@harness/agent/create-agent"
 export type { StandaloneAgentSpec } from "@harness/agent/create-agent"
@@ -43,13 +47,13 @@ export {
 } from "@harness/std/middleware"
 
 // Prompt composition: the shared slot vocabulary. Every fragment itself lives
-// with its owner — see engineConventions (agents/shared), availableSkills
-// (tools/skill), subagentList (tools/task).
+// with its owner — see engineConventions (agents/shared), createAvailableSkills
+// (tools/skill), createSubagentList (tools/task).
 export { SLOT_ORDER } from "@harness/std/prompt"
 export type { PromptContributor, PromptSlot, SystemSection } from "@harness/std/prompt"
 export { engineConventions } from "@harness/std/agents/shared/base-prompt"
-export { availableSkills } from "@harness/std/tools/skill"
-export { subagentList } from "@harness/std/tools/task"
+export { createAvailableSkills } from "@harness/std/tools/skill"
+export { createSubagentList } from "@harness/std/tools/task"
 export type {
   ContextDraft,
   HookContext,

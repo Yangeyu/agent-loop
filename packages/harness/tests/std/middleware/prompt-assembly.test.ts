@@ -3,16 +3,15 @@
 // is ordering, which used to be an emergent property of each agent's middleware
 // array and therefore untestable by construction.
 import { describe, expect, it } from "bun:test"
+import { defineHarnessAgent } from "@harness/agent/registry"
 import {
   baseMiddleware,
-  createCoreAgents,
-  createCoreTools,
+  createCoreTestRuntime,
   createTestRuntime,
-  defineAgent,
   defineTool,
   promptAssembly,
   runPrompt,
-  type AgentDefinition,
+  type HarnessAgent,
   type PromptContributor,
   type SkillInfo,
 } from "@harness"
@@ -63,15 +62,28 @@ function recordingModel(scripts: LLMChunk[][] = [DONE]) {
   return { model, systems }
 }
 
-async function run(options: { agents: AgentDefinition[]; skills?: SkillInfo[]; format?: typeof JSON_FORMAT }) {
-  const runtime = createTestRuntime({
-    agents: options.agents,
-    skills: options.skills,
-    // The core agents declare the core tool set; the registry resolves those names
-    // per turn, so they have to be present even for a test that only reads prompts.
-    tools: createCoreTools({ visionModel: options.agents[0].model }),
-  })
+// A probe agent composed by hand: it holds its own tools, so nothing else needs
+// registering.
+async function run(options: { agents: HarnessAgent[]; skills?: SkillInfo[]; format?: typeof JSON_FORMAT }) {
+  const runtime = createTestRuntime({ agents: options.agents, skills: options.skills })
   await runPrompt({ runtime, agent: options.agents[0].name, text: "do the thing", format: options.format })
+}
+
+// The real standard assembly, which is the only way to see what the shipped
+// agents actually say. `patch` amends the lead in place for the cases that need
+// a different budget than the shipped one.
+async function runCore(options: {
+  model: Model
+  skills?: SkillInfo[]
+  format?: typeof JSON_FORMAT
+  agents?: "lead-only" | "both"
+  patchLead?: Partial<HarnessAgent>
+}) {
+  const runtime = createCoreTestRuntime({ chat: options.model, summarizer: options.model, skills: options.skills })
+  const registry = runtime.agent_registry
+  if (options.agents === "lead-only") registry.agents.delete("general")
+  if (options.patchLead) registry.agents.set("lead", { ...registry.get("lead"), ...options.patchLead })
+  await runPrompt({ runtime, agent: "lead", text: "do the thing", format: options.format })
 }
 
 function skill(name: string): SkillInfo {
@@ -87,7 +99,7 @@ describe("prompt assembly", () => {
 
     await run({
       agents: [
-        defineAgent({
+        defineHarnessAgent({
           name: "probe",
           mode: "primary",
           model,
@@ -107,7 +119,7 @@ describe("prompt assembly", () => {
 
     await run({
       agents: [
-        defineAgent({
+        defineHarnessAgent({
           name: "probe",
           mode: "primary",
           model,
@@ -126,7 +138,7 @@ describe("prompt assembly", () => {
 
     await run({
       agents: [
-        defineAgent({
+        defineHarnessAgent({
           name: "probe",
           mode: "primary",
           model,
@@ -141,9 +153,7 @@ describe("prompt assembly", () => {
 
   it("leads with the agent's own identity and states it exactly once", async () => {
     const { model, systems } = recordingModel()
-    const [lead] = createCoreAgents({ model, summarizer: model })
-
-    await run({ agents: [lead] })
+    await runCore({ model })
 
     expect(systems[0][0]).toStartWith("You are the lead orchestration agent")
     // Regression guard: a shared "You are a general-purpose assistant" preamble
@@ -153,11 +163,9 @@ describe("prompt assembly", () => {
 
   it("renders the volatile slot last so everything above it is a stable prefix", async () => {
     const { model, systems } = recordingModel()
-    const [lead] = createCoreAgents({ model, summarizer: model })
-
     // steps: 1 makes the first step the final allowed one, so the volatile slot
     // is populated on the very first turn.
-    await run({ agents: [{ ...lead, steps: 1 }], skills: [skill("demo")], format: JSON_FORMAT })
+    await runCore({ model, patchLead: { steps: 1 }, skills: [skill("demo")], format: JSON_FORMAT })
 
     const system = systems[0]
     expect(system.at(-1)).toContain("final allowed step")
@@ -167,43 +175,37 @@ describe("prompt assembly", () => {
 
   it("lists registered skills, and says nothing when there are none", async () => {
     const withSkills = recordingModel()
-    const [leadA] = createCoreAgents({ model: withSkills.model, summarizer: withSkills.model })
-    await run({ agents: [leadA], skills: [skill("demo")] })
+    await runCore({ model: withSkills.model, skills: [skill("demo")] })
 
     const skillsBlock = withSkills.systems[0].find((text) => text.includes("<available_skills>"))
     expect(skillsBlock).toContain("- demo: demo workflow")
 
     const withoutSkills = recordingModel()
-    const [leadB] = createCoreAgents({ model: withoutSkills.model, summarizer: withoutSkills.model })
-    await run({ agents: [leadB] })
+    await runCore({ model: withoutSkills.model })
 
     expect(withoutSkills.systems[0].some((text) => text.includes("<available_skills>"))).toBe(false)
   })
 
   it("lists delegable subagents only when some are registered", async () => {
     const withSubagent = recordingModel()
-    const pair = createCoreAgents({ model: withSubagent.model, summarizer: withSubagent.model })
-    await run({ agents: pair })
+    await runCore({ model: withSubagent.model })
 
     const block = withSubagent.systems[0].find((text) => text.includes("<available_subagents>"))
     expect(block).toContain("- general:")
 
     const alone = recordingModel()
-    const [leadOnly] = createCoreAgents({ model: alone.model, summarizer: alone.model })
-    await run({ agents: [leadOnly] })
+    await runCore({ model: alone.model, agents: "lead-only" })
 
     expect(alone.systems[0].some((text) => text.includes("<available_subagents>"))).toBe(false)
   })
 
   it("asks for structured output only when the turn requested it", async () => {
     const structured = recordingModel()
-    const [leadA] = createCoreAgents({ model: structured.model, summarizer: structured.model })
-    await run({ agents: [leadA], format: JSON_FORMAT })
+    await runCore({ model: structured.model, format: JSON_FORMAT })
     expect(structured.systems[0].some((text) => text.includes("JSON Schema"))).toBe(true)
 
     const plain = recordingModel()
-    const [leadB] = createCoreAgents({ model: plain.model, summarizer: plain.model })
-    await run({ agents: [leadB] })
+    await runCore({ model: plain.model })
     expect(plain.systems[0].some((text) => text.includes("JSON Schema"))).toBe(false)
   })
 
@@ -215,14 +217,13 @@ describe("prompt assembly", () => {
     ])
 
     const runtime = createTestRuntime({
-      tools: [NOOP_TOOL],
       agents: [
-        defineAgent({
+        defineHarnessAgent({
           name: "probe",
           mode: "primary",
           model,
           instructions: ["IDENTITY"],
-          tools: { noop: true },
+          tools: [NOOP_TOOL],
           steps: 3,
           middleware: baseMiddleware(),
         }),
@@ -241,7 +242,7 @@ describe("prompt assembly", () => {
 
     await run({
       agents: [
-        defineAgent({
+        defineHarnessAgent({
           name: "probe",
           mode: "primary",
           model,

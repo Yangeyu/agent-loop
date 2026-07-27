@@ -2,7 +2,6 @@ import type {
   ErrorInfo,
   ToolContext,
   ToolDefinition,
-  ToolDescribeContext,
   ToolDisplayPatch,
   ToolExecuteResult,
   ToolMetadata,
@@ -39,7 +38,7 @@ type DefineToolOptions<P extends z.ZodType> = {
    * working on from the moment it appears rather than once it finishes.
    * Must be pure — it is display, not work.
    */
-  describe?: (args: z.infer<P>, ctx: ToolDescribeContext) => ToolDisplayPatch
+  describe?: (args: z.infer<P>) => ToolDisplayPatch
   parameters: P
   execute: (args: z.infer<P>, ctx: ToolContext) => Promise<ToolExecuteResult>
   beforeExecute?: (input: ToolHookInput<z.infer<P>>) => Awaitable<ToolMetadataUpdate | void>
