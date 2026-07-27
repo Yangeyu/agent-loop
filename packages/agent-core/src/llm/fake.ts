@@ -1,10 +1,7 @@
 // A scriptable Model stub: replays a fixed chunk script per stream call and
 // (optionally) records each input, so a test can drive the loop deterministically
-// without a network provider and assert which model received a call.
-//
-// It ships with the package rather than with the tests because the port is
-// public: anything building on this loop needs a Model it can script, and a
-// second hand-rolled stub in every consumer is how they drift.
+// without a network provider. Ships with the package because the port is public
+// — anything building on this loop needs a Model it can script.
 import type { LLMChunk, LLMInput, Model, ProviderModelSpec } from "@agent-core/llm/types"
 
 export type FakeModelOptions = {

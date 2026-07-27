@@ -3,8 +3,7 @@
 // shape turn outcomes. It is distinct from the event bus (event/bus.ts), which
 // is observation only.
 //
-// Hook names follow <position><Subject>, so the whole set reads in execution
-// order instead of needing agent/loop.ts to disambiguate it:
+// Hook names follow <position><Subject>, so the set reads in execution order:
 //
 //   beforeRun
 //     ├─ ( beforeTurn                        gate + the one effect point
@@ -24,17 +23,13 @@ import type { TurnExecutionPolicy } from "@agent-core/policy"
 import type { Sessions } from "@agent-core/session"
 import type { ErrorInfo, FinishReason, OutputFormat, ToolExecuteResult } from "@agent-core/types"
 
-// Why a turn's outcome was shaped the way it was — the hook-layer vocabulary
-// middleware uses to gate turns and resolve continue/break decisions.
+// Why a turn's outcome was shaped the way it was — the vocabulary middleware
+// use to gate turns and resolve continue/break decisions.
 //
-// The engine's own five are named; the union stays open because the rest of
-// this vocabulary belongs to middleware — "step_budget_reached" is the budget
-// middleware's word, not a fact the kernel knows. Closing it would make every
-// new middleware reason a kernel edit.
-//
-// Opening it costs nothing: this type never leaves the engine (a turn.end event
-// carries TurnEndReason, a separate vocabulary), and the only branch on it
-// anywhere reads one of the five below.
+// The loop's own five are named; the union stays open because the rest of the
+// vocabulary is middleware's ("step_budget_reached" is the budget middleware's
+// word, not a fact the loop knows). The type never leaves the engine, so the
+// only thing openness costs is an exhaustive check nothing performs.
 export type TurnOutcomeReason =
   | "tool_calls"
   | "empty_assistant"

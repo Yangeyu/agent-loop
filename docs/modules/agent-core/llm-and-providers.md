@@ -1,6 +1,6 @@
 # LLM 与 Provider
 
-> 范围：harness 的 `llm/`——Model 抽象与 provider。
+> 范围：`packages/agent-core` 的 `llm/`——Model 抽象与 provider。
 
 ## 职责
 
@@ -11,11 +11,11 @@ agent 在自己的组合处持有这个实例。
 
 ## 关键入口
 
-- `@harness/llm/types.ts` — 核心契约：`Model` / `LLMInput` / `LLMChunk` / `ModelMessage` / `ProviderModelSpec`。
-- `@harness/llm/providers/openai-compat.ts` — OpenAI 兼容协议的共享传输底座 `createOpenAICompatModel`。
-- `@harness/llm/providers/dashscope.ts` — DashScope（qwen）provider 的 `createDashScopeModel` 工厂。
-- `@harness/llm/message.ts` — 会话到 `ModelMessage[]` 的投影（`toModelMessages`）。
-- `@harness/llm/image.ts` — `ImageSource` 解析与 image_url 映射。
+- `@agent-core/llm/types.ts` — 核心契约：`Model` / `LLMInput` / `LLMChunk` / `ModelMessage` / `ProviderModelSpec`。
+- `@agent-core/llm/providers/openai-compat.ts` — OpenAI 兼容协议的共享传输底座 `createOpenAICompatModel`。
+- `@agent-core/llm/providers/dashscope.ts` — DashScope（qwen）provider 的 `createDashScopeModel` 工厂。
+- `@agent-core/llm/message.ts` — 会话到 `ModelMessage[]` 的投影（`toModelMessages`）。
+- `@agent-core/llm/image.ts` — `ImageSource` 解析与 image_url 映射。
 
 ## 数据流
 

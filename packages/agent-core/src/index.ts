@@ -1,13 +1,10 @@
-// Public API of the agent loop.
+// Public API of the agent loop: drive one agent through turns until an outcome
+// breaks, streaming into a session and dispatching the tools that agent holds.
 //
-// This package is the loop and nothing else: it drives one agent through turns
-// until an outcome breaks, streaming into a session and dispatching the tools
-// that agent holds. It does not know what a skill is, where the files are, or
-// that more than one agent might exist — those belong to whatever orchestrates
-// it (see @harness, its first consumer).
-//
-// Everything a consumer extends it with arrives through two contracts:
-// middleware (hooks.ts) and tools (types.ts). Neither requires editing this
+// It does not know what a skill is, where the files are, or that more than one
+// agent might exist — those belong to whatever orchestrates it (@harness is the
+// first such consumer). Everything a consumer adds arrives through two
+// contracts, middleware and tools, neither of which requires editing this
 // package.
 
 // The loop

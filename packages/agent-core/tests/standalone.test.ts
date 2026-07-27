@@ -1,10 +1,7 @@
-// The acceptance test for the split: build a working agent out of this package
-// and nothing else.
-//
-// It is not a demo. Every collaborator the loop used to hold — a workspace, a
-// skill catalogue, an agent registry, a tool registry — would show up here as an
-// import this file cannot make. If any of them were still required, this test
-// would not compile, which is the only reliable way to know the core is clean.
+// The acceptance test for this package: build a working agent out of it and
+// nothing else. Not a demo — any collaborator the loop still required would
+// appear here as an import this file cannot make, so it failing to compile is
+// the signal that something orchestration-shaped has leaked back in.
 import { describe, expect, it } from "bun:test"
 import { z } from "zod"
 import {

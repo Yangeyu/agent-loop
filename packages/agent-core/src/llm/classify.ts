@@ -1,7 +1,6 @@
-// Failure classification for the model port. Whether a provider error is worth
-// another attempt is a property of the port, not of any one retry policy —
-// anything wrapping a model call needs this verdict, and the policy built on it
-// is a middleware (harness).
+// Failure classification for the model port: whether a provider error is worth
+// another attempt. A property of the port rather than of any one retry policy,
+// which is why the policy built on it lives outside this package.
 import { isAbortError } from "@agent-core/error"
 
 /** The bucket an error falls into for retry/telemetry purposes. */

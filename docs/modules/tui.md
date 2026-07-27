@@ -33,7 +33,7 @@
 ## 扩展点
 
 - 改终端布局/快捷键/trace 折叠：`app.tsx` 与 `components/`。
-- 新可视化事实：先扩展 `@contracts` 的 `StateEvent`/`LoopEvent`（及发射端），再在 `trace.ts` / 组件里消费。
+- 新可视化事实：先扩展 `@agent-core` 的 `StateEvent`/`LoopEvent`（及发射端），再在 `trace.ts` / 组件里消费。
 
 ## 展示分层
 

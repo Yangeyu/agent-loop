@@ -11,11 +11,8 @@ import { createCoreTools } from "@harness/tools"
 import type { SkillInfo } from "@harness/skills/types"
 import type { ImageSource, OutputFormat } from "@agent-core"
 
-/**
- * The composed capability set a runtime is assembled from. Tools are absent on
- * purpose: an agent holds its own tools now, so there is nothing left for a
- * runtime-wide tool list to do.
- */
+/** The composed capability set a runtime is assembled from. Tools are absent
+ *  because an agent holds its own; a runtime-wide tool list has nothing to do. */
 export type RuntimeAssembly = {
   config?: Config
   agents?: HarnessAgent[]
@@ -31,13 +28,11 @@ export function createRuntime(options?: RuntimeAssembly): RuntimeContext {
 
 /**
  * Assembles the standard agent set on a runtime: skills, then the core tools
- * built against this runtime's collaborators, then the agents holding those
- * tools. A surface supplies only the models — that is the one decision this
- * cannot make for it.
+ * built against this runtime's collaborators, then the agents holding them. A
+ * surface supplies only the models.
  *
- * The order is load-bearing. The task tool reads the agent registry at call
- * time, so it can be built before the agents exist; the agents cannot be built
- * before their tools do.
+ * The order is load-bearing: the task tool reads the agent registry at call
+ * time, so it can precede the agents; the agents cannot precede their tools.
  *
  * @param options - the chat and summarizer models, plus optional config/skills
  * @returns the assembled runtime

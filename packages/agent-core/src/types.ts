@@ -64,13 +64,12 @@ export type SessionHistoryMessage = {
 }
 
 /**
- * What a tool call may consult. Listed explicitly rather than derived from the
- * engine's dependencies: when it was `EngineDeps & {...}`, "a tool needs X"
- * silently became "the engine must hold X", which is how a file tree and a
- * skill catalogue ended up inside the loop.
+ * What a tool call may consult: listed explicitly, never derived from the
+ * engine's dependencies, so that "a tool needs X" cannot quietly become "the
+ * loop must hold X".
  *
- * A tool that needs anything beyond this holds it in the closure it was built
- * with — see createReadTool({ workspace }), createTaskTool({ agents, config }).
+ * Anything beyond this a tool holds in its own closure — see
+ * createReadTool({ workspace }), createTaskTool({ agents, config }).
  */
 export type ToolContext = {
   config: CoreConfig
@@ -106,8 +105,8 @@ export type ToolDefinition<TArgs = unknown> = {
    * already carries the full display. Anything that needs to do work belongs in
    * execute; this only names the call.
    *
-   * It takes the args and nothing else: a tool that must resolve a path the
-   * same way execute will resolves it against the workspace it was built with.
+   * It takes the args and nothing else: a tool resolving a path the way execute
+   * will resolve it does so against the workspace it holds.
    */
   describe?(args: TArgs): ToolDisplayPatch
   parameters: z.ZodType<TArgs>

@@ -8,11 +8,9 @@ import { createWorkspace, type Workspace } from "@harness/workspace"
 
 /**
  * The orchestration layer's assembled collaborators: the engine's dependencies
- * plus the catalogues and the file tree that this layer's tools are built from.
- *
- * These used to be one type. Separating them is what the whole split turns on —
- * a general loop needs sessions, events, and its knobs; wanting to know what a
- * skill is, or where the files are, is this layer wanting it.
+ * plus the catalogues and the file tree its tools are built from. The two halves
+ * are separate types on purpose — knowing what a skill is, or where the files
+ * are, is this layer's business and not the loop's.
  */
 export type RuntimeContext = EngineDeps & {
   config: Config

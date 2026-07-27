@@ -2,9 +2,9 @@
 // set of engine deps (in-memory sessions by default) into a directly runnable
 // unit — the same kernel machinery the full runtime assembles by hand.
 //
-// Deliberately minimal: no subagents, no skills, no workspace. Those are the
-// orchestration layer's, and an agent that needs them composes them into its own
-// tools. If this entry ever needs one of them, the split above it is wrong.
+// Deliberately minimal: no subagents, no skills, no workspace. An agent needing
+// those composes them into its own tools. If this entry ever needs one, the
+// split above it is wrong.
 import { defineAgent, type AgentDefinition } from "@agent-core/blueprint"
 import { runLoop } from "@agent-core/loop"
 import { DEFAULT_CORE_CONFIG, type CoreConfig } from "@agent-core/config"

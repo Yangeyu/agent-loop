@@ -6,8 +6,8 @@
 
 ## 文档树
 
-`docs/modules/` 按 **package** 组织：每个 package 是路由键。harness 是引擎主体，内部按子架构
-拆多篇；只装一篇文档的 package 直接用扁平文件，不建空目录。
+`docs/modules/` 按 **package** 组织：每个 package 是路由键。装不下一篇的 package 按子架构拆多篇；
+只装一篇的直接用扁平文件，不建空目录。
 
 ```text
 AGENTS.md              # 入口：核心约束 + 文档地图 + 同步纪律
@@ -16,13 +16,14 @@ docs/
 ├── conventions.md     # 工程开发规范 + 沉淀下来的设计原则
 ├── project-map.md     # 整体结构、主执行链路、扩展点
 └── modules/
-    ├── harness/                 # 引擎（packages/harness）
-    │   ├── core-and-runtime.md  # 主循环、turn 生命周期、middleware、session 状态
-    │   ├── llm-and-providers.md # Model 抽象、provider、流式协议
-    │   └── agents-and-tools.md  # agent 模块、agent middleware、工具、委派
-    ├── contracts.md             # packages/contracts：共享数据模型与事件词汇
-    ├── tui.md                   # packages/tui
-    └── cli.md                   # apps/cli（含组合根 compose.ts）
+    ├── agent-core/                    # 通用 agent loop（packages/agent-core）
+    │   ├── loop-and-state.md          # 数据模型、循环、turn 生命周期、hook 契约、session 状态
+    │   └── llm-and-providers.md       # Model 端口、provider、流式协议
+    ├── harness/                       # 编排层（packages/harness）
+    │   ├── agents-and-tools.md        # agent 模块、prompt 组装、工具、技能、委派、工作区
+    │   └── runtime-and-middleware.md  # 运行时装配、middleware 目录、config 分层
+    ├── tui.md                         # packages/tui
+    └── cli.md                         # apps/cli（含组合根 compose.ts）
 ```
 
 ## 阅读顺序
@@ -50,7 +51,7 @@ docs/
 # <模块名>
 
 ## 职责        —— 这一层负责什么、不负责什么，一两句话。
-## 关键入口    —— 真正的入口文件/函数（带 @harness/... 路径），不堆全量文件清单。
+## 关键入口    —— 真正的入口文件/函数（带包内路径），不堆全量文件清单。
 ## 数据流      —— 输入如何流经本模块、产出什么，按链路而非按文件叙述。
 ## 扩展点      —— 想加东西时从哪里下手。
 ## 约束与经验  —— 必须遵守的边界，以及为什么（指向 conventions.md 的对应原则）。

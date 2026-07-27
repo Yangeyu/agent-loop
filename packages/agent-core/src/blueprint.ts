@@ -16,8 +16,8 @@ export type AgentDefinition = {
   // against everything else in the system prompt is the composition layer's
   // business, not the kernel's (see std/prompt).
   instructions: string[]
-  // The tools themselves, not names to look up. Resolving names against a
-  // registry is a convenience for configuration; a loop runs what it holds.
+  // The tools themselves, not names to look up: resolving names against a
+  // registry is a convenience for configuration, not a loop primitive.
   tools: ToolDefinition[]
   steps?: number
   // Cap on tool calls across the agent's whole run, mirroring how `steps` caps

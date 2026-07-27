@@ -9,15 +9,15 @@
 
 ## 关键入口
 
-- `@apps/cli/src/index.ts` — 唯一入口：参数解析 + `createRuntime()` + `runPrompt()`。
+- `@apps/cli/src/index.ts` — 唯一入口：参数解析 + `createAppRuntime()` + `runPrompt()`。
 - `@apps/cli/src/logger.ts` — 终端渲染，两种输出模式（`stream` / `buffered`）；渲染是表面层
-  关注点，住在 CLI 自己包里，只经 `@harness` barrel 消费事件类型。
+  关注点，住在 CLI 自己包里；事件与数据模型的类型从 `@agent-core` 拿，运行时装配从 `@harness` 拿。
 
 ## 数据流
 
 - 解析 `--agent / --session / --json / --tui / --output`。
-- `createAppRuntime()`（`src/compose.ts`，唯一的 provider 绑定点）装配运行时
-  （测试/smoke 用 `createAppTestRuntime()`，默认 memory store）。
+- `createAppRuntime()`（`src/compose.ts`，唯一的 provider 绑定点）只挑模型，其余交给
+  `createCoreRuntime()` 标准装配（测试/smoke 走 memory store）。
 - `runPrompt()` 跑一次完整 session；`attachConsoleLogger` 订阅 `runtime.events` 渲染。
 - 工具行渲染自工具声明的 `ToolDisplay`，不解析 args 猜测（CLI 只决定自己的排版：相对路径、宽度上限）。
   `->` 行等到 display 带上 `target` 才打印：流式输出无法回改已输出的行，`part.created` 时

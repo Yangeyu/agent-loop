@@ -26,12 +26,10 @@ export type CoreToolDeps = {
 
 /**
  * Builds the core tool set. Each tool holds what it needs in its own closure,
- * which is why the engine's context can stay down to sessions/events/config —
- * "this tool needs a file tree" never becomes "the loop must hold a file tree".
+ * which is what keeps the loop's context down to sessions/events/config.
  *
- * `agents` is passed as the registry rather than a list because the task tool
- * reads it at call time: the lead agent enables `task`, so the tool has to exist
- * before the agents that use it are registered.
+ * `agents` arrives as the registry rather than a list because the task tool
+ * reads it at call time — it must exist before the agents that enable it.
  *
  * @param deps - the vision model, workspace, skill catalogue, agent registry, config
  */
