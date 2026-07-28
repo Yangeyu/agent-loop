@@ -1,7 +1,9 @@
-// The system prompt's shape, asserted end to end: these run a real turn and read
-// back the `system` array the model actually received. The behaviour under test
-// is ordering, which used to be an emergent property of each agent's middleware
-// array and therefore untestable by construction.
+/**
+ * The system prompt's shape, asserted end to end: these run a real turn and read
+ * back the `system` array the model actually received. The behaviour under test
+ * is ordering, which used to be an emergent property of each agent's middleware
+ * array and therefore untestable by construction.
+ */
 import { describe, expect, it } from "bun:test"
 import { defineHarnessAgent } from "@harness/registry"
 import {

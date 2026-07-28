@@ -1,7 +1,9 @@
-// The architecture's core invariant: the state channel is a complete record of
-// session mutation. Folding a session's state events with the shared reducer
-// must reproduce exactly the session the aggregate stored — if these diverge,
-// a write bypassed the aggregate or an event misdescribes its write.
+/**
+ * The architecture's core invariant: the state channel is a complete record of
+ * session mutation. Folding a session's state events with the shared reducer
+ * must reproduce exactly the session the aggregate stored — if these diverge,
+ * a write bypassed the aggregate or an event misdescribes its write.
+ */
 import { describe, expect, it } from "bun:test"
 import { defineHarnessAgent } from "@harness/registry"
 import { applyStateEvent, emptyProjection, type SessionProjection } from "@agent-core/model"

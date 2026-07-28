@@ -1,7 +1,9 @@
-// Retry as a middleware, asserted end to end through the wrapModelCall onion.
-// Two things are under test that were previously untestable: that a failed
-// stream is re-issued at all, and that each attempt is *visible* — before this,
-// a backoff was indistinguishable from a hung turn on any surface.
+/**
+ * Retry as a middleware, asserted end to end through the wrapModelCall onion.
+ * Two things are under test that were previously untestable: that a failed
+ * stream is re-issued at all, and that each attempt is *visible* — before this,
+ * a backoff was indistinguishable from a hung turn on any surface.
+ */
 import { describe, expect, it } from "bun:test"
 import { defineHarnessAgent } from "@harness/registry"
 import {

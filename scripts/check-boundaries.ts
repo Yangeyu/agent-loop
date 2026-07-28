@@ -1,9 +1,11 @@
 /// <reference types="bun" />
 
-// Enforces the monorepo dependency direction:
-//   agent-core <- harness <- surfaces (one-way). agent-core is the general agent
-//   loop; harness orchestrates it into a working coding agent; surfaces (tui,
-//   cli) drive the harness. Nothing below ever depends on something above.
+/**
+ * Enforces the monorepo dependency direction:
+ *   agent-core <- harness <- surfaces (one-way). agent-core is the general agent
+ *   loop; harness orchestrates it into a working coding agent; surfaces (tui,
+ *   cli) drive the harness. Nothing below ever depends on something above.
+ */
 import { Glob } from "bun"
 import { readFileSync } from "node:fs"
 

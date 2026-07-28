@@ -1,7 +1,9 @@
-// The acceptance test for this package: build a working agent out of it and
-// nothing else. Not a demo — any collaborator the loop still required would
-// appear here as an import this file cannot make, so it failing to compile is
-// the signal that something orchestration-shaped has leaked back in.
+/**
+ * The acceptance test for this package: build a working agent out of it and
+ * nothing else. Not a demo — any collaborator the loop still required would
+ * appear here as an import this file cannot make, so it failing to compile is
+ * the signal that something orchestration-shaped has leaked back in.
+ */
 import { describe, expect, it } from "bun:test"
 import { z } from "zod"
 import {
