@@ -131,9 +131,9 @@ export function toMetadataPatchedToolPart(part: ToolPart, input: { display?: Too
 
 // Folds a display patch onto what a call has established so far. Two rules make
 // the pieces compose: a later patch refines the earlier one field by field (so
-// beforeExecute states the target and the result adds only the summary), and an
-// undeclared verb falls back to the tool's own name — a tool that says nothing
-// about its display still renders as itself rather than as a blank row.
+// `describe` states the target and the result adds only the summary), and an
+// undeclared verb falls back to the tool's own name, so a tool that says
+// nothing about its display still renders as itself.
 function resolveDisplay(
   toolName: string,
   base: ToolDisplay | undefined,

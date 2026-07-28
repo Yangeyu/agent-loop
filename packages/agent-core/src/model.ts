@@ -1,11 +1,13 @@
-// The shared vocabulary for the whole chain: the session data model, the two
-// event channels (state + loop), and the pure projection that folds state
-// events back into session state.
-//
-// Pure types and pure functions only — no runtime dependencies, no node/bun
-// globals — so any consumer, in or out of this process, imports the same
-// definitions. This file is the single source of truth: the harness emits these
-// events and every consumer projects state with the same reducer.
+/**
+ * The shared vocabulary for the whole chain: the session data model, the two
+ * event channels (state + loop), and the pure projection that folds state
+ * events back into session state.
+ *
+ * Pure types and pure functions only — no runtime dependencies, no node/bun
+ * globals — so any consumer, in or out of this process, imports the same
+ * definitions. This file is the single source of truth: the harness emits these
+ * events and every consumer projects state with the same reducer.
+ */
 
 // ---------------------------------------------------------------------------
 // Primitives
@@ -58,7 +60,7 @@ export type ToolDisplay = {
 }
 
 /**
- * A partial display update. `beforeExecute` states what the call is about
+ * A partial display update. A tool's `describe` states what the call is about
  * before it runs; the result fills in how it went. Absent fields keep whatever
  * the earlier update established, so neither side has to restate the other.
  */
@@ -90,7 +92,7 @@ export type UserMessage = {
 export type AssistantMessage = {
   readonly id: string
   readonly role: "assistant"
-  // The user message this turn answers.
+  /** The user message this turn answers. */
   readonly parentID: string
   readonly agent: string
   readonly model: ProviderModel
@@ -182,8 +184,10 @@ export type PartsByMessage = Readonly<Record<string, readonly MessagePart[]>>
 export type SessionInfo = {
   readonly id: string
   readonly parentID?: string
-  // The root of this session's delegation tree (= id for a root session).
-  // Stamped at creation so consumers can scope events without walking parents.
+  /**
+   * The root of this session's delegation tree (= id for a root session).
+   * Stamped at creation so consumers scope events without walking parents.
+   */
   readonly rootID: string
   readonly title: string
   readonly messages: readonly SessionMessage[]
@@ -235,7 +239,7 @@ export type StateEvent =
       readonly type: "part.delta"
       readonly messageID: string
       readonly partID: string
-      // Denormalized so delta consumers need not track part kinds themselves.
+      /** Denormalized so delta consumers need not track part kinds themselves. */
       readonly partType: "text" | "reasoning"
       readonly delta: string
     })
@@ -269,8 +273,7 @@ export type LoopEvent =
       readonly type: "turn.start"
       readonly messageID: string
       readonly step: number
-      // The step cap this turn runs under, so a consumer can show progress
-      // against the budget.
+      /** The step cap this turn runs under, so a consumer can show progress against it. */
       readonly maxSteps: number
     })
   | (LoopEnvelope & { readonly type: "turn.phase"; readonly messageID: string; readonly phase: TurnPhase })
@@ -281,12 +284,12 @@ export type LoopEvent =
   | (LoopEnvelope & {
       readonly type: "turn.activity"
       readonly messageID: string
-      // The producer, for correlating one activity's start/update/end.
+      /** The producer, for correlating one activity's start/update/end. */
       readonly source: string
       readonly status: ActivityStatus
-      // What it is doing, in the producer's own words: "compacting history".
+      /** What it is doing, in the producer's own words: "compacting history". */
       readonly label: string
-      // Optional refinement: "attempt 2 of 3", "12k → 4k tokens".
+      /** Optional refinement: "attempt 2 of 3", "12k → 4k tokens". */
       readonly detail?: string
     })
   | (LoopEnvelope & {

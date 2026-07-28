@@ -1,12 +1,14 @@
-// view_image: the agent-initiated vision path. Unlike user-supplied images
-// (which pass through to the multimodal model directly), this tool lets the agent
-// inspect an image it encounters mid-task — typically a URL it finds in text, or
-// a local path surfaced by another tool. Because the qwen API only allows images
-// in user messages (never tool results), this tool does a single-shot vision
-// call itself and returns the visual understanding as text. The vision Model is
-// injected by the composition root. It reuses the shared ImageSource resolution
-// (llm/image.ts) so both paths converge on one representation and one image_url
-// mapping.
+/**
+ * view_image: the agent-initiated vision path. Unlike user-supplied images
+ * (which pass through to the multimodal model directly), this tool lets the agent
+ * inspect an image it encounters mid-task — typically a URL it finds in text, or
+ * a local path surfaced by another tool. Because the qwen API only allows images
+ * in user messages (never tool results), this tool does a single-shot vision
+ * call itself and returns the visual understanding as text. The vision Model is
+ * injected by the composition root. It reuses the shared ImageSource resolution
+ * (llm/image.ts) so both paths converge on one representation and one image_url
+ * mapping.
+ */
 import path from "node:path"
 import { resolveImageSource } from "@agent-core"
 import type { LLMInput, Model, ModelMessage } from "@agent-core"

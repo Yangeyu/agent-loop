@@ -1,14 +1,16 @@
-// Proactive compaction as explicit session maintenance, run at beforeTurn (an
-// already-effectful pre-flight point — keeps beforeModelCall a pure fold).
-// When the estimated context exceeds contextWindow × triggerRatio, it keeps the
-// recent half of the conversation (cut at a user-message boundary) and replaces
-// the older half with a single summary, persisted via replaceHistory.
-//
-// The summarizer Model is injected by the composition root and invoked
-// single-shot via .stream() — never through the loop, so compaction stays free
-// of tools/middleware/budgets and re-entrancy-safe. The gating threshold reads
-// the agent's own model spec (ctx.model.spec), so a subagent on a smaller window
-// compacts at the right point.
+/**
+ * Proactive compaction as explicit session maintenance, run at beforeTurn (an
+ * already-effectful pre-flight point — keeps beforeModelCall a pure fold).
+ * When the estimated context exceeds contextWindow × triggerRatio, it keeps the
+ * recent half of the conversation (cut at a user-message boundary) and replaces
+ * the older half with a single summary, persisted via replaceHistory.
+ *
+ * The summarizer Model is injected by the composition root and invoked
+ * single-shot via .stream() — never through the loop, so compaction stays free
+ * of tools/middleware/budgets and re-entrancy-safe. The gating threshold reads
+ * the agent's own model spec (ctx.model.spec), so a subagent on a smaller window
+ * compacts at the right point.
+ */
 import { COMPACTION_DEFAULTS } from "@harness/config"
 import type { LLMInput, Model } from "@agent-core"
 import type { HookContext, MiddlewareFactory } from "@agent-core"

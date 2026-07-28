@@ -1,6 +1,8 @@
-// Runtime assembly: composition is code. A surface builds its models, calls the
-// agent/tool factories it wants, and hands the flat lists here — there is no
-// plugin or registration indirection in between.
+/**
+ * Runtime assembly: composition is code. A surface builds its models, calls the
+ * agent/tool factories it wants, and hands the flat lists here — there is no
+ * plugin or registration indirection in between.
+ */
 import { createRuntimeContext, type RuntimeContext } from "@harness/runtime/context"
 import { runSession } from "@harness/session"
 import { loadConfigFromEnv, type Config } from "@harness/config"

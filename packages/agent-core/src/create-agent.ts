@@ -1,8 +1,10 @@
-// The runnable half of the blueprint: createAgent wraps one definition with a
-// private set of engine deps (in-memory sessions by default) into a directly
-// runnable unit — the same engine machinery the full runtime assembles by
-// hand. An agent needing skills, delegation, or a file tree composes them in
-// as tools and middleware.
+/**
+ * The runnable half of the blueprint: createAgent wraps one definition with a
+ * private set of engine deps (in-memory sessions by default) into a directly
+ * runnable unit — the same engine machinery the full runtime assembles by
+ * hand. An agent needing skills, delegation, or a file tree composes them in
+ * as tools and middleware.
+ */
 import { defineAgent, type AgentDefinition } from "@agent-core/blueprint"
 import { runLoop } from "@agent-core/loop"
 import { DEFAULT_CORE_CONFIG, type CoreConfig } from "@agent-core/config"

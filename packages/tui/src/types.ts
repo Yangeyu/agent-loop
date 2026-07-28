@@ -50,14 +50,16 @@ export type TraceTool = {
 export type TraceEntry = {
   id: string
   sessionID: string
-  // The session's delegation-tree root — the transcript scopes on this.
+  /** The session's delegation-tree root — the transcript scopes on this. */
   rootID: string
-  // Session ids from the root down to this entry's own, so the view can hide a
-  // whole delegated branch by testing one chain rather than walking parents.
+  /**
+   * Session ids from the root down to this entry's own, so the view hides a
+   * whole delegated branch by testing one chain instead of walking parents.
+   */
   sessionChain: string[]
-  // Whether the entry belongs to the root session itself (full-width answers).
+  /** Whether the entry belongs to the root session itself (full-width answers). */
   topLevel: boolean
-  // The agent chain that produced this entry, outermost first.
+  /** The agent chain that produced this entry, outermost first. */
   path: string[]
   kind: TraceEntryKind
   text: string

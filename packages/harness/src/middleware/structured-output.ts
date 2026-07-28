@@ -1,12 +1,14 @@
-// Structured output spans both axes: it asks for JSON (prompt) and it enforces
-// JSON (judgment). Those halves ship as one module so the request and the check
-// cannot drift, but they enter through different doors — the contributor is
-// registered on the prompt axis, the middleware on the execution axis. The
-// shared `hasStructuredOutputFormat` predicate is what keeps them in step.
-//
-// The middleware parses the final text only once the loop would otherwise break,
-// either attaching the structured result to the terminal or failing the turn on
-// invalid JSON. Turns that continue (tool calls, empty output) are never parsed.
+/**
+ * Structured output spans both axes: it asks for JSON (prompt) and it enforces
+ * JSON (judgment). Those halves ship as one module so the request and the check
+ * cannot drift, but they enter through different doors — the contributor is
+ * registered on the prompt axis, the middleware on the execution axis. The
+ * shared `hasStructuredOutputFormat` predicate is what keeps them in step.
+ *
+ * The middleware parses the final text only once the loop would otherwise break,
+ * either attaching the structured result to the terminal or failing the turn on
+ * invalid JSON. Turns that continue (tool calls, empty output) are never parsed.
+ */
 import type { MiddlewareFactory } from "@agent-core"
 import type { PromptContributor } from "@harness/prompt"
 import type { OutputFormat } from "@agent-core"

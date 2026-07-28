@@ -1,6 +1,8 @@
-// Composition root for the CLI surface. This is the ONE place providers are
-// bound: the models are built here, and everything downstream of them is the
-// harness's standard assembly.
+/**
+ * Composition root for the CLI surface. This is the ONE place providers are
+ * bound: the models are built here, and everything downstream of them is the
+ * harness's standard assembly.
+ */
 import { createCoreRuntime, getConfig, loadSkillsFromDir, type Config, type RuntimeContext } from "@harness"
 import { createDashScopeModel } from "@agent-core"
 

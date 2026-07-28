@@ -1,7 +1,9 @@
-// The step/tool budget, both halves of it: the middleware that stops a run when
-// a budget breaks, and the prompt fragment that warns the model it is about to.
-// They ship together because they read the same predicate — a warning that could
-// drift from the stop it warns about is worse than no warning.
+/**
+ * The step/tool budget, both halves of it: the middleware that stops a run when
+ * a budget breaks, and the prompt fragment that warns the model it is about to.
+ * They ship together because they read the same predicate — a warning that could
+ * drift from the stop it warns about is worse than no warning.
+ */
 import { isFinalAllowedStep, type TurnBudgetPolicy } from "@agent-core"
 import type { MiddlewareFactory } from "@agent-core"
 import type { PromptContributor } from "@harness/prompt"

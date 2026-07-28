@@ -1,9 +1,10 @@
-// Formatting of quantities a tool reports about its own work. Lives in the
-// substrate because several tools describe the same quantity, and a transcript
-// where one says "31842 B" and another says "31.1 KB" reads as two systems.
-//
-// Only quantities belong here. Fitting text to a viewport is the surface's job:
-// a tool has no idea how wide the terminal is.
+/**
+ * Formatting of quantities a tool reports about its own work. Shared, so a
+ * transcript never says "31842 B" in one row and "31.1 KB" in the next.
+ *
+ * Only quantities belong here. Fitting text to a viewport is the surface's job:
+ * a tool has no idea how wide the terminal is.
+ */
 
 const UNITS = ["B", "KB", "MB", "GB"] as const
 

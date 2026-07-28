@@ -1,8 +1,8 @@
 /**
  * Base turn-outcome resolution: continue vs break, derived purely from the
  * assistant message state and whether tool calls were seen. Policy-driven
- * overrides (step budget, structured output) are applied by middleware via
- * the resolveOutcome hook.
+ * overrides (step budget, structured output) are applied by middleware on
+ * afterTurn.
  */
 import type { TurnContext } from "@agent-core/context"
 import type { TurnOutcome } from "@agent-core/hooks"

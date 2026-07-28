@@ -1,10 +1,12 @@
-// Resolves user-supplied image inputs into a provider-ready form just before the
-// turn is sent. This is the IO stage of the passthrough path: toModelMessages
-// emits image blocks with their raw source (kept pure/sync), and this middleware
-// reads local `file` sources off disk and base64-encodes them. `base64` (pasted
-// screenshots) and `url` sources pass through untouched. Runs inside the
-// beforeModelCall fold (messages -> messages, no store writes), so it does not
-// break fold purity.
+/**
+ * Resolves user-supplied image inputs into a provider-ready form just before the
+ * turn is sent. This is the IO stage of the passthrough path: toModelMessages
+ * emits image blocks with their raw source (kept pure/sync), and this middleware
+ * reads local `file` sources off disk and base64-encodes them. `base64` (pasted
+ * screenshots) and `url` sources pass through untouched. Runs inside the
+ * beforeModelCall fold (messages -> messages, no store writes), so it does not
+ * break fold purity.
+ */
 import { resolveImageSource } from "@agent-core"
 import type { ModelContentBlock, ModelMessage } from "@agent-core"
 import type { MiddlewareFactory } from "@agent-core"

@@ -1,12 +1,14 @@
-// Folds the two harness event channels into the TUI's flat trace timeline.
-// Entirely self-contained: session lineage comes from session.created /
-// session.start events and content joins on partID — the folder never reads
-// the session store.
-//
-// It knows nothing about individual tools. A tool call's label and summary come
-// from the ToolDisplay the tool itself declared; this file only decides which
-// row a fact belongs to. Special-casing a tool here would mean re-deriving what
-// the tool already stated, and drifting the moment its wording changed.
+/**
+ * Folds the two harness event channels into the TUI's flat trace timeline.
+ * Entirely self-contained: session lineage comes from session.created /
+ * session.start events and content joins on partID — the folder never reads
+ * the session store.
+ *
+ * It knows nothing about individual tools. A tool call's label and summary come
+ * from the ToolDisplay the tool itself declared; this file only decides which
+ * row a fact belongs to. Special-casing a tool here would mean re-deriving what
+ * the tool already stated, and drifting the moment its wording changed.
+ */
 import type { LoopEvent, StateEvent, ToolPart } from "@agent-core"
 import type { Setter } from "solid-js"
 import type { TraceEntry, TraceToolStatus } from "@tui/types"

@@ -1,9 +1,11 @@
-// Model-call retry. The loop supplies the seam (wrapModelCall) and the failure
-// classification; the backoff policy is replaceable behaviour and belongs here.
-//
-// The attempt counter lives in one wrapModelCall invocation's closure, so it
-// resets per turn without anyone resetting it. Reporting each attempt through
-// ctx.activity is what makes a 4-second backoff distinguishable from a hang.
+/**
+ * Model-call retry. The loop supplies the seam (wrapModelCall) and the failure
+ * classification; the backoff policy is replaceable behaviour and belongs here.
+ *
+ * The attempt counter lives in one wrapModelCall invocation's closure, so it
+ * resets per turn without anyone resetting it. Reporting each attempt through
+ * ctx.activity is what makes a 4-second backoff distinguishable from a hang.
+ */
 import { classifyRetry } from "@agent-core"
 import type { MiddlewareFactory } from "@agent-core"
 import { RETRY_DEFAULTS } from "@harness/config"

@@ -1,21 +1,23 @@
-// Lifecycle hook contracts + dispatch. Middleware is the transform/decision
-// layer that can rewrite context, wrap the model call, gate tool calls, and
-// shape turn outcomes. It is distinct from the event bus (event/bus.ts), which
-// is observation only.
-//
-// Hook names follow <position><Subject>, so the set reads in execution order:
-//
-//   beforeRun
-//     ├─ ( beforeTurn                        gate + the one effect point
-//     │    → beforeModelCall                 pure fold (ctx, draft) => draft
-//     │    → wrapModelCall( one stream )     onion; retry lives here
-//     │    → ( beforeToolCall → afterToolCall )*
-//     │    → afterTurn )*                    terminal + loop continuation
-//     └─ afterRun                            runs in a finally
-//
-// HookContext is immutable from a middleware's point of view: state flows back
-// to the engine through hook return values, never by assigning context fields.
-// Session state is reached through `ctx.sessions` (the single-writer aggregate).
+/**
+ * Lifecycle hook contracts + dispatch. Middleware is the transform/decision
+ * layer that can rewrite context, wrap the model call, gate tool calls, and
+ * shape turn outcomes. It is distinct from the event bus (event/bus.ts), which
+ * is observation only.
+ *
+ * Hook names follow <position><Subject>, so the set reads in execution order:
+ *
+ *   beforeRun
+ *     ├─ ( beforeTurn                        gate + the one effect point
+ *     │    → beforeModelCall                 pure fold (ctx, draft) => draft
+ *     │    → wrapModelCall( one stream )     onion; retry lives here
+ *     │    → ( beforeToolCall → afterToolCall )*
+ *     │    → afterTurn )*                    terminal + loop continuation
+ *     └─ afterRun                            runs in a finally
+ *
+ * HookContext is immutable from a middleware's point of view: state flows back
+ * to the engine through hook return values, never by assigning context fields.
+ * Session state is reached through `ctx.sessions` (the single-writer aggregate).
+ */
 import type { AgentDefinition } from "@agent-core/blueprint"
 import type { CoreConfig } from "@agent-core/config"
 import type { LLMInput, Model, ModelMessage } from "@agent-core/llm/types"

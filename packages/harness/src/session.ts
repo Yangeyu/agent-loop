@@ -1,6 +1,8 @@
-// runSession: the orchestration layer's entry into the engine's runLoop. It
-// adds the two steps the loop leaves to its caller — resolving an agent by
-// name, and appending the user message the loop will answer.
+/**
+ * runSession: the orchestration layer's entry into the engine's runLoop. It
+ * adds the two steps the loop leaves to its caller — resolving an agent by
+ * name, and appending the user message the loop will answer.
+ */
 import {
   createID,
   runLoop,
@@ -23,9 +25,11 @@ export type RunSessionInput = {
   text: string
   agent?: string
   format?: OutputFormat
-  // Images supplied with the user message (e.g. a TUI `@` file or a ctrl+v
-  // screenshot). The multimodal model sees these directly; see view-image
-  // middleware (resolves file sources) and the image_url mapping.
+  /**
+   * Images supplied with the user message (a TUI `@` file, a pasted
+   * screenshot). The multimodal model sees these directly; the view-image
+   * middleware resolves local file sources before the call.
+   */
   images?: ImageSource[]
   abort?: AbortSignal
 }

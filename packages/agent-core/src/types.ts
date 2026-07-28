@@ -1,5 +1,7 @@
-// The loop's own types: the tool contracts, plus a re-export of the data model
-// (model.ts, the zero-import leaf) so a consumer reaches one place for both.
+/**
+ * The loop's own types: the tool contracts, plus a re-export of the data model
+ * (model.ts, the zero-import leaf) so a consumer reaches one place for both.
+ */
 import type { RuntimeEventBus } from "@agent-core/event/bus"
 import type { Sessions } from "@agent-core/session"
 import type {
@@ -78,7 +80,7 @@ export type ToolContext = {
   sessions: Sessions
   events: RuntimeEventBus
   sessionID: string
-  // The assistant message (turn record) this tool call belongs to.
+  /** The assistant message (turn record) this tool call belongs to. */
   messageID: string
   agent: string
   abort: AbortSignal

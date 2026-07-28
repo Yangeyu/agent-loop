@@ -1,7 +1,9 @@
-// The prompt baseline every agent shares: how the engine expects any agent to
-// work, regardless of which one is running. Anything narrower belongs to whoever
-// owns it — the budget middleware states the step budget, the skill tool
-// announces skills, an agent's own `instructions` state its role.
+/**
+ * The prompt baseline every agent shares: how the engine expects any agent to
+ * work, regardless of which one is running. Anything narrower belongs to whoever
+ * owns it — the budget middleware states the step budget, the skill tool
+ * announces skills, an agent's own `instructions` state its role.
+ */
 import type { PromptContributor } from "@harness/prompt"
 
 const ENGINE_CONVENTIONS = [

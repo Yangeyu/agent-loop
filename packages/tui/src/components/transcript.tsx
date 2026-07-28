@@ -1,15 +1,17 @@
-// The transcript's three layers, by visual weight:
-//
-//   conversation  user prompts and top-level answers — full width, no prefix,
-//                 body colour. This is what the user actually reads.
-//   process       tool calls and thinking — exactly one line each, dim, marked
-//                 by a status glyph. A run of nine appends must not cost nine
-//                 screens of a terminal that only has one.
-//   detail        the full input/output, only when asked for.
-//
-// Colour encodes attention, not category: a finished call is dim because
-// success is the normal case, and painting it green leaves nothing bright for
-// the failure that actually needs the eye.
+/**
+ * The transcript's three layers, by visual weight:
+ *
+ *   conversation  user prompts and top-level answers — full width, no prefix,
+ *                 body colour. This is what the user actually reads.
+ *   process       tool calls and thinking — exactly one line each, dim, marked
+ *                 by a status glyph. A run of nine appends must not cost nine
+ *                 screens of a terminal that only has one.
+ *   detail        the full input/output, only when asked for.
+ *
+ * Colour encodes attention, not category: a finished call is dim because
+ * success is the normal case, and painting it green leaves nothing bright for
+ * the failure that actually needs the eye.
+ */
 import { COLORS, SPINNER_FRAMES, fitText } from "@tui/theme"
 import type { TraceEntry, TraceToolStatus } from "@tui/types"
 import { TextAttributes } from "@opentui/core"

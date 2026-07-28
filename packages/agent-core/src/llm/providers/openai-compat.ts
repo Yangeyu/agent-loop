@@ -32,11 +32,14 @@ export type OpenAICompatModelConfig = {
   apiKey: string
   model: ProviderModelSpec
   temperature?: number
-  // Vendor-specific request body additions (e.g. DashScope's enable_thinking).
+  /** Vendor-specific request body additions (e.g. DashScope's enable_thinking). */
   extraBody?(model: ProviderModelSpec): Record<string, unknown>
-  // Vendor-specific reasoning extraction from a streaming delta (e.g. DashScope /
-  // DeepSeek expose chain-of-thought via delta.reasoning_content). Returns the
-  // reasoning text delta, or undefined when the provider has none.
+  /**
+   * Vendor-specific reasoning extraction from a streaming delta (DashScope and
+   * DeepSeek expose chain-of-thought via delta.reasoning_content).
+   *
+   * @returns the reasoning text delta, or undefined when the provider has none
+   */
   readReasoning?(delta: unknown): string | undefined
 }
 

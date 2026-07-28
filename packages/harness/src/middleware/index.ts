@@ -1,6 +1,8 @@
-// Reusable middleware library. A middleware that also has something to say to the
-// model exports both halves from its own module — the prompt fragment and the
-// rule it describes stay in one place.
+/**
+ * Reusable middleware library. A middleware that also has something to say to the
+ * model exports both halves from its own module — the prompt fragment and the
+ * rule it describes stay in one place.
+ */
 export { createRetry, type RetryOptions } from "@harness/middleware/retry"
 export { promptAssembly } from "@harness/middleware/prompt-assembly"
 export { structuredOutput, structuredOutputPrompt } from "@harness/middleware/structured-output"

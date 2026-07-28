@@ -1,6 +1,8 @@
-// Detects repeated identical tool calls within a run and stops the turn.
-// Holds the per-loop call history in closure; the detection rule lives here
-// since this middleware is its only consumer.
+/**
+ * Detects repeated identical tool calls within a run and stops the turn.
+ * Holds the per-loop call history in closure; the detection rule lives here
+ * since this middleware is its only consumer.
+ */
 import type { MiddlewareFactory } from "@agent-core"
 
 const DOOM_LOOP_THRESHOLD = 3

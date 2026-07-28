@@ -1,7 +1,9 @@
-// Agent lookup by name, plus the one attribute this layer adds to a blueprint:
-// whether an agent is the entry point or something to delegate to. `mode` lives
-// here because a general loop runs one agent and has no notion of delegation —
-// its readers are `defaultAgent` below and the task tool's admission check.
+/**
+ * Agent lookup by name, plus the one attribute this layer adds to a blueprint:
+ * whether an agent is the entry point or something to delegate to. `mode` lives
+ * here because a general loop runs one agent and has no notion of delegation —
+ * its readers are `defaultAgent` below and the task tool's admission check.
+ */
 import { defineAgent, type AgentDefinition, type AgentSpec } from "@agent-core"
 
 export type AgentMode = "primary" | "subagent"

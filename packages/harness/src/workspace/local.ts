@@ -1,30 +1,18 @@
 /**
- * The workspace backed by the local filesystem.
+ * The workspace backed by the local filesystem. It owns the file tree, so
+ * concurrent tool calls are safe without any scheduling on the caller's side:
  *
- * Before this existed, every file tool reached for `node:fs` and `process.cwd()`
- * directly — an implicit global that no object owned, and therefore one whose
- * consistency nothing could guarantee. Concurrent calls could only be made safe
- * from *outside*: a lock at each call site, or serialized dispatch in the engine.
- * Both are workarounds for a missing owner, and the second is structurally unable
- * to do the job — the dispatcher must pick a concurrency level before arguments
- * are parsed, so it never knows which paths are actually in play.
- *
- * Here the guarantee is intrinsic instead:
- *
- * - `write` publishes via a same-directory rename, which is atomic on POSIX. A
+ * - `write` publishes via a same-directory rename, atomic on POSIX. A
  *   concurrent reader sees the whole old file or the whole new one, never a
  *   truncated middle.
  * - `mutate` is the only read-modify-write, and it is serialized per path, so
  *   two edits to one file cannot both read the original and lose an update.
- * - `readText` / `stat` / `listFiles` need no coordination at all, because the
- *   writes above leave no intermediate state to observe.
- *
- * Callers therefore get no scheduling obligations: the engine dispatches tool
- * calls concurrently and no tool has to declare, or remember, anything.
+ * - `readText` / `stat` / `listFiles` need no coordination, because the writes
+ *   above leave no intermediate state to observe.
  *
  * Scope: this owns the workspace's *consistency*, not its boundary. Absolute
- * paths still resolve outside `root`, exactly as they did against `cwd`.
- * Sandboxing is a separate concern and would be a separate implementation.
+ * paths still resolve outside `root`; sandboxing would be a separate
+ * implementation of the same contract.
  */
 import fs from "node:fs/promises"
 import path from "node:path"

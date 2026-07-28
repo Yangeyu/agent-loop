@@ -1,6 +1,8 @@
-// The engine's own knobs: what a loop needs to bound a turn and persist a
-// session. Nothing about files, skills, or delegation — those are the
-// orchestration layer's, and its config type extends this one.
+/**
+ * The engine's own knobs: what a loop needs to bound a turn and persist a
+ * session. Nothing about files, skills, or delegation — those are the
+ * orchestration layer's, and its config type extends this one.
+ */
 import type { SessionPersistenceConfig } from "@agent-core/session/persistence"
 
 export type CoreConfig = {

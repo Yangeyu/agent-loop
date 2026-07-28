@@ -1,5 +1,7 @@
-// The agent blueprint: the static half of an agent. The runnable half lives
-// in create-agent.ts.
+/**
+ * The agent blueprint: the static half of an agent. The runnable half lives
+ * in create-agent.ts.
+ */
 import type { Model } from "@agent-core/llm/types"
 import type { MiddlewareFactory } from "@agent-core/hooks"
 import type { OutputFormat, ToolDefinition } from "@agent-core/types"

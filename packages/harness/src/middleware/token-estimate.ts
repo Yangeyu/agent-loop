@@ -1,5 +1,7 @@
-// Cheap, provider-agnostic token estimator that drives proactive compaction:
-// monotonic enough to gate, nothing more.
+/**
+ * Cheap, provider-agnostic token estimator that drives proactive compaction:
+ * monotonic enough to gate, nothing more.
+ */
 import type { ModelMessage } from "@agent-core"
 
 const CHARS_PER_TOKEN = 4

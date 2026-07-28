@@ -1,12 +1,12 @@
 /**
  * Per-call tool execution, in two halves. `prepareToolCall` decides — gate,
  * validate, describe — one call at a time in issue order. `executeToolCall`
- * runs, and is the concurrency-safe unit a turn fans out: it owns
- * only its own tool part (via the injected tracker) and never touches the turn's
- * terminal state — collecting outcomes and deciding the turn's continue/stop is
- * the caller's job (see core/turn.ts). Contains NO business policy — budgets and
- * doom-loop guards are beforeToolCall middleware; result rewriting and failure
- * escalation are afterToolCall middleware.
+ * runs, and is the concurrency-safe unit a turn fans out: it owns only its own
+ * tool part (via the injected tracker) and never touches the turn's terminal
+ * state — collecting outcomes and deciding the turn's continue/stop is the
+ * caller's job (see turn.ts). Business policy lives in middleware: budgets and
+ * doom-loop guards on beforeToolCall, result rewriting and failure escalation
+ * on afterToolCall.
  *
  * Execution emits no events of its own: every observable fact of a call is a
  * tool-part state transition written through the tracker, and the state channel
@@ -30,7 +30,7 @@ import {
 
 /**
  * The result of running one tool call to completion: a successful result, a
- * recoverable error (the turn continues), a stop signal (a guard/onToolError
+ * recoverable error (the turn continues), a stop signal (a gate or afterToolCall
  * decided the turn must halt), or an abort. The caller reduces a batch of these
  * into the turn's single terminal decision.
  */
@@ -115,7 +115,7 @@ export function openToolPart(recorder: TurnRecorder, call: ToolCall, prepared: P
  * and the caller decides the turn's fate after they all settle.
  *
  * @param ctx - the turn context
- * @param stack - the middleware stack (after/onError tool hooks)
+ * @param stack - the middleware stack (its afterToolCall settlement runs here)
  * @param recorder - the turn recorder (used only to spawn nested tool parts)
  * @param call - the tool name, call id, and raw args
  * @param tracker - the tool part this call owns, opened by the caller

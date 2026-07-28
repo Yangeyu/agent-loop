@@ -1,5 +1,7 @@
-// Normalizing a thrown value: what the loop needs to tell an abort from a
-// failure, and to store either one on a part.
+/**
+ * Normalizing a thrown value: what the loop needs to tell an abort from a
+ * failure, and to store either one on a part.
+ */
 import type { ErrorInfo } from "@agent-core/types"
 
 /**
