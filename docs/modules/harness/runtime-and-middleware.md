@@ -1,6 +1,6 @@
 # Runtime 与 Middleware
 
-> 范围：`packages/harness` 的 `runtime/`、`middleware/`、`session.ts`、`config.ts`。
+> 范围：`packages/harness` 的 `runtime/`、`middleware/`、`config.ts`。
 
 ## 职责
 
@@ -18,8 +18,9 @@
 - `runtime/bootstrap.ts` — `createRuntime({ config, skills })` 建一个不带 agent 的 runtime
   （agent 需要 runtime 的 EngineDeps 才能创建，所以永远是先有 runtime、再注册可运行 agent）；
   `createCoreRuntime({ chat, summarizer, config, skills })` 是标准装配（见下）；`runPrompt()` 跑一次。
-- `session.ts` — `runSession`：按名解析 agent，委托给它的 `run()`。按名解析不是循环原语，
-  所以它在这层；种入 user message 和进入循环只在 agent-core 里有一份实现。
+- 按名解析发生在用的地方：`runPrompt` 与 `task` 工具各自从 registry 取 agent、调它的 `run()`。
+  种入 user message 和进入循环只在 agent-core 的 `run()` 里有一份实现——解析是一个表达式，
+  不配一个模块。
 - `config.ts` — zod schema，`Config extends CoreConfig`。核心那四个旋钮加上这层要的
   （workspace/skills/委派深度/compaction/retry）。
 - `middleware/` — `promptAssembly`、`structuredOutput`、`budget`、`doomLoop`、`createCompaction`、

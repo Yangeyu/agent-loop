@@ -42,7 +42,6 @@ packages/
 │       ├── skills/           # SKILL.md 目录发现 + registry + 契约
 │       ├── workspace/        # 本地文件树的所有者：工具文件访问的唯一入口
 │       ├── runtime/          # 组合层：context（RuntimeContext）、bootstrap（createCoreRuntime）
-│       ├── session.ts        # runSession：按名解析 agent → agent.run()
 │       ├── prompt.ts         # slot 词汇 + PromptContributor（只有词汇，片段跟拥有者走）
 │       ├── registry.ts       # AgentRegistry：mode 是注册数据（register(agent, { mode })）+ 同店准入
 │       ├── config.ts         # Config extends CoreConfig
@@ -64,7 +63,7 @@ skills/                       # 工作区技能：一目录一技能（SKILL.md 
 3. `createCoreRuntime` 装配：注册 skill → 建工具（各自持有 workspace/skills/agents 闭包）→
    以 runtime 自己的 EngineDeps 建 agent（agent-core 的 `createAgent`，唯一门径）→
    `register(agent, { mode })` 注册（mode 是组合数据，不在 agent 对象上）。
-4. `harness/session.ts` 的 `runSession` 按名解析 agent，委托给它的 `run()` —— 种入 user message、
+4. `runPrompt` 按名（或取默认）从 registry 解析 agent，调它的 `run()` —— 种入 user message、
    发 `session.start`、进入循环都发生在 agent-core 里，且只有这一份实现。
 5. 每一步（一个 turn）按生命周期推进：
    `beforeTurn` → `beforeModelCall`（引擎种入 instructions）→ `wrapModelCall`（一次流式调用）

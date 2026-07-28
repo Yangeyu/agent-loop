@@ -4,7 +4,6 @@
  * plugin or registration indirection in between.
  */
 import { createRuntimeContext, type RuntimeContext } from "@harness/runtime/context"
-import { runSession } from "@harness/session"
 import { loadConfigFromEnv, type Config } from "@harness/config"
 import type { Model } from "@agent-core"
 import { createCoreAgents } from "@harness/agents"
@@ -116,10 +115,12 @@ export async function runPrompt(options: {
     ? runtime.sessions.get(options.sessionID)
     : runtime.sessions.create({ title: "CLI session" })
 
-  await runSession(runtime, {
+  // Resolving by name is the one step the engine leaves to its caller; the
+  // agent's own run() seeds the user message and drives the loop.
+  const agent = options.agent ? runtime.agent_registry.get(options.agent) : runtime.agent_registry.defaultAgent()
+  await agent.run({
     sessionID: session.id,
     text: options.text,
-    agent: options.agent ?? runtime.agent_registry.defaultAgent().definition.name,
     format: options.format,
     images: options.images,
     abort: options.abort,

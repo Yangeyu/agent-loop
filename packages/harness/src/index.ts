@@ -15,8 +15,6 @@ export {
 } from "@harness/runtime/bootstrap"
 export type { RuntimeAssembly } from "@harness/runtime/bootstrap"
 export type { RuntimeContext } from "@harness/runtime/context"
-export { runSession } from "@harness/session"
-export type { RunSessionInput, SessionDeps } from "@harness/session"
 
 // Config: the engine's knobs plus what the bricks need
 export { loadConfigFromEnv, getConfig, COMPACTION_DEFAULTS, RETRY_DEFAULTS } from "@harness/config"

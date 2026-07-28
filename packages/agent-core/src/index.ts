@@ -12,8 +12,8 @@
 // The loop, behind its one door: createAgent
 export { createAgent } from "@agent-core/create-agent"
 export type { Agent, AgentRunInput, CreateAgentSpec } from "@agent-core/create-agent"
-export { createEngineDeps, createRunContext, createTurnContext } from "@agent-core/context"
-export type { EngineDeps, TurnContext } from "@agent-core/context"
+export { createEngineDeps } from "@agent-core/context"
+export type { EngineDeps } from "@agent-core/context"
 
 // The agent blueprint
 export { defineAgent } from "@agent-core/blueprint"
