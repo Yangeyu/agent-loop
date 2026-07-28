@@ -5,7 +5,7 @@
  * a backoff was indistinguishable from a hung turn on any surface.
  */
 import { describe, expect, it } from "bun:test"
-import { defineHarnessAgent } from "@harness/registry"
+import { createHarnessAgent } from "@harness/registry"
 import {
   createRetry,
   createTestRuntime,
@@ -42,21 +42,22 @@ function flakyModel(failures: number, error: () => Error) {
 }
 
 function run(model: Model, maxRetries: number) {
-  const agent = defineHarnessAgent({
+  const runtime = createTestRuntime()
+  runtime.agent_registry.register(createHarnessAgent({
     name: "retrier",
     mode: "primary",
     model,
     steps: 1,
     middleware: [createRetry({ maxRetries, baseDelayMs: 1, maxDelayMs: 1 })],
-  })
-  const runtime = createTestRuntime({ agents: [agent] })
+    deps: runtime,
+  }))
 
   const activity: LoopEvent[] = []
   runtime.events.loop.subscribe((event) => {
     if (event.type === "turn.activity") activity.push(event)
   })
 
-  return { runtime, activity, finish: () => runPrompt({ runtime, text: "go", agent: agent.name }) }
+  return { runtime, activity, finish: () => runPrompt({ runtime, text: "go", agent: "retrier" }) }
 }
 
 describe("createRetry", () => {

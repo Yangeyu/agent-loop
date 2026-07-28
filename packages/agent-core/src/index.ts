@@ -9,12 +9,11 @@
  * package.
  */
 
-// The loop
-export { runLoop } from "@agent-core/loop"
+// The loop, behind its one door: createAgent
 export { createAgent } from "@agent-core/create-agent"
-export type { StandaloneAgentSpec } from "@agent-core/create-agent"
+export type { Agent, AgentRunInput, CreateAgentSpec } from "@agent-core/create-agent"
+export { createEngineDeps, createRunContext, createTurnContext } from "@agent-core/context"
 export type { EngineDeps, TurnContext } from "@agent-core/context"
-export { createRunContext, createTurnContext } from "@agent-core/context"
 
 // The agent blueprint
 export { defineAgent } from "@agent-core/blueprint"
@@ -87,3 +86,5 @@ export { isAbortError, toErrorInfo } from "@agent-core/error"
 
 // The data model + event vocabulary: messages, parts, sessions, the reducer
 export * from "@agent-core/types"
+export { applyStateEvent, emptyProjection } from "@agent-core/model"
+export type { SessionProjection } from "@agent-core/model"

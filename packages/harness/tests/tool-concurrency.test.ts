@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test"
-import { defineHarnessAgent } from "@harness/registry"
+import { createHarnessAgent } from "@harness/registry"
 import {
   baseMiddleware,
   createTestRuntime,
@@ -63,17 +63,15 @@ async function measurePeakInFlight(input: { ids: string[]; limit: number }) {
       },
     })
 
-  const agent = defineHarnessAgent({
+  const runtime = createTestRuntime({ config: { tool_max_concurrency: input.limit } })
+  runtime.agent_registry.register(createHarnessAgent({
     name: "runner",
     mode: "primary",
     model: callsThenAnswer(input.ids.map((id) => ({ toolCallId: `call-${id}`, toolName: id, args: {} }))),
     tools: input.ids.map(probe),
     middleware: baseMiddleware(),
-  })
-  const runtime = await createTestRuntime({
-    agents: [agent],
-    config: { tool_max_concurrency: input.limit },
-  })
+    deps: runtime,
+  }))
 
   const session = await runPrompt({ runtime, agent: "runner", text: "go" })
   const assistant = runtime.sessions.get(session.id).messages.find((message) => message.role === "assistant")

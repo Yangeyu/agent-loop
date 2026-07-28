@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test"
-import { defineHarnessAgent } from "@harness/registry"
+import { defineAgent } from "@agent-core/blueprint"
 import { isFinalAllowedStep, resolveTurnExecutionPolicy } from "@agent-core/policy"
-import { loadConfigFromEnv, type Config } from "@harness/config"
+import { DEFAULT_CORE_CONFIG, type CoreConfig } from "@agent-core/config"
 import { createDashScopeModel } from "@agent-core/llm/providers/dashscope"
 import type { AssistantMessage, SessionInfo } from "@agent-core/types"
 
@@ -26,9 +26,9 @@ function makeSession(assistantTurns: number): SessionInfo {
   }
 }
 
-function resolve(input: { agentSteps: number; assistantTurns: number; config?: Partial<Config> }) {
-  const config = { ...loadConfigFromEnv({}), ...input.config }
-  const agent = defineHarnessAgent({ name: "lead", mode: "primary", model, steps: input.agentSteps })
+function resolve(input: { agentSteps: number; assistantTurns: number; config?: Partial<CoreConfig> }) {
+  const config = { ...DEFAULT_CORE_CONFIG, ...input.config }
+  const agent = defineAgent({ name: "lead", model, steps: input.agentSteps })
   return resolveTurnExecutionPolicy(config, agent, makeSession(input.assistantTurns)).budget
 }
 
@@ -62,9 +62,9 @@ describe("resolveTurnExecutionPolicy budgets", () => {
   })
 
   it("prefers a per-agent tool-call cap over the runtime default", () => {
-    const config = { ...loadConfigFromEnv({}), run_max_tool_calls: 32 }
-    const declared = defineHarnessAgent({ name: "lead", mode: "primary", model, maxToolCalls: 64 })
-    const inherited = defineHarnessAgent({ name: "general", mode: "subagent", model })
+    const config = { ...DEFAULT_CORE_CONFIG, run_max_tool_calls: 32 }
+    const declared = defineAgent({ name: "lead", model, maxToolCalls: 64 })
+    const inherited = defineAgent({ name: "general", model })
 
     expect(resolveTurnExecutionPolicy(config, declared, makeSession(0)).budget.maxRunToolCalls).toBe(64)
     expect(resolveTurnExecutionPolicy(config, inherited, makeSession(0)).budget.maxRunToolCalls).toBe(32)

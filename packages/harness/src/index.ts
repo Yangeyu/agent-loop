@@ -25,7 +25,7 @@ export type { Config } from "@harness/config"
 // Agents: the standard set, and the registry that resolves them by name
 export { createCoreAgents, createGeneralAgent, createLeadAgent } from "@harness/agents"
 export { baseMiddleware } from "@harness/agents/shared/base-middleware"
-export { createAgentRegistry, defineHarnessAgent } from "@harness/registry"
+export { createAgentRegistry, createHarnessAgent } from "@harness/registry"
 export type { AgentMode, AgentRegistry, HarnessAgent } from "@harness/registry"
 
 // Middleware library. Middleware that also contributes a prompt fragment exports

@@ -1,17 +1,18 @@
 /**
- * The runnable half of the blueprint: createAgent wraps one definition with a
- * private set of engine deps (in-memory sessions by default) into a directly
- * runnable unit — the same engine machinery the full runtime assembles by
- * hand. An agent needing skills, delegation, or a file tree composes them in
- * as tools and middleware.
+ * createAgent: the single door through which a runnable agent is made. The
+ * spec is the blueprint half (name, model, instructions, tools, middleware);
+ * `deps` is the environment half — inject a runtime's EngineDeps to share its
+ * sessions and event bus, or omit it for a private in-memory engine
+ * (createEngineDeps). An agent needing skills, delegation, or a file tree
+ * composes them in as tools and middleware.
  */
 import { defineAgent, type AgentDefinition } from "@agent-core/blueprint"
+import { createEngineDeps, type EngineDeps } from "@agent-core/context"
 import { runLoop } from "@agent-core/loop"
-import { DEFAULT_CORE_CONFIG, type CoreConfig } from "@agent-core/config"
-import { createRuntimeEvents, type RuntimeEventBus } from "@agent-core/event/bus"
+import type { RuntimeEventBus } from "@agent-core/event/bus"
 import type { Model } from "@agent-core/llm/types"
 import type { MiddlewareFactory } from "@agent-core/hooks"
-import { createSessionPersistence, Sessions } from "@agent-core/session"
+import type { Sessions } from "@agent-core/session"
 import {
   createID,
   type ImageSource,
@@ -21,62 +22,68 @@ import {
   type UserMessage,
 } from "@agent-core/types"
 
-/** The standalone-agent configuration: a model plus whatever bricks it composes. */
-export type StandaloneAgentSpec = {
+/** The blueprint half plus the optional environment half. */
+export type CreateAgentSpec = {
   name?: string
+  description?: string
   model: Model
   instructions?: string[]
   middleware?: MiddlewareFactory[]
   tools?: ToolDefinition[]
   steps?: number
+  maxToolCalls?: number
   format?: OutputFormat
-  config?: Partial<CoreConfig>
-  /** An external bus to observe the agent on; a private one is created otherwise. */
-  events?: RuntimeEventBus
+  /** The engine environment to run on; omitted = a private in-memory engine. */
+  deps?: EngineDeps
+}
+
+/** One run request: the user text, and which session answers it (new when unset). */
+export type AgentRunInput = {
+  text: string
+  sessionID?: string
+  format?: OutputFormat
+  images?: ImageSource[]
+  abort?: AbortSignal
 }
 
 /**
- * The standalone agent: model + tools + middleware wrapped into a single
- * runnable unit with private engine deps (in-memory sessions by default).
- * This entry is for embedding one agent directly.
- *
- * The engine deps stay private — the facade exposes only what an embedder
- * consumes: the blueprint, run(), the event bus to observe, and the sessions
- * aggregate to read state back.
- *
- * @param spec - the agent's model, bricks, and optional config/events overrides
- * @returns { definition, run, events, sessions }
+ * A runnable agent: its blueprint, the environment it runs on, and run().
+ * `sessions` and `events` are the agent's resolved environment — the injected
+ * ones when deps were given, the private engine's otherwise.
  */
-export function createAgent(spec: StandaloneAgentSpec) {
+export type Agent = {
+  definition: AgentDefinition
+  sessions: Sessions
+  events: RuntimeEventBus
+  run(input: AgentRunInput): Promise<SessionInfo>
+}
+
+/**
+ * Creates a runnable agent from a spec. Sessions are selected per run() call,
+ * so one agent instance serves any number of sessions on its store.
+ *
+ * @param spec - the blueprint fields plus the optional engine environment
+ * @returns the runnable agent
+ */
+export function createAgent(spec: CreateAgentSpec): Agent {
   const definition = defineAgent({
     name: spec.name ?? "agent",
+    description: spec.description,
     model: spec.model,
     instructions: spec.instructions,
     tools: spec.tools,
     steps: spec.steps,
+    maxToolCalls: spec.maxToolCalls,
     format: spec.format,
     middleware: spec.middleware ?? [],
   })
-
-  const config: CoreConfig = { ...DEFAULT_CORE_CONFIG, ...(spec.config ?? {}) }
-  const events = spec.events ?? createRuntimeEvents()
-  const deps = {
-    config,
-    events,
-    sessions: new Sessions(createSessionPersistence(config), events.state),
-  }
+  const deps = spec.deps ?? createEngineDeps()
 
   return {
     definition,
-    events,
     sessions: deps.sessions,
-    async run(input: {
-      text: string
-      sessionID?: string
-      format?: OutputFormat
-      images?: ImageSource[]
-      abort?: AbortSignal
-    }): Promise<SessionInfo> {
+    events: deps.events,
+    async run(input: AgentRunInput): Promise<SessionInfo> {
       const session = input.sessionID
         ? deps.sessions.get(input.sessionID)
         : deps.sessions.create({ title: definition.name })
@@ -87,9 +94,10 @@ export function createAgent(spec: StandaloneAgentSpec) {
   }
 }
 
-// Appends the run's user message before the loop starts.
+// The one implementation of run seeding: append the user message (text +
+// images) and announce the run on the loop channel.
 function seedUserMessage(
-  deps: { sessions: Sessions; events: RuntimeEventBus },
+  deps: EngineDeps,
   definition: AgentDefinition,
   sessionID: string,
   input: { text: string; format?: OutputFormat; images?: ImageSource[] },

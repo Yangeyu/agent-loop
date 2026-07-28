@@ -1,4 +1,3 @@
-import { runSession } from "@harness/session"
 import type { AgentRegistry, HarnessAgent } from "@harness/registry"
 import type { Config } from "@harness/config"
 import type { Sessions } from "@agent-core"
@@ -25,7 +24,7 @@ export function createSubagentList(deps: { agents: AgentRegistry }): PromptContr
       text: [
         "Delegate work to these subagents via the task tool's subagent_type argument:",
         "<available_subagents>",
-        ...subagents.map((agent) => `- ${agent.name}: ${agent.description ?? "Specialist subagent"}`),
+        ...subagents.map((agent) => `- ${agent.definition.name}: ${agent.definition.description ?? "Specialist subagent"}`),
         "</available_subagents>",
       ].join("\n"),
     }
@@ -141,7 +140,7 @@ function defineDelegationTool<P extends z.ZodTypeAny>(deps: TaskDeps, input: {
       }
     },
     async execute(args, ctx) {
-      const agent = deps.agents.list().find((candidate) => candidate.name === args.subagent_type)
+      const agent = deps.agents.list().find((candidate) => candidate.definition.name === args.subagent_type)
       if (!agent || !isDelegable(agent)) {
         throw new Error(`Agent ${args.subagent_type} is not available for task delegation`)
       }
@@ -162,7 +161,7 @@ function defineDelegationTool<P extends z.ZodTypeAny>(deps: TaskDeps, input: {
         : createChildSession({
             parentSessionId: ctx.sessionID,
             description: args.description,
-            agentName: agent.name,
+            agentName: agent.definition.name,
             sessions,
           })
 
@@ -173,18 +172,12 @@ function defineDelegationTool<P extends z.ZodTypeAny>(deps: TaskDeps, input: {
         throw new Error(`Subagent depth limit reached: attempted depth ${childDepth}, max ${maxDepth}`)
       }
 
-      // The subagent shares the parent's session store and event bus; the tools
-      // it runs share the workspace they were built with, which is what makes
-      // concurrent delegation safe without the two sessions coordinating.
-      await runSession({
-        config: deps.config,
-        sessions: ctx.sessions,
-        events: ctx.events,
-        agent_registry: deps.agents,
-      }, {
+      // The subagent runs on the same store and bus as the parent — registry
+      // admission guarantees it — so concurrent delegation is safe without the
+      // two sessions coordinating.
+      await agent.run({
         sessionID: child.id,
         text: args.prompt,
-        agent: agent.name,
         format: ctx.format,
         abort: ctx.abort,
       })
@@ -203,7 +196,7 @@ function defineDelegationTool<P extends z.ZodTypeAny>(deps: TaskDeps, input: {
       return {
         output: formatTaskToolOutput({
           taskId: completedChild.id,
-          agentName: agent.name,
+          agentName: agent.definition.name,
           result: result.text,
         }),
       }

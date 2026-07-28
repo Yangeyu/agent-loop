@@ -1,22 +1,14 @@
 /**
- * runSession: the orchestration layer's entry into the engine's runLoop. It
- * adds the two steps the loop leaves to its caller — resolving an agent by
- * name, and appending the user message the loop will answer.
+ * runSession: the orchestration layer's named entry into an agent run. It adds
+ * the one step the engine leaves to its caller — resolving which registered
+ * agent answers — and delegates to that agent's run().
  */
-import {
-  createID,
-  runLoop,
-  type AgentDefinition,
-  type EngineDeps,
-  type ImageSource,
-  type OutputFormat,
-  type SessionInfo,
-  type UserMessage,
-} from "@agent-core"
+import type { ImageSource, OutputFormat, SessionInfo } from "@agent-core"
+import type { HarnessAgent } from "@harness/registry"
 
-/** Resolving an agent by name is a lookup the loop itself never performs. */
-export type SessionDeps = EngineDeps & {
-  agent_registry: { get(name: string): AgentDefinition; defaultAgent(): AgentDefinition }
+/** Resolving an agent by name is a lookup the engine itself never performs. */
+export type SessionDeps = {
+  agent_registry: { get(name: string): HarnessAgent; defaultAgent(): HarnessAgent }
 }
 
 /** A request to run a session turn-loop from a new user message. */
@@ -35,38 +27,19 @@ export type RunSessionInput = {
 }
 
 /**
- * Appends a user message (text + images) to the session, emits session.start, and
- * drives the agent loop to completion.
+ * Resolves the named (or default) agent and runs it against the session.
  *
- * @param deps - the engine dependencies plus the agent registry
+ * @param deps - the agent registry
  * @param input - the session id, user text, and optional agent/format/images
  * @returns the session after the loop breaks
  */
 export async function runSession(deps: SessionDeps, input: RunSessionInput): Promise<SessionInfo> {
-  const sessions = deps.sessions
-  const session = sessions.get(input.sessionID)
-  const agent = deps.agent_registry.get(input.agent ?? deps.agent_registry.defaultAgent().name)
-  const user: UserMessage = {
-    id: createID(),
-    role: "user",
-    agent: agent.name,
-    format: input.format ?? agent.format,
-    time: { created: Date.now() },
-  }
-
-  sessions.appendMessage(input.sessionID, user)
-  sessions.appendPart(input.sessionID, user.id, { id: createID(), type: "text", text: input.text })
-  for (const source of input.images ?? []) {
-    sessions.appendPart(input.sessionID, user.id, { id: createID(), type: "image", source })
-  }
-
-  deps.events.loop.emit({
-    type: "session.start",
+  const agent = input.agent ? deps.agent_registry.get(input.agent) : deps.agent_registry.defaultAgent()
+  return agent.run({
     sessionID: input.sessionID,
-    rootID: session.rootID,
-    agent: agent.name,
     text: input.text,
+    format: input.format,
+    images: input.images,
+    abort: input.abort,
   })
-
-  return runLoop(deps, { sessionID: input.sessionID, agent, abort: input.abort })
 }

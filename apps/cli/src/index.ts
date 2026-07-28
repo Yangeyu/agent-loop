@@ -52,7 +52,7 @@ function parseArgs(argv: string[]) {
 async function main() {
   const runtime = await createAppRuntime()
   const parsed = parseArgs(process.argv.slice(2))
-  const defaultAgent = runtime.agent_registry.defaultAgent().name
+  const defaultAgent = runtime.agent_registry.defaultAgent().definition.name
   const canLaunchTui = process.stdin.isTTY && process.stdout.isTTY
 
   if (parsed.tui) {

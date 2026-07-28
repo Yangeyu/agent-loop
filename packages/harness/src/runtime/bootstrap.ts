@@ -6,29 +6,32 @@
 import { createRuntimeContext, type RuntimeContext } from "@harness/runtime/context"
 import { runSession } from "@harness/session"
 import { loadConfigFromEnv, type Config } from "@harness/config"
-import type { HarnessAgent } from "@harness/registry"
 import type { Model } from "@agent-core"
 import { createCoreAgents } from "@harness/agents"
 import { createCoreTools } from "@harness/tools"
 import type { SkillInfo } from "@harness/skills/types"
 import type { ImageSource, OutputFormat } from "@agent-core"
 
-/** The composed capability set a runtime is assembled from. Each agent holds its own tools. */
+/**
+ * The runtime's assembly inputs. Agents are absent by design: a runnable agent
+ * needs the runtime's EngineDeps at creation, so agents are created after the
+ * runtime exists and registered on it (see createCoreRuntime, or register
+ * createHarnessAgent results yourself).
+ */
 export type RuntimeAssembly = {
   config?: Config
-  agents?: HarnessAgent[]
   skills?: SkillInfo[]
 }
 
 /**
- * Assembles a runtime from explicit lists — the escape hatch for a set that is
- * not the standard one. For the standard one, use createCoreRuntime.
+ * Assembles a bare runtime — the escape hatch for an agent set that is not the
+ * standard one: create it, then register createHarnessAgent({ ..., deps:
+ * runtime }) results on it. For the standard set, use createCoreRuntime.
  *
- * @param options - config plus the agents and skills to register
+ * @param options - config plus the skills to register
  */
 export function createRuntime(options?: RuntimeAssembly): RuntimeContext {
   const runtime = createRuntimeContext({ config: options?.config })
-  for (const agent of options?.agents ?? []) runtime.agent_registry.register(agent)
   for (const skill of options?.skills ?? []) runtime.skill_registry.register(skill)
   return runtime
 }
@@ -73,6 +76,7 @@ export function createCoreRuntime(options: {
       baseDelayMs: runtime.config.model_retry_base_delay_ms,
       maxDelayMs: runtime.config.model_retry_max_delay_ms,
     },
+    engine: runtime,
   })
   for (const agent of agents) runtime.agent_registry.register(agent)
 
@@ -115,7 +119,7 @@ export async function runPrompt(options: {
   await runSession(runtime, {
     sessionID: session.id,
     text: options.text,
-    agent: options.agent ?? runtime.agent_registry.defaultAgent().name,
+    agent: options.agent ?? runtime.agent_registry.defaultAgent().definition.name,
     format: options.format,
     images: options.images,
     abort: options.abort,

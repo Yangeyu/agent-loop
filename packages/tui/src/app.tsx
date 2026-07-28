@@ -29,7 +29,7 @@ function App(props: TuiOptions) {
   const [selectedAgent, setSelectedAgent] = createSignal(resolveInitialAgent(runtime.agent_registry, props.agent))
   // The selected agent's bound model, for the composer footer.
   const selectedModel = createMemo(() => {
-    const model = runtime.agent_registry.get(selectedAgent()).model
+    const model = runtime.agent_registry.get(selectedAgent()).definition.model
     return { id: model.spec.id, providerID: model.providerID }
   })
   const [currentSessionID, setCurrentSessionID] = createSignal<string | undefined>()
@@ -108,9 +108,9 @@ function App(props: TuiOptions) {
   const cycleAgent = (delta: number) => {
     const primary = runtime.agent_registry.list().filter((agent) => agent.mode === "primary")
     if (primary.length === 0) return
-    const currentIndex = Math.max(primary.findIndex((agent) => agent.name === selectedAgent()), 0)
+    const currentIndex = Math.max(primary.findIndex((agent) => agent.definition.name === selectedAgent()), 0)
     const nextIndex = (currentIndex + delta + primary.length) % primary.length
-    setSelectedAgent(primary[nextIndex].name)
+    setSelectedAgent(primary[nextIndex].definition.name)
   }
 
   const submitPrompt = async (input: ComposerSubmitInput) => {

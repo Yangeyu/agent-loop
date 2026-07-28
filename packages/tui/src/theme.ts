@@ -115,9 +115,9 @@ export function estimateVisualLines(text: string, width: number) {
 
 export function resolveInitialAgent(agentRegistry: RuntimeContext["agent_registry"], agent: string) {
   try {
-    return agentRegistry.get(agent).name
+    return agentRegistry.get(agent).definition.name
   } catch {
-    return agentRegistry.defaultAgent().name
+    return agentRegistry.defaultAgent().definition.name
   }
 }
 

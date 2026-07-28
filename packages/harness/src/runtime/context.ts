@@ -30,7 +30,8 @@ export function createRuntimeContext(options?: { config?: Config }): RuntimeCont
     config,
     sessions,
     events,
-    agent_registry: createAgentRegistry(),
+    // The registry admits only agents built on this runtime's store.
+    agent_registry: createAgentRegistry({ sessions }),
     skill_registry: createSkillRegistry(),
     workspace: createWorkspace(config.workspace_root),
   }

@@ -1,7 +1,7 @@
 import { createGeneralAgent } from "@harness/agents/general"
 import { createLeadAgent } from "@harness/agents/lead"
 import type { AgentRegistry, HarnessAgent } from "@harness/registry"
-import type { Model } from "@agent-core"
+import type { EngineDeps, Model } from "@agent-core"
 import type { SkillRegistry } from "@harness/skills/registry"
 import type { RetryOptions } from "@harness/middleware"
 import type { ToolDefinition } from "@agent-core"
@@ -21,6 +21,7 @@ const LEAD_ONLY = new Set(["task", "task_resume", "view_image"])
  * @param deps.skills - the skill catalogue both agents announce
  * @param deps.agents - the registry the lead announces its delegates from
  * @param deps.retry - model-call retry bounds, shared by both agents
+ * @param deps.engine - the runtime's engine deps, shared by both agents
  */
 export function createCoreAgents(deps: {
   model: Model
@@ -29,6 +30,7 @@ export function createCoreAgents(deps: {
   skills: SkillRegistry
   agents: AgentRegistry
   retry?: RetryOptions
+  engine: EngineDeps
 }): HarnessAgent[] {
   return [
     createLeadAgent(deps),
@@ -37,6 +39,7 @@ export function createCoreAgents(deps: {
       tools: deps.tools.filter((tool) => !LEAD_ONLY.has(tool.id)),
       skills: deps.skills,
       retry: deps.retry,
+      engine: deps.engine,
     }),
   ]
 }

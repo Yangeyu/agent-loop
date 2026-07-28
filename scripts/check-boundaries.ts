@@ -34,6 +34,14 @@ const rules: Rule[] = [
     forbid: /from\s+["']@(harness|tui)(\/|["'])/,
     why: "agent-core is the general loop: it must not know about orchestration (skills, workspace, multiple agents) or any surface",
   },
+  // Core tests prove the package stands alone; a test reaching for @harness is
+  // an integration test and belongs in packages/harness/tests.
+  {
+    pkg: "agent-core-tests",
+    dir: "packages/agent-core/tests",
+    forbid: /from\s+["']@(harness|tui)(\/|["'])/,
+    why: "agent-core tests must run on the package alone — a test needing the harness lives in packages/harness/tests",
+  },
   {
     pkg: "harness",
     dir: "packages/harness/src",

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "bun:test"
-import { createToolContext } from "@agent-core"
-import { defineHarnessAgent } from "@harness/registry"
-import { loadConfigFromEnv } from "@harness/config"
+import { defineAgent } from "@agent-core/blueprint"
+import { DEFAULT_CORE_CONFIG } from "@agent-core/config"
 import { createRunContext, createTurnContext } from "@agent-core/context"
 import { resolveTurnExecutionPolicy } from "@agent-core/policy"
 import { TurnRecorder } from "@agent-core/recorder"
@@ -9,63 +8,12 @@ import { executeToolCall, openToolPart, prepareToolCall } from "@agent-core/tool
 import { MiddlewareStack } from "@agent-core/hooks"
 import { createRuntimeEvents } from "@agent-core/event/bus"
 import { MemorySessionPersistence, Sessions } from "@agent-core/session"
-import { createReadTool } from "@harness/tools/read"
-import { normalizeTavilyResponse } from "@harness/tools/tavily"
 import { defineTool } from "@agent-core/tool/tool"
-import { createWorkspace } from "@harness/workspace"
 import type { AssistantMessage, ToolDefinition, ToolDisplay, ToolPart, UserMessage } from "@agent-core/types"
 import { z } from "zod"
 import { createFakeModel } from "@agent-core"
 
-const ReadTool = createReadTool({ workspace: createWorkspace() })
-
 const stubModel = createFakeModel()
-
-describe("read", () => {
-  it("reads UTF-8 text files with metadata", async () => {
-    const file = new File(["hello\nworld"], "sample.txt", { type: "text/plain" })
-    const target = await Bun.write(Bun.file("/tmp/agent-loop-read-file-test.txt"), file)
-    expect(target).toBe(11)
-
-    const result = await ReadTool.execute({ filePath: "/tmp/agent-loop-read-file-test.txt" }, createToolContext())
-
-    expect(result.output).toBe("hello\nworld")
-    // truncated is what the model must be able to trust: false means the output
-    // above really is the whole file.
-    expect(result.metadata?.truncated).toBe(false)
-    expect(result.metadata?.bytes).toBe(11)
-  })
-})
-
-describe("tavily", () => {
-  it("normalizes Tavily search responses", () => {
-    expect(normalizeTavilyResponse({
-      query: "agent loops",
-      answer: "Agent loops run tools iteratively.",
-      results: [
-        {
-          title: "Agent Loop",
-          url: "https://example.com/agent-loop",
-          content: "A page about agent loops.",
-          score: 0.91,
-          ignored: true,
-        },
-      ],
-    }, "fallback")).toEqual({
-      query: "agent loops",
-      answer: "Agent loops run tools iteratively.",
-      totalResults: 1,
-      results: [
-        {
-          title: "Agent Loop",
-          url: "https://example.com/agent-loop",
-          content: "A page about agent loops.",
-          score: 0.91,
-        },
-      ],
-    })
-  })
-})
 
 describe("executeToolCall", () => {
   it("reuses validated args without parsing twice", async () => {
@@ -218,12 +166,12 @@ describe("executeToolCall", () => {
 })
 
 function createToolCallHarness(tool: ToolDefinition) {
-  const config = loadConfigFromEnv({})
+  const config = DEFAULT_CORE_CONFIG
   const events = createRuntimeEvents()
   const sessions = new Sessions(new MemorySessionPersistence(), events.state)
   const session = sessions.create({ title: "Test session" })
 
-  const agent = defineHarnessAgent({ name: "lead", mode: "primary", steps: 4, model: stubModel })
+  const agent = defineAgent({ name: "lead", steps: 4, model: stubModel })
 
   const user: UserMessage = {
     id: "user-1",

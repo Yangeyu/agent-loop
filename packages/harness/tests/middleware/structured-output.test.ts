@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test"
-import { defineHarnessAgent } from "@harness/registry"
+import { createHarnessAgent } from "@harness/registry"
 import {
   baseMiddleware,
   createTestRuntime,
@@ -16,13 +16,14 @@ const JSON_FORMAT = { type: "json_schema" as const, schema: { type: "object" } }
 // Runs one prompt against a primary agent whose model replays the given chunks,
 // so the structured-output middleware is exercised without a network provider.
 async function lastAssistant(chunks: LLMChunk[]) {
-  const agent = defineHarnessAgent({
+  const runtime = createTestRuntime()
+  runtime.agent_registry.register(createHarnessAgent({
     name: "lead",
     mode: "primary",
     model: createFakeModel({ chunks }),
     middleware: baseMiddleware(),
-  })
-  const runtime = await createTestRuntime({ agents: [agent] })
+    deps: runtime,
+  }))
   const session = await runPrompt({
     runtime,
     agent: "lead",

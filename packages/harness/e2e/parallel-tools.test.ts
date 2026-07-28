@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test"
-import { defineHarnessAgent } from "@harness/registry"
+import { createHarnessAgent } from "@harness/registry"
 import { mkdtempSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -34,14 +34,15 @@ describe("parallel tools (e2e)", () => {
 
       // A minimal agent with only `read`, driven by the real model: the e2e is
       // the model itself choosing to fan out two real reads through the loop.
-      const agent = defineHarnessAgent({
+      const runtime = createTestRuntime()
+      runtime.agent_registry.register(createHarnessAgent({
         name: "reader",
         mode: "primary",
         model: createDashScopeModel({ modelID: "qwen3.7-plus" }),
         tools: [ReadTool],
         middleware: baseMiddleware(),
-      })
-      const runtime = await createTestRuntime({ agents: [agent] })
+        deps: runtime,
+      }))
 
       const session = await runPrompt({
         runtime,

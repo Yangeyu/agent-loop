@@ -5,8 +5,8 @@
  * a write bypassed the aggregate or an event misdescribes its write.
  */
 import { describe, expect, it } from "bun:test"
-import { defineHarnessAgent } from "@harness/registry"
-import { applyStateEvent, emptyProjection, type SessionProjection } from "@agent-core/model"
+import { createHarnessAgent } from "@harness/registry"
+import { applyStateEvent, emptyProjection, type SessionProjection } from "@agent-core"
 import {
   baseMiddleware,
   createTestRuntime,
@@ -27,14 +27,16 @@ const TURN_SCRIPT: LLMChunk[] = [
 ]
 
 async function buildRuntime() {
-  const agent = defineHarnessAgent({
+  const runtime = createTestRuntime()
+  runtime.agent_registry.register(createHarnessAgent({
     name: "lead",
     mode: "primary",
     steps: 4,
     model: createFakeModel({ chunks: TURN_SCRIPT }),
     middleware: [...baseMiddleware()],
-  })
-  return createTestRuntime({ agents: [agent] })
+    deps: runtime,
+  }))
+  return runtime
 }
 
 describe("state channel completeness", () => {

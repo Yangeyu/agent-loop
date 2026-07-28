@@ -5,19 +5,20 @@
  * array and therefore untestable by construction.
  */
 import { describe, expect, it } from "bun:test"
-import { defineHarnessAgent } from "@harness/registry"
+import { createHarnessAgent, type AgentMode } from "@harness/registry"
 import {
   baseMiddleware,
   createCoreTestRuntime,
   createTestRuntime,
   promptAssembly,
   runPrompt,
-  type HarnessAgent,
+  type Config,
   type PromptContributor,
   type SkillInfo,
 } from "@harness"
 import {
   defineTool,
+  type CreateAgentSpec,
 } from "@agent-core"
 import type { LLMChunk, Model } from "@agent-core/llm/types"
 import { z } from "zod"
@@ -67,26 +68,36 @@ function recordingModel(scripts: LLMChunk[][] = [DONE]) {
 }
 
 // A probe agent composed by hand: it holds its own tools, so nothing else needs
-// registering.
-async function run(options: { agents: HarnessAgent[]; skills?: SkillInfo[]; format?: typeof JSON_FORMAT }) {
-  const runtime = createTestRuntime({ agents: options.agents, skills: options.skills })
-  await runPrompt({ runtime, agent: options.agents[0].name, text: "do the thing", format: options.format })
+// registering. The runtime exists first; the agent is created on its deps.
+async function run(options: {
+  agent: Omit<CreateAgentSpec, "deps"> & { name: string; mode: AgentMode }
+  skills?: SkillInfo[]
+  format?: typeof JSON_FORMAT
+}) {
+  const runtime = createTestRuntime({ skills: options.skills })
+  const agent = createHarnessAgent({ ...options.agent, deps: runtime })
+  runtime.agent_registry.register(agent)
+  await runPrompt({ runtime, agent: agent.definition.name, text: "do the thing", format: options.format })
 }
 
 // The real standard assembly, which is the only way to see what the shipped
-// agents actually say. `patch` amends the lead in place for the cases that need
-// a different budget than the shipped one.
+// agents actually say. `config` reaches for the runtime knobs a case needs
+// (e.g. session_max_steps: 1 to make the first step the final one).
 async function runCore(options: {
   model: Model
   skills?: SkillInfo[]
   format?: typeof JSON_FORMAT
   agents?: "lead-only" | "both"
-  patchLead?: Partial<HarnessAgent>
+  config?: Partial<Config>
 }) {
-  const runtime = createCoreTestRuntime({ chat: options.model, summarizer: options.model, skills: options.skills })
+  const runtime = createCoreTestRuntime({
+    chat: options.model,
+    summarizer: options.model,
+    skills: options.skills,
+    config: options.config,
+  })
   const registry = runtime.agent_registry
   if (options.agents === "lead-only") registry.agents.delete("general")
-  if (options.patchLead) registry.agents.set("lead", { ...registry.get("lead"), ...options.patchLead })
   await runPrompt({ runtime, agent: "lead", text: "do the thing", format: options.format })
 }
 
@@ -102,15 +113,13 @@ describe("prompt assembly", () => {
     const capabilityThird: PromptContributor = () => ({ slot: "capability", text: "CAPABILITY" })
 
     await run({
-      agents: [
-        defineHarnessAgent({
-          name: "probe",
-          mode: "primary",
-          model,
-          instructions: ["IDENTITY"],
-          middleware: [promptAssembly([volatileFirst, conventionSecond, capabilityThird])],
-        }),
-      ],
+      agent: {
+        name: "probe",
+        mode: "primary",
+        model,
+        instructions: ["IDENTITY"],
+        middleware: [promptAssembly([volatileFirst, conventionSecond, capabilityThird])],
+      },
     })
 
     expect(systems[0]).toEqual(["IDENTITY", "CONVENTION", "CAPABILITY", "VOLATILE"])
@@ -122,15 +131,13 @@ describe("prompt assembly", () => {
     const second: PromptContributor = () => ({ slot: "capability", text: "SECOND" })
 
     await run({
-      agents: [
-        defineHarnessAgent({
-          name: "probe",
-          mode: "primary",
-          model,
-          instructions: [],
-          middleware: [promptAssembly([first, second])],
-        }),
-      ],
+      agent: {
+        name: "probe",
+        mode: "primary",
+        model,
+        instructions: [],
+        middleware: [promptAssembly([first, second])],
+      },
     })
 
     expect(systems[0]).toEqual(["FIRST", "SECOND"])
@@ -141,15 +148,13 @@ describe("prompt assembly", () => {
     const silent: PromptContributor = () => undefined
 
     await run({
-      agents: [
-        defineHarnessAgent({
-          name: "probe",
-          mode: "primary",
-          model,
-          instructions: ["IDENTITY"],
-          middleware: [promptAssembly([silent])],
-        }),
-      ],
+      agent: {
+        name: "probe",
+        mode: "primary",
+        model,
+        instructions: ["IDENTITY"],
+        middleware: [promptAssembly([silent])],
+      },
     })
 
     expect(systems[0]).toEqual(["IDENTITY"])
@@ -167,9 +172,9 @@ describe("prompt assembly", () => {
 
   it("renders the volatile slot last so everything above it is a stable prefix", async () => {
     const { model, systems } = recordingModel()
-    // steps: 1 makes the first step the final allowed one, so the volatile slot
-    // is populated on the very first turn.
-    await runCore({ model, patchLead: { steps: 1 }, skills: [skill("demo")], format: JSON_FORMAT })
+    // session_max_steps: 1 makes the first step the final allowed one, so the
+    // volatile slot is populated on the very first turn.
+    await runCore({ model, config: { session_max_steps: 1 }, skills: [skill("demo")], format: JSON_FORMAT })
 
     const system = systems[0]
     expect(system.at(-1)).toContain("final allowed step")
@@ -220,19 +225,17 @@ describe("prompt assembly", () => {
       DONE,
     ])
 
-    const runtime = createTestRuntime({
-      agents: [
-        defineHarnessAgent({
-          name: "probe",
-          mode: "primary",
-          model,
-          instructions: ["IDENTITY"],
-          tools: [NOOP_TOOL],
-          steps: 3,
-          middleware: baseMiddleware(),
-        }),
-      ],
-    })
+    const runtime = createTestRuntime()
+    runtime.agent_registry.register(createHarnessAgent({
+      name: "probe",
+      mode: "primary",
+      model,
+      instructions: ["IDENTITY"],
+      tools: [NOOP_TOOL],
+      steps: 3,
+      middleware: baseMiddleware(),
+      deps: runtime,
+    }))
     await runPrompt({ runtime, agent: "probe", text: "do the thing" })
 
     expect(systems).toHaveLength(2)
@@ -245,18 +248,16 @@ describe("prompt assembly", () => {
     const capability: PromptContributor = () => ({ slot: "capability", text: "PRIVATE CAPABILITY" })
 
     await run({
-      agents: [
-        defineHarnessAgent({
-          name: "probe",
-          mode: "primary",
-          model,
-          instructions: ["IDENTITY"],
-          steps: 1,
-          // Appended last to the contributor list, yet it must render before the
-          // volatile slot — this is the property the whole refactor buys.
-          middleware: baseMiddleware([capability]),
-        }),
-      ],
+      agent: {
+        name: "probe",
+        mode: "primary",
+        model,
+        instructions: ["IDENTITY"],
+        steps: 1,
+        // Appended last to the contributor list, yet it must render before the
+        // volatile slot — this is the property the whole refactor buys.
+        middleware: baseMiddleware([capability]),
+      },
     })
 
     const system = systems[0]

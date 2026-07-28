@@ -1,7 +1,7 @@
 import { LEAD_INSTRUCTIONS } from "@harness/agents/lead/prompt"
 import { baseMiddleware } from "@harness/agents/shared/base-middleware"
-import { defineHarnessAgent, type AgentRegistry, type HarnessAgent } from "@harness/registry"
-import type { Model } from "@agent-core"
+import { createHarnessAgent, type AgentRegistry, type HarnessAgent } from "@harness/registry"
+import type { EngineDeps, Model } from "@agent-core"
 import type { SkillRegistry } from "@harness/skills/registry"
 import { createCompaction, viewImage, type RetryOptions } from "@harness/middleware"
 import { createAvailableSkills } from "@harness/tools/skill"
@@ -10,8 +10,9 @@ import type { ToolDefinition } from "@agent-core"
 
 /**
  * Builds the primary orchestration agent. The factory declares what it needs
- * (a chat model, a cheap summarizer for compaction, its tools, and the two
- * catalogues it announces); the composition root decides what satisfies them.
+ * (a chat model, a cheap summarizer for compaction, its tools, the two
+ * catalogues it announces, and the engine it runs on); the composition root
+ * decides what satisfies them.
  *
  * @param deps.model - the chat model this agent runs on
  * @param deps.summarizer - the model compaction summarizes older history with
@@ -19,6 +20,7 @@ import type { ToolDefinition } from "@agent-core"
  * @param deps.skills - the skill catalogue it announces
  * @param deps.agents - the agent registry it announces delegates from
  * @param deps.retry - model-call retry bounds
+ * @param deps.engine - the runtime's engine deps (shared store and bus)
  */
 export function createLeadAgent(deps: {
   model: Model
@@ -27,11 +29,13 @@ export function createLeadAgent(deps: {
   skills: SkillRegistry
   agents: AgentRegistry
   retry?: RetryOptions
+  engine: EngineDeps
 }): HarnessAgent {
-  return defineHarnessAgent({
+  return createHarnessAgent({
     name: "lead",
     description: "Primary orchestration agent and execution entry point.",
     mode: "primary",
+    deps: deps.engine,
     model: deps.model,
     instructions: LEAD_INSTRUCTIONS,
     tools: deps.tools,
