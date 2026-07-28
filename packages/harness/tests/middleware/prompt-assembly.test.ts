@@ -5,7 +5,7 @@
  * array and therefore untestable by construction.
  */
 import { describe, expect, it } from "bun:test"
-import { createHarnessAgent, type AgentMode } from "@harness/registry"
+import { createAgent } from "@agent-core"
 import {
   baseMiddleware,
   createCoreTestRuntime,
@@ -70,13 +70,13 @@ function recordingModel(scripts: LLMChunk[][] = [DONE]) {
 // A probe agent composed by hand: it holds its own tools, so nothing else needs
 // registering. The runtime exists first; the agent is created on its deps.
 async function run(options: {
-  agent: Omit<CreateAgentSpec, "deps"> & { name: string; mode: AgentMode }
+  agent: Omit<CreateAgentSpec, "deps"> & { name: string }
   skills?: SkillInfo[]
   format?: typeof JSON_FORMAT
 }) {
   const runtime = createTestRuntime({ skills: options.skills })
-  const agent = createHarnessAgent({ ...options.agent, deps: runtime })
-  runtime.agent_registry.register(agent)
+  const agent = createAgent({ ...options.agent, deps: runtime })
+  runtime.agent_registry.register(agent, { mode: "primary" })
   await runPrompt({ runtime, agent: agent.definition.name, text: "do the thing", format: options.format })
 }
 
@@ -115,7 +115,6 @@ describe("prompt assembly", () => {
     await run({
       agent: {
         name: "probe",
-        mode: "primary",
         model,
         instructions: ["IDENTITY"],
         middleware: [promptAssembly([volatileFirst, conventionSecond, capabilityThird])],
@@ -133,7 +132,6 @@ describe("prompt assembly", () => {
     await run({
       agent: {
         name: "probe",
-        mode: "primary",
         model,
         instructions: [],
         middleware: [promptAssembly([first, second])],
@@ -150,7 +148,6 @@ describe("prompt assembly", () => {
     await run({
       agent: {
         name: "probe",
-        mode: "primary",
         model,
         instructions: ["IDENTITY"],
         middleware: [promptAssembly([silent])],
@@ -226,16 +223,15 @@ describe("prompt assembly", () => {
     ])
 
     const runtime = createTestRuntime()
-    runtime.agent_registry.register(createHarnessAgent({
+    runtime.agent_registry.register(createAgent({
       name: "probe",
-      mode: "primary",
       model,
       instructions: ["IDENTITY"],
       tools: [NOOP_TOOL],
       steps: 3,
       middleware: baseMiddleware(),
       deps: runtime,
-    }))
+    }), { mode: "primary" })
     await runPrompt({ runtime, agent: "probe", text: "do the thing" })
 
     expect(systems).toHaveLength(2)
@@ -250,7 +246,6 @@ describe("prompt assembly", () => {
     await run({
       agent: {
         name: "probe",
-        mode: "primary",
         model,
         instructions: ["IDENTITY"],
         steps: 1,

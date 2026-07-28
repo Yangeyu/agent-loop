@@ -106,11 +106,11 @@ function App(props: TuiOptions) {
   }
 
   const cycleAgent = (delta: number) => {
-    const primary = runtime.agent_registry.list().filter((agent) => agent.mode === "primary")
+    const primary = runtime.agent_registry.list().filter((entry) => entry.mode === "primary")
     if (primary.length === 0) return
-    const currentIndex = Math.max(primary.findIndex((agent) => agent.definition.name === selectedAgent()), 0)
+    const currentIndex = Math.max(primary.findIndex((entry) => entry.agent.definition.name === selectedAgent()), 0)
     const nextIndex = (currentIndex + delta + primary.length) % primary.length
-    setSelectedAgent(primary[nextIndex].definition.name)
+    setSelectedAgent(primary[nextIndex].agent.definition.name)
   }
 
   const submitPrompt = async (input: ComposerSubmitInput) => {

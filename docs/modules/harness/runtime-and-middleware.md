@@ -15,10 +15,11 @@
 - `runtime/context.ts` — `RuntimeContext = EngineDeps & { agent_registry, skill_registry, workspace }`。
   两半是分开的类型：循环需要 `config`/`sessions`/`events`；想知道什么是 skill、文件在哪，是这一层
   在想知道。
-- `runtime/bootstrap.ts` — `createRuntime({ config, agents, skills })` 收扁平列表注册；
+- `runtime/bootstrap.ts` — `createRuntime({ config, skills })` 建一个不带 agent 的 runtime
+  （agent 需要 runtime 的 EngineDeps 才能创建，所以永远是先有 runtime、再注册可运行 agent）；
   `createCoreRuntime({ chat, summarizer, config, skills })` 是标准装配（见下）；`runPrompt()` 跑一次。
-- `session.ts` — `runSession`：按名解析 agent、追加 user message、发 `session.start`，然后调
-  `runLoop`。两件事都不是循环原语，所以它在这层而不在核心里。
+- `session.ts` — `runSession`：按名解析 agent，委托给它的 `run()`。按名解析不是循环原语，
+  所以它在这层；种入 user message 和进入循环只在 agent-core 里有一份实现。
 - `config.ts` — zod schema，`Config extends CoreConfig`。核心那四个旋钮加上这层要的
   （workspace/skills/委派深度/compaction/retry）。
 - `middleware/` — `promptAssembly`、`structuredOutput`、`budget`、`doomLoop`、`createCompaction`、
@@ -32,14 +33,15 @@
 createRuntimeContext(config)      # sessions / events / workspace / 两个空注册表
   → 注册 skills
   → createCoreTools({ visionModel, workspace, skills, agents, config })
-  → createCoreAgents({ model, summarizer, tools, skills, agents, retry })
-  → 注册 agents
+  → createCoreAgents({ model, summarizer, tools, skills, agents, retry, engine: runtime })
+  → 注册 agents                   # registry 只准入建在本 runtime store 上的 agent
 ```
 
 工具先于 agent 建，因为 agent 直接持有 `ToolDefinition[]`（不再按名解析）。而 `task` 工具需要
 agent 列表——看似循环依赖，实际不是：传给它的是**注册表**而非数组，它在 `execute` 时才 `list()`。
 这也解释了为什么 `registry.ts` 属于这一层：它的价值是**延迟解析**，而通用循环跑的是一个已经
-解析好的 agent。
+解析好的 agent。注册时校验 `agent.sessions === runtime.sessions`——建在别的 store 上的 agent
+会在委派时以「未知会话」的形式在远处失败，所以在装配点就把它拒掉。
 
 surface 只决定 provider（`apps/cli/src/compose.ts` 是唯一的模型绑定点）。
 

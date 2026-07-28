@@ -1,6 +1,6 @@
 import { createGeneralAgent } from "@harness/agents/general"
 import { createLeadAgent } from "@harness/agents/lead"
-import type { AgentRegistry, HarnessAgent } from "@harness/registry"
+import type { AgentRegistration, AgentRegistry } from "@harness/registry"
 import type { EngineDeps, Model } from "@agent-core"
 import type { SkillRegistry } from "@harness/skills/registry"
 import type { RetryOptions } from "@harness/middleware"
@@ -12,8 +12,10 @@ import type { ToolDefinition } from "@agent-core"
 const LEAD_ONLY = new Set(["task", "task_resume", "view_image"])
 
 /**
- * Builds the core agent set: lead (primary orchestrator, execution entry) and
- * general (delegated subagent).
+ * Builds the core agent set with its roles: lead (primary orchestrator,
+ * execution entry) and general (delegated subagent). The roles are
+ * composition data — they say where each agent sits in this set, and land in
+ * the registry at registration.
  *
  * @param deps.model - the chat model both agents run on
  * @param deps.summarizer - the compaction summarizer for the lead agent
@@ -31,16 +33,19 @@ export function createCoreAgents(deps: {
   agents: AgentRegistry
   retry?: RetryOptions
   engine: EngineDeps
-}): HarnessAgent[] {
+}): AgentRegistration[] {
   return [
-    createLeadAgent(deps),
-    createGeneralAgent({
-      model: deps.model,
-      tools: deps.tools.filter((tool) => !LEAD_ONLY.has(tool.id)),
-      skills: deps.skills,
-      retry: deps.retry,
-      engine: deps.engine,
-    }),
+    { agent: createLeadAgent(deps), mode: "primary" },
+    {
+      agent: createGeneralAgent({
+        model: deps.model,
+        tools: deps.tools.filter((tool) => !LEAD_ONLY.has(tool.id)),
+        skills: deps.skills,
+        retry: deps.retry,
+        engine: deps.engine,
+      }),
+      mode: "subagent",
+    },
   ]
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test"
-import { createHarnessAgent } from "@harness/registry"
+import { createAgent } from "@agent-core"
 import {
   baseMiddleware,
   createTestRuntime,
@@ -66,15 +66,14 @@ async function run(
   },
 ) {
   const runtime = createTestRuntime()
-  runtime.agent_registry.register(createHarnessAgent({
+  runtime.agent_registry.register(createAgent({
     name: "runner",
-    mode: "primary",
     model,
     tools: options?.tools ?? [],
     steps: options?.steps,
     middleware: baseMiddleware(),
     deps: runtime,
-  }))
+  }), { mode: "primary" })
   const session = await runPrompt({ runtime, agent: "runner", text: "go", format: options?.format })
   const assistants = runtime.sessions
     .get(session.id)

@@ -1,4 +1,4 @@
-import type { AgentRegistry, HarnessAgent } from "@harness/registry"
+import type { AgentRegistration, AgentRegistry } from "@harness/registry"
 import type { Config } from "@harness/config"
 import type { Sessions } from "@agent-core"
 import type { PromptContributor } from "@harness/prompt"
@@ -24,15 +24,15 @@ export function createSubagentList(deps: { agents: AgentRegistry }): PromptContr
       text: [
         "Delegate work to these subagents via the task tool's subagent_type argument:",
         "<available_subagents>",
-        ...subagents.map((agent) => `- ${agent.definition.name}: ${agent.definition.description ?? "Specialist subagent"}`),
+        ...subagents.map(({ agent }) => `- ${agent.definition.name}: ${agent.definition.description ?? "Specialist subagent"}`),
         "</available_subagents>",
       ].join("\n"),
     }
   }
 }
 
-function isDelegable(agent: HarnessAgent) {
-  return agent.mode === "subagent"
+function isDelegable(entry: AgentRegistration) {
+  return entry.mode === "subagent"
 }
 
 // Delegation depth is measured by walking the session tree, which only this tool
@@ -140,10 +140,11 @@ function defineDelegationTool<P extends z.ZodTypeAny>(deps: TaskDeps, input: {
       }
     },
     async execute(args, ctx) {
-      const agent = deps.agents.list().find((candidate) => candidate.definition.name === args.subagent_type)
-      if (!agent || !isDelegable(agent)) {
+      const entry = deps.agents.list().find((candidate) => candidate.agent.definition.name === args.subagent_type)
+      if (!entry || !isDelegable(entry)) {
         throw new Error(`Agent ${args.subagent_type} is not available for task delegation`)
       }
+      const agent = entry.agent
 
       const sessions = ctx.sessions
       const maxDepth = deps.config.subagent_max_depth

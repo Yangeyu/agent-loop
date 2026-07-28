@@ -1,7 +1,7 @@
 import { LEAD_INSTRUCTIONS } from "@harness/agents/lead/prompt"
 import { baseMiddleware } from "@harness/agents/shared/base-middleware"
-import { createHarnessAgent, type AgentRegistry, type HarnessAgent } from "@harness/registry"
-import type { EngineDeps, Model } from "@agent-core"
+import type { AgentRegistry } from "@harness/registry"
+import { createAgent, type Agent, type EngineDeps, type Model } from "@agent-core"
 import type { SkillRegistry } from "@harness/skills/registry"
 import { createCompaction, viewImage, type RetryOptions } from "@harness/middleware"
 import { createAvailableSkills } from "@harness/tools/skill"
@@ -30,11 +30,10 @@ export function createLeadAgent(deps: {
   agents: AgentRegistry
   retry?: RetryOptions
   engine: EngineDeps
-}): HarnessAgent {
-  return createHarnessAgent({
+}): Agent {
+  return createAgent({
     name: "lead",
     description: "Primary orchestration agent and execution entry point.",
-    mode: "primary",
     deps: deps.engine,
     model: deps.model,
     instructions: LEAD_INSTRUCTIONS,

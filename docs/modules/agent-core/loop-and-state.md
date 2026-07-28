@@ -63,10 +63,15 @@
 
 - `context.ts` — `EngineDeps`：`config` / `sessions` / `events`，三样，就是循环写不出来就跑不了
   的那些。工具需要的其余东西（文件树、技能目录、别的 agent）由工具自己在闭包里持有。
+  `createEngineDeps({ config?, events? })` 是它的具名默认工厂：内存持久化、私有总线。
 - `blueprint.ts` + `create-agent.ts` — 蓝图（`defineAgent` / `AgentDefinition`，`tools` 是
-  `ToolDefinition[]` 而非待解析的名字）与独立原子入口 `createAgent(spec)`：模型 + 工具 +
-  middleware 包成一个自带内存会话、可直接 `run()` 的单元。
-- `loop.ts` — `runLoop`，逐 turn 驱动。顶部注释是生命周期的权威定义。
+  `ToolDefinition[]` 而非待解析的名字）与**唯一的创建门径** `createAgent(spec & { deps? })` →
+  `Agent`：模型 + 工具 + middleware 包成可直接 `run()` 的单元。`deps` 注入即共享调用方的
+  store 与总线（harness 这样建它的每个 agent）；省略即落到 `createEngineDeps()` 的私有内存
+  引擎。会话按 `run({ sessionID })` 逐次选择，一个实例服务任意多个会话；种入 user message、
+  发 `session.start` 只在 `run()` 里有一份实现。
+- `loop.ts` — `runLoop`，逐 turn 驱动，包内私有（不出 barrel——进循环只经 `createAgent`）。
+  顶部注释是生命周期的权威定义。
 - `recorder.ts` — `TurnRecorder`：一个 turn 生命周期的唯一 owner。构造时追加 assistant message
   并发 `turn.start`；持有相位机、流式 part 游标、计数器；`finish/fail/abort` 恰好终结一次
   （后到的终态被忽略，abort 与 finish 竞态不会双报）。也是 `turn.activity` 的发射点——turn 级

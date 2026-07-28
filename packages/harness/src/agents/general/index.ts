@@ -1,7 +1,6 @@
 import { GENERAL_INSTRUCTIONS } from "@harness/agents/general/prompt"
 import { baseMiddleware } from "@harness/agents/shared/base-middleware"
-import { createHarnessAgent, type HarnessAgent } from "@harness/registry"
-import type { EngineDeps, Model } from "@agent-core"
+import { createAgent, type Agent, type EngineDeps, type Model } from "@agent-core"
 import type { SkillRegistry } from "@harness/skills/registry"
 import type { RetryOptions } from "@harness/middleware"
 import { createAvailableSkills } from "@harness/tools/skill"
@@ -22,11 +21,10 @@ export function createGeneralAgent(deps: {
   skills: SkillRegistry
   retry?: RetryOptions
   engine: EngineDeps
-}): HarnessAgent {
-  return createHarnessAgent({
+}): Agent {
+  return createAgent({
     name: "general",
     description: "General-purpose subagent for multistep delegated work.",
-    mode: "subagent",
     deps: deps.engine,
     model: deps.model,
     instructions: GENERAL_INSTRUCTIONS,

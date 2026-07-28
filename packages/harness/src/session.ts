@@ -3,12 +3,11 @@
  * the one step the engine leaves to its caller — resolving which registered
  * agent answers — and delegates to that agent's run().
  */
-import type { ImageSource, OutputFormat, SessionInfo } from "@agent-core"
-import type { HarnessAgent } from "@harness/registry"
+import type { Agent, ImageSource, OutputFormat, SessionInfo } from "@agent-core"
 
 /** Resolving an agent by name is a lookup the engine itself never performs. */
 export type SessionDeps = {
-  agent_registry: { get(name: string): HarnessAgent; defaultAgent(): HarnessAgent }
+  agent_registry: { get(name: string): Agent; defaultAgent(): Agent }
 }
 
 /** A request to run a session turn-loop from a new user message. */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test"
-import { createHarnessAgent } from "@harness/registry"
+import { createAgent } from "@agent-core"
 import { baseMiddleware, createTestRuntime, runPrompt } from "@harness"
 import { createCompaction, resolveCutBoundary } from "@harness/middleware/compaction"
 import type { LLMChunk } from "@agent-core/llm/types"
@@ -22,13 +22,12 @@ async function buildRuntime(compaction?: { triggerRatio?: number; retainRatio?: 
     onStream: () => summarizerCalls.push("qwen3.6-flash"),
   })
   const runtime = createTestRuntime()
-  runtime.agent_registry.register(createHarnessAgent({
+  runtime.agent_registry.register(createAgent({
     name: "lead",
-    mode: "primary",
     model: createFakeModel({ chunks: ANSWER_SCRIPT, spec: { id: "qwen3.7-plus", contextWindow: 262144 } }),
     middleware: [...baseMiddleware(), createCompaction({ summarizer, ...compaction })],
     deps: runtime,
-  }))
+  }), { mode: "primary" })
   return { runtime, summarizerCalls }
 }
 

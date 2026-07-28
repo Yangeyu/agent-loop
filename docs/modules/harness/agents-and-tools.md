@@ -10,8 +10,10 @@
 
 ## 关键入口
 
-- `@harness/registry.ts` — `HarnessAgent = AgentDefinition & { mode }` + `defineHarnessAgent()` +
-  agent registry 工厂。`mode` 住在这里而不是蓝图上：通用循环跑一个 agent，没有委派概念。
+- `@harness/registry.ts` — agent registry 工厂：`register(agent, { mode })`，只准入建在本 runtime
+  store 上的 agent。`mode`（primary/subagent）是**注册数据而非 agent 身份**——同一个 Agent 在另一个
+  runtime 里可以换角色，所以创建始终是 agent-core 的 `createAgent`，外面不包任何一层。`mode` 住在
+  这一层而不是核心里：通用循环跑一个 agent，没有委派概念。
 - `@harness/agents/lead/`、`@harness/agents/general/` — 两个核心 agent 原子，各为自包含模块
   （`index`（工厂）+ `prompt`）。
 - `@harness/agents/shared/` — `base-middleware.ts`（`baseMiddleware(prompt?, retry?)`，agent 复用的
@@ -28,10 +30,11 @@
 
 ## 数据流
 
-**Agent**：`createCoreAgents({ model, summarizer, tools, skills, agents, retry }) = [lead, general]`。
+**Agent**：`createCoreAgents({ model, summarizer, tools, skills, agents, retry, engine }) = [lead, general]`。
 `createCoreRuntime()`（`runtime/bootstrap.ts`）把这段装配收在一处：先注册 skill，再建工具，
-再建持有那些工具的 agent。顺序是承重的——`task` 在调用时才读 agent registry，因此可以先于
-agent 存在；agent 不能先于它的工具存在。
+再以 runtime 的 EngineDeps 建持有那些工具的 agent。顺序是承重的——`task` 在调用时才读 agent
+registry，因此可以先于 agent 存在；agent 不能先于它的工具存在，也不能先于 runtime 存在
+（它的 `run()` 就跑在 runtime 的 store 和总线上）。
 
 - `lead` — 主 agent、默认入口、最完整工具权限，倾向直接完成任务，必要时委派 specialist。
 - `general` — 通用 subagent，承接 `task` 创建的 child session，也可被 `task_resume` 续跑。
@@ -130,8 +133,9 @@ gate(beforeToolCall) → 参数校验 → describe → 开 ToolPart → beforeEx
   于是不实现 display 的工具照样能正常显示。
   这一份数据同时喂给三个消费者：TUI transcript、CLI logger、以及发给模型的 tool-output 标题。
   在任何一个消费者里按工具名分支，都是把工具已经说过的事重新猜一遍。
-- `task` 创建 child session、校验 `subagent_max_depth`、递归回 `runSession`，子 agent 结束后把最终文本
-  作为普通 tool output 返回父上下文；`task_resume` 复用已有 child session。
+- `task` 创建 child session、校验 `subagent_max_depth`，然后直接调 delegate 的 `agent.run()`
+  （同店由 registry 准入保证），子 agent 结束后把最终文本作为普通 tool output 返回父上下文；
+  `task_resume` 复用已有 child session。
 
 ## 扩展点
 

@@ -55,6 +55,15 @@
 > "这个工具需要 X"就自动变成"引擎必须持有 X"——文件树与技能目录就是这么进内核的。
 > 需要什么，`createXxxTool({ ... })` 自己收。
 
+> **原则：创建只有一扇门，默认值要有名字。** 可运行 agent 一律经 agent-core 的
+> `createAgent(spec & { deps? })` 创建，环境（EngineDeps）注入；任何一层都不再包一个自己的创建
+> 工厂——`createHarnessAgent` 存在过一天就被删掉了，因为角色（mode）是**组合数据**，同一个 Agent
+> 在另一个 runtime 里可以换角色，它属于 `register(agent, { mode })`，不属于 agent 对象。
+> 省略 `deps` 落到**具名的** `createEngineDeps()`（pi 的 `SessionManager.inMemory()` 同型）：
+> 默认协作者可以存在，但必须是签名上可见的具名值，不是工厂内部的匿名 `new`——匿名构造让 store
+> 在调用点没有名字、无法共享，正是当年 seeding 双实现的来源。错配由 registry 准入兜住：
+> `register` 校验 agent 与 runtime 同店，把远处的「未知会话」变成装配点的即时失败。
+
 ## 依赖与边界
 
 - **跨包方向单向**：`agent-core ← harness ← surfaces`（cli/tui）。`agent-core/src/model.ts` 是纯叶子

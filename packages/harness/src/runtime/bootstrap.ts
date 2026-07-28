@@ -78,7 +78,7 @@ export function createCoreRuntime(options: {
     },
     engine: runtime,
   })
-  for (const agent of agents) runtime.agent_registry.register(agent)
+  for (const { agent, mode } of agents) runtime.agent_registry.register(agent, { mode })
 
   return runtime
 }

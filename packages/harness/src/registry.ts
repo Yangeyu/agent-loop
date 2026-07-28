@@ -1,36 +1,23 @@
 /**
- * Agent lookup by name, plus the one attribute this layer adds to a runnable
- * agent: whether it is the entry point or something to delegate to. `mode`
- * lives here because a general loop runs one agent and has no notion of
- * delegation — its readers are `defaultAgent` below and the task tool's
- * admission check.
+ * Agent lookup by name, plus the one attribute this layer adds at
+ * registration: whether an agent is the entry point or something to delegate
+ * to. `mode` is registration data, not part of the agent — the same Agent
+ * could serve either role in another runtime, so creation stays agent-core's
+ * createAgent with nothing wrapped around it.
  */
-import { createAgent, type Agent, type CreateAgentSpec, type EngineDeps, type Sessions } from "@agent-core"
+import type { Agent, Sessions } from "@agent-core"
 
 export type AgentMode = "primary" | "subagent"
 
-/** A runnable agent plus its role in this runtime's agent set. */
-export type HarnessAgent = Agent & { mode: AgentMode }
-
-/**
- * Creates an agent for this runtime: agent-core's createAgent on the runtime's
- * own engine deps, plus its role in the set. `name` and `deps` are required —
- * an orchestrated agent is resolved by name and always runs on the runtime's
- * shared store and bus; the private-engine default is the embedder's, not the
- * orchestrator's.
- *
- * @param spec - the blueprint fields, the runtime's EngineDeps, and the role
- */
-export function createHarnessAgent(spec: CreateAgentSpec & { name: string; deps: EngineDeps; mode: AgentMode }): HarnessAgent {
-  return { ...createAgent(spec), mode: spec.mode }
-}
+/** One registry row: a runnable agent and its role in this runtime's set. */
+export type AgentRegistration = { agent: Agent; mode: AgentMode }
 
 export type AgentRegistry = {
-  agents: Map<string, HarnessAgent>
-  register(agent: HarnessAgent): void
-  get(name: string): HarnessAgent
-  list(): HarnessAgent[]
-  defaultAgent(): HarnessAgent
+  agents: Map<string, AgentRegistration>
+  register(agent: Agent, options: { mode: AgentMode }): void
+  get(name: string): Agent
+  list(): AgentRegistration[]
+  defaultAgent(): Agent
 }
 
 /**
@@ -43,25 +30,23 @@ export type AgentRegistry = {
  */
 export function createAgentRegistry(runtime: { sessions: Sessions }): AgentRegistry {
   return {
-    agents: new Map<string, HarnessAgent>(),
+    agents: new Map<string, AgentRegistration>(),
 
-    register(agent) {
+    register(agent, options) {
       const name = agent.definition.name
       if (agent.sessions !== runtime.sessions) {
         throw new Error(`Agent "${name}" runs on a different session store than this runtime`)
       }
-      const existing = this.agents.get(name)
-      if (existing === agent) return
-      if (existing) {
+      if (this.agents.has(name)) {
         throw new Error(`Duplicate agent registration: ${name}`)
       }
-      this.agents.set(name, agent)
+      this.agents.set(name, { agent, mode: options.mode })
     },
 
     get(name) {
-      const agent = this.agents.get(name)
-      if (!agent) throw new Error(`Unknown agent: ${name}`)
-      return agent
+      const entry = this.agents.get(name)
+      if (!entry) throw new Error(`Unknown agent: ${name}`)
+      return entry.agent
     },
 
     list() {
@@ -69,9 +54,9 @@ export function createAgentRegistry(runtime: { sessions: Sessions }): AgentRegis
     },
 
     defaultAgent() {
-      const primary = this.list().find((agent) => agent.mode === "primary")
+      const primary = this.list().find((entry) => entry.mode === "primary")
       if (!primary) throw new Error("No primary agent registered")
-      return primary
+      return primary.agent
     },
   }
 }

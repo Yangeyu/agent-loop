@@ -23,9 +23,9 @@ packages/
 │       ├── turn.ts           # 跑单轮：wrapModelCall 洋葱 + 工具批次
 │       ├── hooks.ts          # 8 个 hook 的 Middleware 契约 + MiddlewareStack
 │       ├── blueprint.ts      # defineAgent / AgentDefinition（tools 是定义数组）
-│       ├── create-agent.ts   # createAgent：自带内存会话的独立原子入口
+│       ├── create-agent.ts   # createAgent：可运行 agent 的唯一创建门径（环境经 deps 注入）
 │       ├── recorder.ts       # TurnRecorder：一个 turn 生命周期的唯一 owner
-│       ├── context.ts        # EngineDeps（config/sessions/events，就这三样）
+│       ├── context.ts        # EngineDeps（config/sessions/events）+ createEngineDeps（具名内存默认）
 │       ├── policy.ts         # timeout + budgets 解析
 │       ├── outcome.ts tool-call.ts tool-part.ts error.ts
 │       ├── session/          # Sessions 聚合（唯一写入者）+ SessionPersistence
@@ -42,9 +42,9 @@ packages/
 │       ├── skills/           # SKILL.md 目录发现 + registry + 契约
 │       ├── workspace/        # 本地文件树的所有者：工具文件访问的唯一入口
 │       ├── runtime/          # 组合层：context（RuntimeContext）、bootstrap（createCoreRuntime）
-│       ├── session.ts        # runSession：按名解析 agent + 追加 user message → runLoop
+│       ├── session.ts        # runSession：按名解析 agent → agent.run()
 │       ├── prompt.ts         # slot 词汇 + PromptContributor（只有词汇，片段跟拥有者走）
-│       ├── registry.ts       # HarnessAgent（= AgentDefinition & { mode }）+ agent registry
+│       ├── registry.ts       # AgentRegistry：mode 是注册数据（register(agent, { mode })）+ 同店准入
 │       ├── config.ts         # Config extends CoreConfig
 │       ├── format.ts index.ts
 │
@@ -62,14 +62,17 @@ skills/                       # 工作区技能：一目录一技能（SKILL.md 
 1. `apps/cli/src/index.ts` 解析参数，选择 CLI 或 TUI；`runPrompt()`（`@harness` 出口）发起一次 session。
 2. `apps/cli/src/compose.ts`（组合根）构建模型实例，交给 `createCoreRuntime`。
 3. `createCoreRuntime` 装配：注册 skill → 建工具（各自持有 workspace/skills/agents 闭包）→
-   建持有那些工具的 agent → 注册。
-4. `harness/session.ts` 的 `runSession` 按名解析 agent、追加 user message，进入 `runLoop`。
+   以 runtime 自己的 EngineDeps 建 agent（agent-core 的 `createAgent`，唯一门径）→
+   `register(agent, { mode })` 注册（mode 是组合数据，不在 agent 对象上）。
+4. `harness/session.ts` 的 `runSession` 按名解析 agent，委托给它的 `run()` —— 种入 user message、
+   发 `session.start`、进入循环都发生在 agent-core 里，且只有这一份实现。
 5. 每一步（一个 turn）按生命周期推进：
    `beforeTurn` → `beforeModelCall`（引擎种入 instructions）→ `wrapModelCall`（一次流式调用）
    → 工具批次 → `afterTurn`（终态 + 去留一次裁决）。
 6. `agent-core/turn.ts` 经 `TurnRecorder` 把 text/reasoning/tool-call 写进 Sessions（状态事件随写入自动发出）。
 7. 工具经 `defineTool` 统一校验/执行/归一化；文件访问一律经工具自己持有的 `workspace`；
-   `task` 创建 child session 并递归回 `runSession`。
+   `task` 创建 child session 后直接调 delegate 的 `agent.run()`——同一个 store 与总线由
+   registry 准入保证。
 8. middleware 塑形结果：retry 包住模型调用，compaction 在 `beforeTurn` 压缩超长上下文，
    budget/structured-output 在 `afterTurn` 收口。
 9. `event/bus.ts` 分 state/loop 两通道广播，由 `apps/cli/src/logger.ts`（CLI）或 `tui/app.tsx`（TUI）
@@ -80,16 +83,19 @@ skills/                       # 工作区技能：一目录一技能（SKILL.md 
 ## 组合即代码
 
 - `harness/runtime/bootstrap.ts`：`createCoreRuntime({ chat, summarizer, config, skills })` —— 标准装配。
-- `harness/agents/index.ts`：`createCoreAgents({ model, summarizer, tools, skills, agents, retry })`。
+- `harness/agents/index.ts`：`createCoreAgents({ model, summarizer, tools, skills, agents, retry, engine })`。
 - `harness/tools/index.ts`：`createCoreTools({ visionModel, workspace, skills, agents, config })`。
 - `apps/cli/src/compose.ts`：唯一的 provider 绑定点。skill 来自 `config.skills_dir`
   （默认 `./skills`，相对运行目录解析，不存在即视为没有）——加技能不必改这个文件。
-- `agent-core/create-agent.ts`：`createAgent(spec)` 独立原子入口，不需要 harness。
+- `agent-core/create-agent.ts`：`createAgent(spec & { deps? })` —— 唯一的创建门径。
+  harness 注入 runtime 的 EngineDeps；独立嵌入省略 deps，落到具名的 `createEngineDeps()`
+  私有内存引擎。会话按 `run({ sessionID })` 逐次选择，一个 agent 实例服务任意多个会话。
 
 ## 扩展点
 
-- **新 agent**：在 `harness/agents/` 下新建原子模块（工厂：prompt + middleware + tools，模型经参数注入），
-  加入 `createCoreAgents` 或组合根的装配列表。
+- **新 agent**：在 `harness/agents/` 下新建原子模块（工厂：prompt + middleware + tools，模型与
+  `engine`（runtime 的 EngineDeps）经参数注入，内部走 agent-core 的 `createAgent`），加入
+  `createCoreAgents` 或在组合根 `register(agent, { mode })`。
 - **新 tool**：`defineTool()` 定义；需要协作者的导出工厂，把它装进闭包。加入 `createCoreTools`
   或消费方工具列表，并传给合适的 agent。
 - **新 middleware**：实现 `agent-core` 的 `Middleware`（8 个 hook 挑需要的），加入 agent 的 middleware 组合。
