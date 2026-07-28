@@ -23,13 +23,12 @@ import type { TurnExecutionPolicy } from "@agent-core/policy"
 import type { Sessions } from "@agent-core/session"
 import type { ErrorInfo, FinishReason, OutputFormat, ToolExecuteResult } from "@agent-core/types"
 
-// Why a turn's outcome was shaped the way it was — the vocabulary middleware
-// use to gate turns and resolve continue/break decisions.
-//
-// The loop's own five are named; the union stays open because the rest of the
-// vocabulary is middleware's ("step_budget_reached" is the budget middleware's
-// word, not a fact the loop knows). The type never leaves the engine, so the
-// only thing openness costs is an exhaustive check nothing performs.
+/**
+ * Why a turn ended the way it did — the vocabulary middleware use to gate turns
+ * and resolve continue/break decisions. The loop names its own five; the union
+ * stays open for middleware vocabulary ("step_budget_reached" is the budget
+ * middleware's word).
+ */
 export type TurnOutcomeReason =
   | "tool_calls"
   | "empty_assistant"
@@ -44,44 +43,46 @@ export type RunContext = {
   readonly sessions: Sessions
   readonly agent: AgentDefinition
   readonly sessionID: string
-  // The run's root abort. Turn-scoped hooks see a narrower one (below).
+  /** The run's root abort. Turn-scoped hooks see a narrower one. */
   readonly abort: AbortSignal
-  // The current agent's bound model instance. Read by gating middleware for its
-  // spec (capabilities/contextWindow); also callable directly for out-of-band
-  // single-shot calls that must bypass the stack to avoid re-entrancy.
+  /**
+   * The agent's bound model. Gating middleware read its spec; out-of-band
+   * single-shot calls may call it directly, bypassing the stack.
+   */
   readonly model: Model
 }
 
 /** Turn-scoped context: the run context plus what this turn resolved. */
 export type HookContext = RunContext & {
-  // This turn's assistant message — the record every turn-scoped hook reads or patches.
+  /** This turn's assistant message — the record turn-scoped hooks read and patch. */
   readonly messageID: string
   readonly step: number
   readonly policy: TurnExecutionPolicy
-  // This turn's abort: the run's signal plus the turn timeout.
+  /** This turn's abort: the run's signal plus the turn timeout. */
   readonly abort: AbortSignal
-  // The structured-output format requested for this turn (from the user message).
+  /** The structured-output format requested for this turn. */
   readonly format?: OutputFormat
-  // Reports what this middleware is doing, as turn.activity loop events. The
-  // stack binds the producer from `middleware.name`, so a caller never names
-  // itself — and middleware get this narrow capability rather than the bus,
-  // which keeps them the decision layer and the bus the observation layer.
+  /**
+   * Reports what this middleware is doing, as turn.activity loop events. The
+   * stack binds the source from `middleware.name`.
+   */
   readonly activity: (input: { label: string; detail?: string }) => ActivityHandle
 }
 
 /** One reported activity, from `ctx.activity(...)` to its end. */
 export type ActivityHandle = {
   update(detail: string): void
-  // Idempotent, so try/finally is safe.
+  /** Idempotent, so try/finally is safe. */
   end(detail?: string): void
 }
 
 /** The engine's half of `activity`: the same call with the producer named. */
 export type ActivityEmitter = (input: { source: string; label: string; detail?: string }) => ActivityHandle
 
-// What the engine hands the stack: a turn context whose activity has no producer
-// yet. There is deliberately no unbound `activity` to call — an activity without
-// a source is not a thing the engine can emit.
+/**
+ * What the engine hands the stack: the turn context with activity still
+ * unbound. The stack names the source per middleware before dispatch.
+ */
 export type StackContext = Omit<HookContext, "activity"> & { readonly openActivity: ActivityEmitter }
 
 export type ToolCall = {
@@ -98,24 +99,30 @@ export type ToolGate =
   | { action: "proceed"; args?: unknown }
   | { action: "deny"; error: ErrorInfo; note?: string }
 
-// The model input under assembly for one turn: system fragments plus the
-// transformed message history. Each middleware receives the draft so far and
-// returns the next one (append system fragments, rewrite messages, or both).
+/**
+ * The model input under assembly for one turn: system fragments plus the
+ * transformed message history. Each middleware receives the draft so far and
+ * returns the next one.
+ */
 export type ContextDraft = {
   system: string[]
   messages: ModelMessage[]
 }
 
-// One settled tool call, success or failure, flowing through afterToolCall.
-// A middleware may rewrite the result, replace the error, or — on a failure —
-// escalate with `stop: true` to halt the turn (note lands on the transcript).
+/**
+ * One settled tool call, success or failure, flowing through afterToolCall.
+ * A middleware may rewrite the result, replace the error, or — on a failure —
+ * escalate with `stop: true` to halt the turn (note lands on the transcript).
+ */
 export type ToolOutcome =
   | { ok: true; result: ToolExecuteResult }
   | { ok: false; error: ErrorInfo; stop?: boolean; note?: string }
 
-// The terminal the engine applies when a turn finishes cleanly: keep the model's
-// finish (optionally overriding the recorded reason or attaching structured
-// output), or fail the turn.
+/**
+ * The terminal the engine applies when a turn finishes cleanly: keep the
+ * model's finish (optionally overriding the recorded reason or attaching
+ * structured output), or fail the turn.
+ */
 export type TurnTerminal =
   | { ok: true; structured?: unknown; finishReason?: FinishReason }
   | { ok: false; error: ErrorInfo }
@@ -124,21 +131,24 @@ export type TurnOutcome =
   | { kind: "continue"; reason: TurnOutcomeReason }
   | { kind: "break"; reason: TurnOutcomeReason; note?: string }
 
-// The single end-of-turn judgment. `finish` describes how the model turn ended
-// (finishReason absent when the turn already terminated inside the run — tool
-// stop, abort, or stream failure). `terminal` is open for amendment only on a
-// clean finish; the engine applies it exactly once after the stack settles.
-// `outcome` decides whether the loop continues.
+/**
+ * The single end-of-turn judgment. `finish` describes how the model turn ended
+ * (finishReason absent when the turn already terminated inside the run — tool
+ * stop, abort, or stream failure). `terminal` is open for amendment only on a
+ * clean finish; the engine applies it exactly once after the stack settles.
+ * `outcome` decides whether the loop continues.
+ */
 export type TurnJudgment = {
   readonly finish: { readonly finishReason?: FinishReason; readonly text: string }
   readonly terminal?: TurnTerminal
   readonly outcome: TurnOutcome
 }
 
-// The product of one streamed model call: how it ended, and the tool calls it
-// issued. The turn executes those calls *after* the wrapModelCall onion unwinds,
-// which is what keeps "model call" and "tool batch" separable — a middleware
-// that retries a failed stream can never replay tools that already ran.
+/**
+ * The product of one streamed model call: how it ended, and the tool calls it
+ * issued. The turn executes those calls after the wrapModelCall onion unwinds,
+ * so a middleware that retries a failed stream never replays executed tools.
+ */
 export type ModelCallResult = {
   readonly finishReason?: FinishReason
   readonly toolCalls: readonly ToolCall[]
@@ -150,47 +160,58 @@ export type RunSummary = {
   readonly reason: TurnOutcomeReason
 }
 
-// Declared in execution order — see the map at the top of this file.
+/** The hook contract, declared in execution order — see the map at the top of this file. */
 export type Middleware = {
   name: string
-  // Run setup: async initialization a factory's constructor cannot do. No gate:
-  // refusing a run is refusing its first turn, which beforeTurn already does.
+  /** Run setup: async initialization a factory's constructor cannot do. */
   beforeRun?(ctx: RunContext): void | Promise<void>
-  // Turn gate and the stack's one sanctioned effect point (compaction rewrites
-  // session history here). The first refusal short-circuits.
+  /**
+   * Turn gate and the stack's one sanctioned effect point (compaction rewrites
+   * session history here). The first refusal short-circuits.
+   */
   beforeTurn?(ctx: HookContext): TurnGate | Promise<TurnGate>
-  // Context assembly: the draft flows through the stack in registration order.
+  /** Context assembly: the draft flows through the stack in registration order. */
   beforeModelCall?(ctx: HookContext, draft: ContextDraft): ContextDraft | Promise<ContextDraft>
-  // Onion around one streamed model call: rewrite the request, retry it, or
-  // substitute a result. Earlier registration sits further out.
+  /**
+   * Onion around one streamed model call: rewrite the request, retry it, or
+   * substitute a result. Earlier registration sits further out.
+   */
   wrapModelCall?(
     ctx: HookContext,
     request: LLMInput,
     next: (request: LLMInput) => Promise<ModelCallResult>,
   ): Promise<ModelCallResult>
-  // Tool gate: the first refusal short-circuits.
+  /** Tool gate: the first refusal short-circuits. */
   beforeToolCall?(ctx: HookContext, call: ToolCall): ToolGate | Promise<ToolGate>
-  // Tool settlement: success and failure share the entry; first stop wins.
+  /** Tool settlement: success and failure share the entry; first stop wins. */
   afterToolCall?(ctx: HookContext, call: ToolCall, outcome: ToolOutcome): ToolOutcome | Promise<ToolOutcome>
-  // End-of-turn judgment: terminal + loop continuation, folded left; later
-  // middleware sees (and may amend) the judgment so far.
+  /**
+   * End-of-turn judgment: terminal + loop continuation, folded left; later
+   * middleware sees (and may amend) the judgment so far.
+   */
   afterTurn?(ctx: HookContext, judgment: TurnJudgment): TurnJudgment | Promise<TurnJudgment>
-  // Run teardown, in a finally — the counterpart a middleware holding a resource
-  // (subprocess, temp dir, connection) needs in order to release it.
+  /**
+   * Run teardown, in a finally — where a middleware holding a resource
+   * (subprocess, temp dir, connection) releases it.
+   */
   afterRun?(ctx: RunContext, summary: RunSummary): void | Promise<void>
 }
 
-// Instantiated once per AgentRun (loop), so a middleware can hold loop-scoped
-// state in closures (doom-loop history, failure counters, budget counters).
+/**
+ * Instantiated once per run, so a middleware can hold loop-scoped state in
+ * closures (doom-loop history, failure counters, budget counters).
+ */
 export type MiddlewareFactory = () => Middleware
 
-// MiddlewareStack: ordered dispatch over a loop-scoped set of middleware.
-// Dispatch semantics per hook: beforeModelCall and afterTurn fold left (each
-// middleware sees the value so far); beforeTurn first stop short-circuits;
-// wrapModelCall composes as an onion with the first middleware outermost;
-// beforeToolCall first deny short-circuits (args thread through); afterToolCall
-// folds left with the first stop short-circuiting; beforeRun runs in order and
-// afterRun in reverse, the usual setup/teardown pairing.
+/**
+ * Ordered dispatch over a loop-scoped set of middleware. Per hook:
+ * beforeModelCall and afterTurn fold left (each middleware sees the value so
+ * far); beforeTurn first stop short-circuits; wrapModelCall composes as an
+ * onion with the first middleware outermost; beforeToolCall first deny
+ * short-circuits (args thread through); afterToolCall folds left with the
+ * first stop short-circuiting; beforeRun runs in order and afterRun in
+ * reverse, the usual setup/teardown pairing.
+ */
 export class MiddlewareStack {
   private constructor(private readonly middleware: Middleware[]) {}
 

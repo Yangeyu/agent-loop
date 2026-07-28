@@ -1,9 +1,7 @@
 // Public API of the orchestration layer: the standard agent set, the tools and
-// skills they run on, and the runtime that assembles them.
-//
-// It deliberately does not re-export @agent-core — a surface needing the loop's
-// own contracts depends on that package directly, rather than through a passthrough
-// that would make the two look like one.
+// skills they run on, and the runtime that assembles them. A surface that
+// needs the loop's own contracts depends on @agent-core directly; this barrel
+// carries only what the orchestration layer adds.
 
 // Runtime composition + lifecycle
 export {

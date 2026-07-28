@@ -1,9 +1,9 @@
 import { z } from "zod"
 import type { CoreConfig } from "@agent-core"
 
-// Shared with the retry middleware, so its default and the config default are
-// one number rather than two that agree today.
+/** Shared with the retry middleware, so config and middleware agree on one number. */
 export const RETRY_DEFAULTS = { maxRetries: 2, baseDelayMs: 500, maxDelayMs: 4000 }
+/** Shared with the compaction middleware, same as RETRY_DEFAULTS. */
 export const COMPACTION_DEFAULTS = { triggerRatio: 0.75, retainRatio: 0.5 }
 
 const ConfigSchema = z.object({
@@ -20,15 +20,13 @@ const ConfigSchema = z.object({
   model_max_retries: z.coerce.number().int().min(0).default(RETRY_DEFAULTS.maxRetries),
   model_retry_base_delay_ms: z.coerce.number().int().min(1).default(RETRY_DEFAULTS.baseDelayMs),
   model_retry_max_delay_ms: z.coerce.number().int().min(1).default(RETRY_DEFAULTS.maxDelayMs),
-  // Assistant turns across a whole session, spanning every run in it. A single
-  // long deliverable can spend a run's worth of steps, so this sits well above
-  // any one agent's cap rather than being the thing that cuts a run short.
+  // Assistant turns across a whole session, spanning every run in it; sits
+  // well above any one agent's per-run cap.
   session_max_steps: z.coerce.number().int().min(1).default(100),
   subagent_max_depth: z.coerce.number().int().min(0).default(2),
   turn_timeout_ms: z.coerce.number().int().min(1).default(300000),
-  // Total tool calls one agent run may make (see TurnBudgetPolicy.maxRunToolCalls).
-  // A single document-producing run spends a dozen calls before it writes a line,
-  // so this is a runaway guard, not a per-turn fan-out limit — that is
+  // Total tool calls one agent run may make — a runaway guard, sized so a
+  // document-producing run finishes well inside it. Per-turn fan-out is
   // tool_max_concurrency.
   run_max_tool_calls: z.coerce.number().int().min(1).default(32),
   tool_max_concurrency: z.coerce.number().int().min(1).default(4),

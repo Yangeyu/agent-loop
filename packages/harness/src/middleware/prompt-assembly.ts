@@ -1,12 +1,8 @@
-// The one middleware that writes `draft.system`. Everything an agent says to the
-// model arrives as a contributor, so the system prompt's order is declared by
-// SLOT_ORDER rather than emerging from where a middleware happens to sit in the
-// agent's middleware array.
-//
-// The distinction that keeps the two axes apart: this middleware owns *prompt
-// composition*; a middleware that transforms `draft.messages` (view-image) or
-// gates/judges a turn (budget, doom-loop, structured-output) is on the
-// *execution* axis and must not append to `system`.
+// The one middleware that writes `draft.system`. Everything an agent says to
+// the model arrives as a contributor, so the system prompt's order is declared
+// by SLOT_ORDER, independent of middleware position. A middleware that
+// transforms `draft.messages` or gates/judges a turn is on the *execution*
+// axis and must not append to `system`.
 import type { MiddlewareFactory } from "@agent-core"
 import { SLOT_ORDER, type PromptContributor, type SystemSection } from "@harness/prompt"
 
@@ -21,10 +17,8 @@ export function promptAssembly(contributors: readonly PromptContributor[]): Midd
     name: "prompt-assembly",
 
     async beforeModelCall(ctx, draft) {
-      // The engine seeds the draft with the agent's own `instructions` so an
-      // agent with zero middleware still speaks its blueprint. Those fragments
-      // are the identity slot's content — the agent's words are not a separate
-      // mechanism from the rest of the prompt, just the first slot of it.
+      // The engine seeds the draft with the agent's own `instructions`; those
+      // fragments become the identity slot's content.
       const sections: SystemSection[] = draft.system
         .filter(Boolean)
         .map((text) => ({ slot: "identity" as const, text }))

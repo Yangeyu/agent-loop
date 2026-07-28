@@ -200,10 +200,6 @@ function defineDelegationTool<P extends z.ZodTypeAny>(deps: TaskDeps, input: {
         sessions,
       })
 
-      // No metadata block: the output below already carries the task id and the
-      // agent, and the rest of what used to be here was either the same value
-      // under a second key (sessionId, subagentName) or something nothing ever
-      // read (parentSessionId, completed, resume).
       return {
         output: formatTaskToolOutput({
           taskId: completedChild.id,

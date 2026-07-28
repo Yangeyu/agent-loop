@@ -50,8 +50,10 @@ export type {
 } from "@agent-core/model"
 
 export type ToolExecuteResult = {
-  // A patch: the result states how the call went; what it was about was already
-  // established by beforeExecute (see resolveDisplay in agent/tool-part.ts).
+  /**
+   * A patch: the result states how the call went; what it was about was
+   * already established when the tool part opened (see tool-part.ts).
+   */
   display?: ToolDisplayPatch
   output: string
   metadata?: ToolMetadata

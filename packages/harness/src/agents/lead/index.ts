@@ -9,8 +9,8 @@ import { createSubagentList } from "@harness/tools/task"
 import type { ToolDefinition } from "@agent-core"
 
 /**
- * Builds the primary orchestration agent. The atom declares what it needs (a
- * chat model, a cheap summarizer for compaction, its tools, and the two
+ * Builds the primary orchestration agent. The factory declares what it needs
+ * (a chat model, a cheap summarizer for compaction, its tools, and the two
  * catalogues it announces); the composition root decides what satisfies them.
  *
  * @param deps.model - the chat model this agent runs on

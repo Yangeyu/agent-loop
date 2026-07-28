@@ -1,7 +1,6 @@
-// runSession: start a turn loop from a new user message. Two things happen here
-// that are not loop primitives — resolving an agent by name, and appending the
-// message that gives the loop something to answer — which is why this is the
-// orchestration layer's entry and runLoop is the kernel's.
+// runSession: the orchestration layer's entry into the engine's runLoop. It
+// adds the two steps the loop leaves to its caller — resolving an agent by
+// name, and appending the user message the loop will answer.
 import {
   createID,
   runLoop,

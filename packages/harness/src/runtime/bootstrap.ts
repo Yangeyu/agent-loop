@@ -11,8 +11,7 @@ import { createCoreTools } from "@harness/tools"
 import type { SkillInfo } from "@harness/skills/types"
 import type { ImageSource, OutputFormat } from "@agent-core"
 
-/** The composed capability set a runtime is assembled from. Tools are absent
- *  because an agent holds its own; a runtime-wide tool list has nothing to do. */
+/** The composed capability set a runtime is assembled from. Each agent holds its own tools. */
 export type RuntimeAssembly = {
   config?: Config
   agents?: HarnessAgent[]

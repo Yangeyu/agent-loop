@@ -1,12 +1,11 @@
 /**
- * The agent orchestration loop. Agent-agnostic: it resolves the agent blueprint
- * once per run, builds the loop-scoped middleware stack (the AgentRun), then
- * drives turns until a middleware-shaped outcome breaks. Delegation to a
- * subagent is just another runSession on a child session (see tool/task.ts).
+ * The agent loop. Agent-agnostic: it resolves the agent blueprint once per
+ * run, builds the loop-scoped middleware stack, then drives turns until a
+ * middleware-shaped outcome breaks.
  *
  * Lifecycle (this file is the authoritative ordering of the hook points):
  *
- *   runSession ── append user message ──► runLoop
+ *   caller ── append user message ──► runLoop
  *     beforeRun
  *     per step (one turn):
  *       TurnRecorder created (appends assistant message, emits turn.start)
@@ -34,9 +33,8 @@ import { createID, type AssistantMessage, type SessionInfo, type UserMessage } f
 
 /**
  * Drives the turn loop for an already-seeded session: builds the agent's
- * middleware stack once, then runs turns (beforeTurn gate → system/messages →
- * runTurn → resolveOutcome) until an outcome breaks. The reusable entry for
- * subagent delegation, which seeds the child session itself.
+ * middleware stack once, then runs turns until an outcome breaks. Callers
+ * append the run's user message before entering.
  *
  * @param deps - the engine dependencies
  * @param input - the session id, resolved agent blueprint, and optional abort

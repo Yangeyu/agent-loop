@@ -84,10 +84,13 @@ export function createCompaction(opts: CompactionOptions): MiddlewareFactory {
   }
 }
 
-// Keep the recent ~retain_ratio of message records, then snap the cut forward to
-// the next user message so the kept window starts on a clean user turn. Returns
-// the index where the kept window begins, or undefined when there is no older
-// half to summarize / no user boundary to snap to.
+/**
+ * Keeps the recent ~retainRatio of message records, snapping the cut forward
+ * to the next user message so the kept window starts on a clean user turn.
+ *
+ * @returns the index where the kept window begins, or undefined when there is
+ *   no older half to summarize or no user boundary to snap to
+ */
 export function resolveCutBoundary(messages: readonly SessionMessage[], retainRatio: number): number | undefined {
   const targetKeep = Math.ceil(messages.length * retainRatio)
   const start = messages.length - targetKeep

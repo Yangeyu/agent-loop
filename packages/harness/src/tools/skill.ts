@@ -79,9 +79,8 @@ async function renderSkillContent(workspace: Workspace, skill: SkillInfo) {
 }
 
 // Skill bodies refer to their assets relatively ("read ./template.html"), but
-// the read tool resolves against the workspace root, not the skill's directory.
-// Listing the absolute paths here removes the guesswork rather than asking the
-// model to rebuild them.
+// the read tool resolves against the workspace root. Listing the absolute
+// paths here removes the guesswork.
 async function renderAssets(workspace: Workspace, skill: SkillInfo) {
   const dir = skill.dir
   if (!dir) return []

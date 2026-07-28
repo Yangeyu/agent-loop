@@ -9,7 +9,7 @@
  * (enforced by the readonly model types), never live references.
  *
  * Projections (parts, messageText) delegate to the shared pure helpers in
- * @contracts, so the aggregate and every event consumer compute "what does
+ * model.ts, so the aggregate and every event consumer compute "what does
  * this message say" identically.
  */
 import {

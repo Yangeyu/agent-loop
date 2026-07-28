@@ -130,21 +130,13 @@ async function runToolCalls(
     tracked.push({ call, prepared, tracker: openToolPart(recorder, call, prepared) })
   }
 
-  // Run the batch with at most `toolConcurrency` in flight at once, keeping outcomes
-  // in issue order regardless of completion order. The bound is a fresh per-turn
-  // number, not a shared semaphore, so a parent turn delegating to subagents that
-  // themselves fan out tools never contends on one counter and cannot deadlock.
-  //
-  // Every call is eligible, whatever it does. The dispatcher deliberately knows
-  // nothing about tool semantics — it could not use them anyway, since it must
-  // fix a concurrency level before any tool has parsed its arguments and so has
-  // no idea which files are in play. Consistency belongs to whoever owns the
-  // resource: concurrent file work is made safe by the workspace (workspace.ts),
-  // not by holding calls back here.
-  //
-  // Ordering between calls is the model's to arrange. A batch is the provider's
-  // statement that these calls may proceed together; a call that depends on
-  // another's effect belongs in the next turn, not the same batch.
+  // Run the batch with at most `toolConcurrency` in flight, keeping outcomes in
+  // issue order regardless of completion order. The bound is a fresh per-turn
+  // number, so a parent turn delegating to subagents that themselves fan out
+  // tools never contends on one counter. Every call is eligible: the dispatcher
+  // is blind to tool semantics, and consistency belongs to whoever owns the
+  // resource (concurrent file work is made safe by the workspace). A call that
+  // depends on another's effect belongs in the next turn, not the same batch.
   const outcomes = new Array<ToolCallOutcome>(tracked.length)
   const limit = Math.max(1, ctx.policy.toolConcurrency)
   let nextIndex = 0

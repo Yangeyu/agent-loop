@@ -4,9 +4,6 @@
 // announces skills, an agent's own `instructions` state its role.
 import type { PromptContributor } from "@harness/prompt"
 
-// This used to be split across three places — a base system prompt, a tool-use
-// prompt, and a shared instruction fragment list — with the agent's own identity
-// sandwiched between them. They say one thing, so they are one section.
 const ENGINE_CONVENTIONS = [
   "Complete the user's request by making concrete progress, not by restating plans.",
   "Continue working until the task is complete or you must stop.",

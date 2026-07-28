@@ -37,9 +37,8 @@ export function createEditTool(deps: { workspace: Workspace }) {
     describe(args) {
       return { verb: "edit", target: deps.workspace.resolve(args.filePath) }
     },
-    // Only classifies what execute() could not: execute throws its own refusals
-    // (no match, ambiguous, no-op) already typed, and defineTool leaves those
-    // alone rather than running them through here.
+    // Classifies the failures execute() does not already throw typed
+    // (the file read's ENOENT).
     mapError({ args, toolID, code }) {
       if (code === "ENOENT") {
         return {
@@ -120,10 +119,8 @@ function planEdit(args: EditArgs, target: string, content: string): WorkspaceCha
   }
 }
 
-// A failed match is where an edit tool either helps or wastes a turn. Rather
-// than silently relaxing the match — which is how a patch lands in the wrong
-// place — this reports *why* the exact match failed, so the next attempt can be
-// correct rather than a guess. Diagnosing is not applying.
+// Reports *why* the exact match failed so the next attempt can be correct;
+// the match itself is never relaxed.
 function noMatchError(args: EditArgs, content: string): ToolExecutionError {
   const relaxed = findIgnoringIndentation(content, args.oldString)
   const hint = relaxed === undefined

@@ -1,8 +1,8 @@
 // Filesystem discovery for skills, following the Agent Skills convention:
 // one directory per skill containing a SKILL.md whose YAML frontmatter carries
 // the index metadata (name, description) and whose body is the skill content.
-// Discovery is an optional std brick — the kernel contract stays the pure
-// SkillInfo data shape, so skills can equally come from a database or inline.
+// Discovery is optional — the contract stays the pure SkillInfo data shape,
+// so skills can equally come from a database or inline.
 import { existsSync, readdirSync, readFileSync } from "node:fs"
 import { basename, dirname, join, resolve } from "node:path"
 import type { SkillInfo } from "@harness/skills/types"

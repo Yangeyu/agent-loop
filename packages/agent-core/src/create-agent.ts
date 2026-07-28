@@ -1,10 +1,8 @@
-// The runnable half of the atom: createAgent wraps one definition with a private
-// set of engine deps (in-memory sessions by default) into a directly runnable
-// unit — the same kernel machinery the full runtime assembles by hand.
-//
-// Deliberately minimal: no subagents, no skills, no workspace. An agent needing
-// those composes them into its own tools. If this entry ever needs one, the
-// split above it is wrong.
+// The runnable half of the blueprint: createAgent wraps one definition with a
+// private set of engine deps (in-memory sessions by default) into a directly
+// runnable unit — the same engine machinery the full runtime assembles by
+// hand. An agent needing skills, delegation, or a file tree composes them in
+// as tools and middleware.
 import { defineAgent, type AgentDefinition } from "@agent-core/blueprint"
 import { runLoop } from "@agent-core/loop"
 import { DEFAULT_CORE_CONFIG, type CoreConfig } from "@agent-core/config"
@@ -31,15 +29,14 @@ export type StandaloneAgentSpec = {
   steps?: number
   format?: OutputFormat
   config?: Partial<CoreConfig>
-  // Observe this atom on an external bus instead of a private one.
+  /** An external bus to observe the agent on; a private one is created otherwise. */
   events?: RuntimeEventBus
 }
 
 /**
- * The standalone agent atom: model + tools + middleware wrapped into a single
- * runnable unit with private engine deps (in-memory sessions by default). The
- * full-composition path (createRuntime + registries + surfaces) is this same
- * machinery assembled by hand; this entry is for embedding one agent directly.
+ * The standalone agent: model + tools + middleware wrapped into a single
+ * runnable unit with private engine deps (in-memory sessions by default).
+ * This entry is for embedding one agent directly.
  *
  * The engine deps stay private — the facade exposes only what an embedder
  * consumes: the blueprint, run(), the event bus to observe, and the sessions
@@ -88,8 +85,7 @@ export function createAgent(spec: StandaloneAgentSpec) {
   }
 }
 
-// The atom seeds its own turn rather than going through runSession, which exists
-// to resolve an agent by name — a lookup with no meaning when there is one agent.
+// Appends the run's user message before the loop starts.
 function seedUserMessage(
   deps: { sessions: Sessions; events: RuntimeEventBus },
   definition: AgentDefinition,

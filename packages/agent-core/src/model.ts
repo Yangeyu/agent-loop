@@ -121,10 +121,11 @@ export type CompactionPart = {
   readonly summary: string
 }
 
-// An image attached to a message, in one of three source forms. `file` is a
-// local path (resolved to base64 before reaching the provider), `base64` is
-// inline bytes (e.g. a pasted screenshot), `url` is a remote link passed to
-// the model as-is.
+/**
+ * An image attached to a message, in one of three source forms. `file` is a
+ * local path (resolved to base64 before reaching the provider), `base64` is
+ * inline bytes, `url` is a remote link passed to the model as-is.
+ */
 export type ImageSource =
   | { readonly kind: "file"; readonly path: string; readonly mime: string }
   | { readonly kind: "base64"; readonly data: string; readonly mime: string }
@@ -197,8 +198,10 @@ export type FinishReason = "stop" | "tool-calls" | "length" | "error"
 
 export type TurnPhase = "starting" | "streaming" | "reasoning" | "responding" | "executing-tool" | "finishing"
 
-// How a turn terminated: a model finish, a failure, or an abort. Exactly one
-// `turn.end` is emitted per turn, with this discriminant.
+/**
+ * How a turn terminated: a model finish, a failure, or an abort. Exactly one
+ * `turn.end` is emitted per turn, with this discriminant.
+ */
 export type TurnEndReason = "finish" | "error" | "abort"
 
 // ---------------------------------------------------------------------------
@@ -267,23 +270,18 @@ export type LoopEvent =
       readonly messageID: string
       readonly step: number
       // The step cap this turn runs under, so a consumer can show progress
-      // against the budget rather than a number climbing toward nothing.
+      // against the budget.
       readonly maxSteps: number
     })
   | (LoopEnvelope & { readonly type: "turn.phase"; readonly messageID: string; readonly phase: TurnPhase })
   // What a participant other than the loop itself is busy with. `phase` covers
-  // the loop's own steps; this covers everything the loop delegates — compacting
-  // history, retrying a model call — which would otherwise be indistinguishable
-  // from a stalled turn.
-  //
-  // The payload is semantic rather than an open `data` bag, for the same reason
-  // ToolDisplay is: a consumer must be able to render it without branching on
-  // who produced it.
+  // the loop's own steps; this covers everything the loop delegates —
+  // compacting history, retrying a model call. The payload is semantic, like
+  // ToolDisplay: a consumer renders it without branching on who produced it.
   | (LoopEnvelope & {
       readonly type: "turn.activity"
       readonly messageID: string
-      // The producer, for correlating one activity's start/update/end — not a
-      // discriminant to render on.
+      // The producer, for correlating one activity's start/update/end.
       readonly source: string
       readonly status: ActivityStatus
       // What it is doing, in the producer's own words: "compacting history".

@@ -4,11 +4,10 @@
 import type { SessionPersistenceConfig } from "@agent-core/session/persistence"
 
 export type CoreConfig = {
-  // Assistant turns across a whole session, spanning every run in it.
+  /** Assistant turns across a whole session, spanning every run in it. */
   session_max_steps: number
   turn_timeout_ms: number
-  // Total tool calls one agent run may make. A runaway guard, not a per-turn
-  // fan-out limit — that is tool_max_concurrency.
+  /** Total tool calls one run may make — a runaway guard. Per-turn fan-out is tool_max_concurrency. */
   run_max_tool_calls: number
   tool_max_concurrency: number
 } & SessionPersistenceConfig

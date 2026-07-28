@@ -49,21 +49,21 @@ const MODELS: Record<string, ProviderModelSpec> = {
 
 /** Config for a DashScope model instance: which model + optional connection overrides. */
 export type DashScopeConfig = {
-  // The qwen model to bind; defaults to qwen3.7-plus. An unknown id throws.
+  /** The qwen model to bind; defaults to qwen3.7-plus. An unknown id throws. */
   modelID?: string
-  // Connection overrides. When omitted, the provider's ConnectionSchema supplies
-  // them (DASHSCOPE_BASE_URL / DASHSCOPE_API_KEY, each with its own schema default).
+  /** Connection override; defaults through DASHSCOPE_BASE_URL. */
   baseURL?: string
+  /** Connection override; defaults through DASHSCOPE_API_KEY. */
   apiKey?: string
   temperature?: number
 }
 
 /**
  * Creates a bound DashScope (qwen) Model. Pass the result straight to an agent
- * (defineAgent({ model })) or use it for a one-shot call — there is no registry
- * and no routing; the returned Model is already bound to its model + connection.
- * The endpoint/key default through the provider's own ConnectionSchema, so a
- * caller that does not override them needs no connection args.
+ * (defineAgent({ model })) or use it for a one-shot call — it is already bound
+ * to its model + connection. The endpoint/key default through the provider's
+ * ConnectionSchema, so a caller that does not override them needs no
+ * connection args.
  *
  * @param config - the target model id and optional connection/temperature overrides
  * @returns a Model serving the selected qwen model

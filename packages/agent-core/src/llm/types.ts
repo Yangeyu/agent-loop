@@ -36,17 +36,15 @@ export type ModelCapabilities = {
 export type ProviderModelSpec = {
   id: string
   capabilities: ModelCapabilities
-  // Maximum context window (tokens). Drives proactive compaction's trigger
-  // threshold (contextWindow × compaction_trigger_ratio).
+  /** Maximum context window (tokens); drives proactive compaction's trigger threshold. */
   contextWindow: number
 }
 
 /**
  * A ready-to-use model instance — provider, connection, and target model all
- * bound at construction time. This is the unit an agent holds (see
- * AgentDefinition.model): there is no central registry and no per-request
- * routing. Each provider module builds its own via its createXxxModel factory
- * (e.g. createDashScopeModel); modules targeting an OpenAI-compatible endpoint
+ * bound at construction time. This is the unit an agent holds
+ * (AgentDefinition.model). Each provider module builds its own via its
+ * createXxxModel factory; modules targeting an OpenAI-compatible endpoint
  * build on the shared compat factory (providers/openai-compat.ts).
  */
 export type Model = {

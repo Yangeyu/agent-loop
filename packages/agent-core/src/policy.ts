@@ -14,17 +14,14 @@ export type TimeoutPolicy = {
 /**
  * Resolved step/tool/depth budgets for a turn (enforced by budget middleware).
  *
- * The step caps are deliberately kept as two independent numbers rather than
- * one combined limit: `maxAgentSteps` bounds the current run (compared against
- * a step counter that climbs from 1), while the session numbers bound the
- * session across all of its runs. Collapsing them with a `min()` would compare
- * a climbing counter against a shrinking remainder, and the two would meet
- * halfway — capping every run at half the session budget.
+ * The step caps are two independent numbers: `maxAgentSteps` bounds the
+ * current run against a counter climbing from 1, while the session numbers
+ * bound the session across all of its runs — a climbing counter and a
+ * shrinking remainder cannot share one combined limit.
  */
 export type TurnBudgetPolicy = {
   maxAgentSteps: number
-  // Scoped to the whole run, not one turn: the budget middleware is built once
-  // per run, so its tool-call counter accumulates across every turn in the loop.
+  /** Scoped to the whole run: the tool-call counter accumulates across every turn. */
   maxRunToolCalls: number
   maxSessionSteps: number
   sessionStepsUsed: number
@@ -34,9 +31,10 @@ export type TurnBudgetPolicy = {
 /** The full set of execution bounds for a turn: timeout + budget. */
 export type TurnExecutionPolicy = {
   timeout: TimeoutPolicy
-  // Max tool calls executed in parallel within one turn's fan-out. Resolved per
-  // turn (not a shared semaphore), so a parent turn delegating to subagents that
-  // themselves fan out cannot deadlock on one global counter.
+  /**
+   * Max tool calls in flight within one turn's fan-out. Resolved per turn, so
+   * a parent turn and its delegated subagents never contend on one counter.
+   */
   toolConcurrency: number
   budget: TurnBudgetPolicy
 }

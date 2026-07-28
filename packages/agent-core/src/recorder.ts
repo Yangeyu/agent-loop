@@ -9,9 +9,9 @@
  *
  * Construction appends the assistant message and emits turn.start; exactly one
  * of finish / fail / abort terminates the turn (later terminals are ignored, so
- * an abort racing a finish cannot double-report). All accumulation state that
- * previously shadowed the store on the turn context — phase, open part cursors,
- * counters — lives here, with the store as the only other copy.
+ * an abort racing a finish cannot double-report). All turn accumulation state —
+ * phase, open part cursors, counters — lives here, with the store as the only
+ * other copy.
  */
 import type { ActivityHandle } from "@agent-core/hooks"
 import { ToolPartTracker } from "@agent-core/tool-part"

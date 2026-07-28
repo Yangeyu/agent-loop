@@ -45,11 +45,9 @@ export type ToolCallOutcome =
  * before anything is written or run. Returns either a call ready to execute —
  * with its validated args and the display naming it — or the refusal itself.
  *
- * This runs one call at a time, in issue order. That is not a limitation to
- * work around: a guard that counts (budget, doom-loop) is only correct when
- * calls reach it in sequence, and the display must exist before the tool part
- * is opened, or the transcript shows a row that cannot yet say what it is for.
- * Concurrency belongs to execute(), which is where the actual work happens.
+ * Runs one call at a time, in issue order: a guard that counts (budget,
+ * doom-loop) is only correct when calls reach it in sequence, and the display
+ * must exist before the tool part is opened. Concurrency belongs to execute().
  *
  * @param ctx - the turn context
  * @param stack - the middleware stack (its beforeToolCall gate runs here)
@@ -94,10 +92,9 @@ export type PreparedToolCall =
 
 /**
  * Opens the tool part a prepared call will report through — with its validated
- * args and its display already in place. Because preparation happens first, the
- * part is born in its final shape: there is no follow-up transition that only
- * swaps raw args for parsed ones, and `part.created` is immediately usable by
- * anything rendering the call.
+ * args and its display already in place. Because preparation happens first,
+ * the part is born in its final shape and `part.created` is immediately usable
+ * by anything rendering the call.
  *
  * @param recorder - the turn recorder that owns part creation
  * @param call - the tool name, call id, and raw args

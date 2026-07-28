@@ -82,8 +82,7 @@ function prettyStructuredOutput(value: unknown) {
 // A tool call renders from the ToolDisplay the tool itself declared. The CLI
 // makes its own layout choices here (relative paths, a width cap) but never
 // re-derives *what* ran by inspecting arguments — that guesswork drifts the
-// moment a tool changes a parameter name, and it was already carrying a branch
-// for a `glob` tool that no longer exists.
+// moment a tool changes a parameter name.
 function formatToolLabel(display: ToolDisplay) {
   const target = display.target ? preview(relativizePath(display.target), 80) : undefined
   return [display.verb, target].filter(Boolean).join(" ")

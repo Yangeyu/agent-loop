@@ -1,19 +1,17 @@
-// The prompt composition vocabulary. This is a *contract*, not a module: it says
-// what a system-prompt fragment is and where it sits, and nothing else. Each
-// fragment itself lives with whatever owns it — the budget middleware states the
-// step budget, the skill tool announces skills, an agent states its own role.
+// The prompt composition vocabulary: what a system-prompt fragment is and
+// where it sits, nothing else. Each fragment itself lives with whatever owns
+// it — the budget middleware states the step budget, the skill tool announces
+// skills, an agent states its own role.
 //
-// It lives in std, not in the kernel: `ContextDraft.system` is an ordered list of
-// strings and nothing more, so slot semantics never leak into `agent/`. The
-// kernel owns the mechanism (there is a system list); std owns the policy (what
-// goes in it, and in what order).
+// The engine's `ContextDraft.system` is an ordered list of strings and nothing
+// more; the engine owns the mechanism, this layer owns the policy (what goes
+// in it, and in what order).
 //
 // SLOT_ORDER is the single place the system prompt's shape is decided. A
-// contributor declares which slot it belongs to; the order contributors are
-// registered in never decides where they render. Two properties fall out of that:
+// contributor declares which slot it belongs to; registration order never
+// decides where a fragment renders. Two properties fall out of that:
 //
-//   - identity leads, so the first thing the model reads is who it is — not a
-//     generic preamble that contradicts the agent's own role statement.
+//   - identity leads, so the first thing the model reads is who it is.
 //   - `volatile` trails, so every fragment a provider could cache as a stable
 //     prefix sits ahead of the one section that changes each step.
 

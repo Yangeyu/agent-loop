@@ -1,13 +1,12 @@
-// Cheap, provider-agnostic token estimator (~4 chars/token) used to drive
-// proactive compaction. Not exact — only needs to be monotonic enough to gate.
+// Cheap, provider-agnostic token estimator that drives proactive compaction:
+// monotonic enough to gate, nothing more.
 import type { ModelMessage } from "@agent-core"
 
 const CHARS_PER_TOKEN = 4
-// Flat nominal token cost per image. Images aren't counted by their (potentially
-// huge base64) length — that would swamp the estimate — so the gate uses a fixed
-// monotonic weight instead.
+// Flat nominal cost per image, keeping huge base64 payloads from swamping the estimate.
 const IMAGE_TOKEN_ESTIMATE = 1024
 
+/** Estimates prompt tokens for a draft (~4 chars/token; images at a flat weight). */
 export function estimateModelTokens(system: string[], messages: ModelMessage[]): number {
   let chars = system.join("\n").length
   for (const message of messages) {
