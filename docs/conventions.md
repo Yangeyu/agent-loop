@@ -63,6 +63,11 @@
 > 默认协作者可以存在，但必须是签名上可见的具名值，不是工厂内部的匿名 `new`——匿名构造让 store
 > 在调用点没有名字、无法共享，正是当年 seeding 双实现的来源。错配由 registry 准入兜住：
 > `register` 校验 agent 与 runtime 同店，把远处的「未知会话」变成装配点的即时失败。
+>
+> 同一条原则决定实现放哪层：**内核只带契约与内存默认，真实后端属于消费方，以实例注入**。
+> `SessionPersistence` 契约 + `MemorySessionPersistence` 在 agent-core，file 后端在 harness
+> （LangGraph 的 checkpointer 契约 + `MemorySaver` 在核心、`PostgresSaver` 在外，同一布局）；
+> 配置字符串只选内建后端，外部后端永远是实例，不是新的魔法字符串。
 
 ## 依赖与边界
 

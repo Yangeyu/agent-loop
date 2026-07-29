@@ -12,7 +12,7 @@ import type { Model } from "@agent-core/llm/types"
 import type { TurnExecutionPolicy } from "@agent-core/policy"
 import type { AgentDefinition } from "@agent-core/blueprint"
 import type { ActivityEmitter, RunContext, StackContext } from "@agent-core/hooks"
-import { createSessionPersistence, Sessions } from "@agent-core/session"
+import { MemorySessionPersistence, Sessions, type SessionPersistence } from "@agent-core/session"
 import type { ToolDefinition, UserMessage } from "@agent-core/types"
 
 /**
@@ -30,17 +30,23 @@ export type EngineDeps = {
 /**
  * Builds a self-contained EngineDeps — the named default an embedder gets when
  * it injects nothing: DEFAULT_CORE_CONFIG under any overrides, a private event
- * bus, and sessions on the config's persistence (in-memory by default). A
- * composition root with richer collaborators assembles its own EngineDeps and
- * injects that instead.
+ * bus, and sessions on the injected persistence (in-memory when none is
+ * given). A composition root with richer collaborators assembles its own
+ * EngineDeps and injects that instead.
  *
- * @param options - config overrides and an external bus to observe on
- * @returns a ready dependency set for createAgent or runLoop
+ * @param options - config overrides, an external bus to observe on, and the
+ *   storage backend the sessions live in
+ * @returns a ready dependency set for createAgent
  */
-export function createEngineDeps(options?: { config?: Partial<CoreConfig>; events?: RuntimeEventBus }): EngineDeps {
+export function createEngineDeps(options?: {
+  config?: Partial<CoreConfig>
+  events?: RuntimeEventBus
+  persistence?: SessionPersistence
+}): EngineDeps {
   const config: CoreConfig = { ...DEFAULT_CORE_CONFIG, ...(options?.config ?? {}) }
   const events = options?.events ?? createRuntimeEvents()
-  return { config, events, sessions: new Sessions(createSessionPersistence(config), events.state) }
+  const persistence = options?.persistence ?? new MemorySessionPersistence()
+  return { config, events, sessions: new Sessions(persistence, events.state) }
 }
 
 /** The engine-internal turn context: StackContext plus the turn's resolved inputs. */

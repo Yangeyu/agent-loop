@@ -5,7 +5,7 @@
  */
 import { createRuntimeContext, type RuntimeContext } from "@harness/runtime/context"
 import { loadConfigFromEnv, type Config } from "@harness/config"
-import type { Model } from "@agent-core"
+import type { Model, SessionPersistence } from "@agent-core"
 import { createCoreAgents } from "@harness/agents"
 import { createCoreTools } from "@harness/tools"
 import type { SkillInfo } from "@harness/skills/types"
@@ -14,23 +14,25 @@ import type { ImageSource, OutputFormat } from "@agent-core"
 /**
  * The runtime's assembly inputs. Agents are absent by design: a runnable agent
  * needs the runtime's EngineDeps at creation, so agents are created after the
- * runtime exists and registered on it (see createCoreRuntime, or register
- * createHarnessAgent results yourself).
+ * runtime exists and registered on it (see createCoreRuntime). `persistence`
+ * injects an external session store; omitted, the config string selects a
+ * built-in backend.
  */
 export type RuntimeAssembly = {
   config?: Config
   skills?: SkillInfo[]
+  persistence?: SessionPersistence
 }
 
 /**
  * Assembles a bare runtime — the escape hatch for an agent set that is not the
- * standard one: create it, then register createHarnessAgent({ ..., deps:
- * runtime }) results on it. For the standard set, use createCoreRuntime.
+ * standard one: create it, then register createAgent({ ..., deps: runtime })
+ * results on it. For the standard set, use createCoreRuntime.
  *
- * @param options - config plus the skills to register
+ * @param options - config, the skills to register, and an optional session store
  */
 export function createRuntime(options?: RuntimeAssembly): RuntimeContext {
-  const runtime = createRuntimeContext({ config: options?.config })
+  const runtime = createRuntimeContext({ config: options?.config, persistence: options?.persistence })
   for (const skill of options?.skills ?? []) runtime.skill_registry.register(skill)
   return runtime
 }
@@ -51,8 +53,9 @@ export function createCoreRuntime(options: {
   summarizer: Model
   config?: Config
   skills?: SkillInfo[]
+  persistence?: SessionPersistence
 }): RuntimeContext {
-  const runtime = createRuntimeContext({ config: options.config })
+  const runtime = createRuntimeContext({ config: options.config, persistence: options.persistence })
   for (const skill of options.skills ?? []) runtime.skill_registry.register(skill)
 
   const tools = createCoreTools({

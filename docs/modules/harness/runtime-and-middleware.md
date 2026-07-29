@@ -21,8 +21,12 @@
 - 按名解析发生在用的地方：`runPrompt` 与 `task` 工具各自从 registry 取 agent、调它的 `run()`。
   种入 user message 和进入循环只在 agent-core 的 `run()` 里有一份实现——解析是一个表达式，
   不配一个模块。
+- `persistence.ts` — 内建存储后端：`FileSessionPersistence`（内存为真值、合并刷盘、tmp+rename
+  原子写、损坏即抛）+ `createSessionPersistence(config)`（`memory` | `file`，未知即抛）。
+  内核只带契约与内存默认，「想把会话存在磁盘上」是这一层的选择；外部后端（数据库/远端）
+  不加配置字符串，以实例注入 `createRuntime({ persistence })`。
 - `config.ts` — zod schema，`Config extends CoreConfig`。核心那四个旋钮加上这层要的
-  （workspace/skills/委派深度/compaction/retry）。
+  （session_store/workspace/skills/委派深度/compaction/retry）。
 - `middleware/` — `promptAssembly`、`structuredOutput`、`budget`、`doomLoop`、`createCompaction`、
   `createRetry`、`viewImage`、`estimateModelTokens`。
 

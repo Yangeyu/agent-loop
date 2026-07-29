@@ -28,7 +28,7 @@ packages/
 │       ├── context.ts        # EngineDeps（config/sessions/events）+ createEngineDeps（具名内存默认）
 │       ├── policy.ts         # timeout + budgets 解析
 │       ├── outcome.ts tool-call.ts tool-part.ts error.ts
-│       ├── session/          # Sessions 聚合（唯一写入者）+ SessionPersistence
+│       ├── session/          # Sessions 聚合（唯一写入者）+ SessionPersistence 契约 + 内存默认
 │       ├── event/            # 双通道总线（state / loop）
 │       ├── llm/              # Model 端口 + providers + classify + fake
 │       ├── tool/             # defineTool + fake-context
@@ -42,6 +42,7 @@ packages/
 │       ├── skills/           # SKILL.md 目录发现 + registry + 契约
 │       ├── workspace/        # 本地文件树的所有者：工具文件访问的唯一入口
 │       ├── runtime/          # 组合层：context（RuntimeContext）、bootstrap（createCoreRuntime）
+│       ├── persistence.ts    # 内建存储后端（file）+ config 选择；外部后端以实例注入
 │       ├── prompt.ts         # slot 词汇 + PromptContributor（只有词汇，片段跟拥有者走）
 │       ├── registry.ts       # AgentRegistry：mode 是注册数据（register(agent, { mode })）+ 同店准入
 │       ├── config.ts         # Config extends CoreConfig

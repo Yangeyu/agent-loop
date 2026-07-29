@@ -54,9 +54,10 @@ export type { CoreConfig } from "@agent-core/config"
 export { defineTool, ToolExecutionError } from "@agent-core/tool/tool"
 export { createToolContext } from "@agent-core/tool/fake-context"
 
-// Sessions: the aggregate (single writer of session state) + persistence
-export { createSessionPersistence, MemorySessionPersistence, Sessions } from "@agent-core/session"
-export type { SessionPersistence, SessionPersistenceConfig } from "@agent-core/session"
+// Sessions: the aggregate (single writer of session state), the storage
+// contract, and the in-memory default. Real backends are injected instances.
+export { MemorySessionPersistence, Sessions } from "@agent-core/session"
+export type { SessionPersistence } from "@agent-core/session"
 
 // Events: the two-channel observation bus
 export { createRuntimeEvents } from "@agent-core/event/bus"

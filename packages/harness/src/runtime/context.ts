@@ -1,9 +1,9 @@
 import { getConfig, type Config } from "@harness/config"
 import { createAgentRegistry, type AgentRegistry } from "@harness/registry"
-import type { EngineDeps } from "@agent-core"
-import { createRuntimeEvents } from "@agent-core"
+import type { EngineDeps, SessionPersistence } from "@agent-core"
+import { createRuntimeEvents, Sessions } from "@agent-core"
+import { createSessionPersistence } from "@harness/persistence"
 import { createSkillRegistry, type SkillRegistry } from "@harness/skills/registry"
-import { createSessionPersistence, Sessions } from "@agent-core"
 import { createWorkspace, type Workspace } from "@harness/workspace"
 
 /**
@@ -19,12 +19,13 @@ export type RuntimeContext = EngineDeps & {
   workspace: Workspace
 }
 
-export function createRuntimeContext(options?: { config?: Config }): RuntimeContext {
+export function createRuntimeContext(options?: { config?: Config; persistence?: SessionPersistence }): RuntimeContext {
   const config = options?.config ?? getConfig()
   const events = createRuntimeEvents()
+  // An injected backend wins; the config string selects among the built-ins.
   // The aggregate is wired to the state channel at construction: every session
   // write emits its event from inside the aggregate, nowhere else.
-  const sessions = new Sessions(createSessionPersistence(config), events.state)
+  const sessions = new Sessions(options?.persistence ?? createSessionPersistence(config), events.state)
 
   return {
     config,

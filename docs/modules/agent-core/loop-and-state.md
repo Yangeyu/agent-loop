@@ -81,9 +81,11 @@
 - `hooks.ts` — `Middleware` 契约（8 个 hook）与 `RunContext` / `HookContext`（只读；状态经 hook
   返回值回流引擎）。
 - `policy.ts` — 把 config 与 agent 约束解析成 turn 级执行策略（timeout / budgets）。
-- `session/` — `Sessions` 聚合 + `SessionPersistence`（read/persist/list 三方法契约，memory/file
-  实现）。file 后端：内存为真值、合并刷盘（debounce + 进程退出钩子）、tmp+rename 原子写、
-  损坏文件即抛；factory 对未知类型即抛。
+- `session/` — `Sessions` 聚合 + `SessionPersistence`（read/persist/list 三方法契约）+
+  `MemorySessionPersistence`（未注入时的具名默认）。内核只带契约与内存默认；真实后端
+  （file/数据库/远端）是消费方的，以实例注入（`createEngineDeps({ persistence })` /
+  harness 的 `createRuntime({ persistence })`）。契约是同步的——流式期间每个 delta 都会
+  `persist`，慢后端照 harness file 后端的模式做：内存缓存为真值、write-behind 到介质。
 - `tool-part.ts` — 工具调用生命周期：纯状态转换（reducer）+ `ToolPartTracker`，后者经
   `Sessions.replacePart` 写穿——每次转换同时就是 `part.updated` 事件，无手工镜像。
 - `llm/fake.ts`、`tool/fake-context.ts` — 随包发布的测试替身。端口是公开的，否则每个消费方
@@ -165,7 +167,9 @@ afterRun（finally）
 - 新 middleware：实现 `Middleware` 的相关 hook。不需要改这个包。
 - 新工具：`defineTool()`，把它需要的协作者装进自己的工厂闭包。不需要改这个包。
 - 新执行预算/策略：扩展 `policy.ts`，从 config 解析，而不是在 turn 里写死。
-- 新持久化后端：实现 `SessionPersistence`（三个方法），接入 `session/persistence.ts` 的 factory。
+- 新持久化后端：实现 `SessionPersistence`（三个方法），以实例注入
+  （`createEngineDeps({ persistence })` 或 harness `createRuntime({ persistence })`）。
+  不需要改这个包，也永远不给 config 加新的后端字符串。
 - 新可观测事实：状态类的加进 `StateEvent` + `applyStateEvent` + 对应 mutator（三处同改，缺一
   不可）。middleware 的活动直接用 `ctx.activity()`，不必扩事件词汇。
 
