@@ -6,14 +6,14 @@
  * shared `hasStructuredOutputFormat` predicate is what keeps them in step.
  *
  * The middleware parses the final text only once the loop would otherwise break,
- * either attaching the structured result to the terminal or failing the turn on
- * invalid JSON. Turns that continue (tool calls, empty output) are never parsed.
+ * either attaching the structured result to the terminal or failing the step on
+ * invalid JSON. Steps that continue (tool calls, empty output) are never parsed.
  */
 import type { MiddlewareFactory } from "@agent-core"
 import type { PromptContributor } from "@harness/prompt"
 import type { OutputFormat } from "@agent-core"
 
-/** Prompt axis: states the requested schema. Absent unless this turn asked for JSON. */
+/** Prompt axis: states the requested schema. Absent unless this step asked for JSON. */
 export const structuredOutputPrompt: PromptContributor = (ctx) => {
   const text = buildStructuredOutputSystemPrompt(ctx.format)
   return text ? { slot: "policy", text } : undefined
@@ -23,10 +23,10 @@ export const structuredOutputPrompt: PromptContributor = (ctx) => {
 export const structuredOutput: MiddlewareFactory = () => ({
   name: "structured-output",
 
-  afterTurn(ctx, judgment) {
+  afterStep(ctx, judgment) {
     if (!hasStructuredOutputFormat(ctx.format)) return judgment
-    // Only judge a turn that ended cleanly and is about to conclude the loop:
-    // intermediate tool-call turns have no final text to parse.
+    // Only judge a step that ended cleanly and is about to conclude the loop:
+    // intermediate tool-call steps have no final text to parse.
     if (!judgment.terminal?.ok || judgment.outcome.kind !== "break") return judgment
 
     const parsed = parseStructuredOutputText(judgment.finish.text)

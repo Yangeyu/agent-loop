@@ -1,9 +1,9 @@
 /**
- * The message-modeling layer. This is the single home for "what a model turn
+ * The message-modeling layer. This is the single home for "what a model step
  * looks like": it projects stored session state into the provider-neutral
  * ModelMessage list, and renders content blocks to their canonical text form.
  *
- * The projection resolves every structural decision here — an assistant turn's
+ * The projection resolves every structural decision here — an assistant step's
  * text/reasoning, the tool calls it issued, and each call's result — so a
  * provider downstream maps the list 1:1 and only handles transport. Tool calls
  * live on the assistant message (`toolCalls`); each tool result is its own
@@ -15,7 +15,7 @@ import type { ModelContentBlock, ModelMessage, ModelToolCall } from "@agent-core
 import type { AssistantMessage, CompactionPart, ImagePart, MessagePart, SessionInfo, TextPart, ToolPart } from "@agent-core/types"
 
 /**
- * Projects a session into the ordered ModelMessage list for an LLM turn.
+ * Projects a session into the ordered ModelMessage list for an LLM step.
  *
  * @param session - the stored session (messages + parts keyed by message id)
  * @returns the model messages, in conversation order
@@ -82,7 +82,7 @@ function buildAssistantMessages(message: AssistantMessage, parts: readonly Messa
   // Only replay calls that have a resolved result, so every tool call on the
   // assistant message has a matching tool result message (the wire protocol
   // rejects a dangling call). An unresolved call (still running) means a partial
-  // turn that should not be projected into an LLM request.
+  // step that should not be projected into an LLM request.
   const resolved = parts.filter(
     (part): part is ToolPart => part.type === "tool" && (part.state.status === "completed" || part.state.status === "error"),
   )

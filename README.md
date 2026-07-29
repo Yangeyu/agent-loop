@@ -6,7 +6,7 @@ It is a from-scratch build of the core machinery an agent runtime needs — not 
 clone — with these moving parts:
 
 - `runSession` / `runLoop` (`agent/loop.ts`) as the outer agentic loop
-- `core/turn.ts` as the per-turn stream-and-tool executor
+- `core/step.ts` as the per-step stream-and-tool executor
 - `Model.stream()` (`llm/`) as the model-facing boundary — one bound model per agent, no registry
 - the `task` tool as the subagent orchestration primitive
 - the `compaction` middleware as the context compaction path
@@ -22,7 +22,7 @@ clone — with these moving parts:
 Bun workspaces — `packages/*` (libraries) and `apps/*` (runnable surfaces). Cross-package imports use the aliases `@harness/*`, `@tui/*`, `@contracts`.
 
 - `packages/harness/`: the agent harness (engine). Key areas:
-  - `src/agent/`: the agent kernel — blueprint/createAgent, the 5-hook middleware contract (`hooks.ts`), the loop (`loop.ts`), per-turn executor (`turn.ts`), policy, retry
+  - `src/agent/`: the agent kernel — blueprint/createAgent, the 5-hook middleware contract (`hooks.ts`), the loop (`loop.ts`), per-step executor (`step.ts`), policy, retry
   - `src/std/`: standard bricks — middleware (compaction, structured-output, view-image, budgets), the lead/general agents, core tools
   - `src/llm/`: the `Model` abstraction and providers (`providers/openai-compat.ts` base, `providers/dashscope.ts`)
   - `src/agent/`: agents as self-contained modules (`lead/`, `general/`)
@@ -111,7 +111,7 @@ Streaming mode prints the answer as it arrives and keeps tool activity readable:
 bun run start --output stream "Use the available tools when helpful. Read packages/harness/src/agent/loop.ts and explain runLoop."
 ```
 
-Buffered mode waits until the turn completes, then prints compact thinking/answer blocks:
+Buffered mode waits until the step completes, then prints compact thinking/answer blocks:
 
 ```bash
 bun run start --output buffered "Use the available tools when helpful. Read packages/harness/src/agent/loop.ts and explain runLoop."
@@ -120,13 +120,13 @@ bun run start --output buffered "Use the available tools when helpful. Read pack
 The split-pane TUI now uses `@opentui/solid` components, keeps the current session transcript on the right and session/status navigation on the left, and renders user/assistant/thinking/tool content in separate cards. It supports:
 
 - `Enter` to submit the current prompt
-- `@` in the composer to open a filtered workspace file list; selecting an image path still turns it into an image attachment on submit
+- `@` in the composer to open a filtered workspace file list; selecting an image path still steps it into an image attachment on submit
 - `Ctrl+V` in the composer to attach the current macOS clipboard image as an inline screenshot
 - `Tab` to cycle primary agents
 - `Ctrl+N` to start a new local session
 - `Ctrl+J` / `Ctrl+K` to switch sessions
-- `Esc` to cancel the current turn or clear the draft
-- `Ctrl+C` to cancel the current turn, then exit when idle
+- `Esc` to cancel the current step or clear the draft
+- `Ctrl+C` to cancel the current step, then exit when idle
 
 The simple renderer still shows terminal output for:
 
@@ -134,7 +134,7 @@ The simple renderer still shows terminal output for:
 - session metadata and loop step headings
 - streamed or buffered thinking/final answer sections
 - formatted tool activity lines for `read`, `grep`, `glob`, `bash`, `task`, and fallback tools
-- compaction, structured output, and final turn status lines
+- compaction, structured output, and final step status lines
 
 ## Qwen (DashScope)
 
@@ -150,11 +150,11 @@ Optional overrides:
 
 - `DASHSCOPE_BASE_URL` defaults to `https://dashscope.aliyuncs.com/compatible-mode/v1`
 - `MODEL_MAX_RETRIES`, `MODEL_RETRY_BASE_DELAY_MS`, `MODEL_RETRY_MAX_DELAY_MS` tune model retry behavior
-- `SESSION_MAX_STEPS` caps total assistant turns across a session (kept well above any one agent's step cap)
+- `SESSION_MAX_STEPS` caps total assistant steps across a session (kept well above any one agent's step cap)
 - `SKILLS_DIR` points at the workspace skills directory (default `./skills`; absent means no workspace skills)
 - `SUBAGENT_MAX_DEPTH` caps child-session delegation depth
-- `TURN_TIMEOUT_MS`, `REPEATED_TOOL_FAILURE_THRESHOLD` tune per-turn execution limits
-- `RUN_MAX_TOOL_CALLS` caps tool calls across a whole agent run (an agent may override it); `TOOL_MAX_CONCURRENCY` caps parallel calls within one turn
+- `STEP_TIMEOUT_MS`, `REPEATED_TOOL_FAILURE_THRESHOLD` tune per-step execution limits
+- `RUN_MAX_TOOL_CALLS` caps tool calls across a whole agent run (an agent may override it); `TOOL_MAX_CONCURRENCY` caps parallel calls within one step
 
 Useful smoke checks:
 
@@ -172,6 +172,6 @@ bun run smoke:tui
 
 - The DashScope (qwen) provider streams over the OpenAI-compatible endpoint and maps `reasoning_content` into internal reasoning events via the provider's `readReasoning` hook.
 - The renderer stays compact and event-driven, built around this repo's own runtime events.
-- The renderer is intentionally mode-based: `stream` prints model output deltas in real time, while `buffered` prints complete reasoning/final blocks after each turn.
+- The renderer is intentionally mode-based: `stream` prints model output deltas in real time, while `buffered` prints complete reasoning/final blocks after each step.
 - The `task` tool creates a child session and recursively re-enters `runSession`, which is the core subagent orchestration pattern.
 - Tests exercise subagents, invalid tool args, nested batched tools, structured output capture, and compaction against a stubbed `Model` (`tests/support/fake-model.ts`), with no network calls.

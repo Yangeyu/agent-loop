@@ -9,7 +9,7 @@
  * here adds to the agent's capabilities, not to the end of its system prompt.
  *
  * Only universally-true fragments are baked in: every agent runs under a step
- * budget, every turn may be asked for JSON, every agent follows the engine's
+ * budget, every step may be asked for JSON, every agent follows the engine's
  * conventions. A fragment that describes a *tool* travels with that tool, so
  * the agent enabling the tool passes it in (see createLeadAgent).
  */

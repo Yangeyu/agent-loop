@@ -56,10 +56,10 @@ surface 只决定 provider（`apps/cli/src/compose.ts` 是唯一的模型绑定�
 | --- | --- | --- |
 | `createRetry` | `wrapModelCall` | 按 `classifyRetry` 判定、指数退避重试；每次尝试经 `ctx.activity()` 报告 |
 | `promptAssembly` | `beforeModelCall` | 唯一写 `draft.system` 的那个；按 `SLOT_ORDER` 渲染 contributor |
-| `structuredOutput` | `afterTurn` | 解析并校验最终文本（配套的 `structuredOutputPrompt` 在同模块） |
-| `budget` | `beforeTurn` / `beforeToolCall` / `afterTurn` | 步数与工具调用预算（配套的 `stepGuidance` 在同模块） |
+| `structuredOutput` | `afterStep` | 解析并校验最终文本（配套的 `structuredOutputPrompt` 在同模块） |
+| `budget` | `beforeStep` / `beforeToolCall` / `afterStep` | 步数与工具调用预算（配套的 `stepGuidance` 在同模块） |
 | `doomLoop` | `beforeToolCall` | 挡住重复的无进展调用 |
-| `createCompaction` | `beforeTurn` | 超过 `contextWindow × triggerRatio` 时把较早一半压成 summary |
+| `createCompaction` | `beforeStep` | 超过 `contextWindow × triggerRatio` 时把较早一半压成 summary |
 | `viewImage` | `beforeModelCall` | 把 file 类图片源解析成 base64（只碰 `draft.messages`） |
 
 - **retry 是 middleware 而不是循环的一部分**：通用循环需要的是"让人实现重试的接缝"

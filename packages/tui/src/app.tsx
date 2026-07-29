@@ -100,7 +100,7 @@ function App(props: TuiOptions) {
     return next
   }
 
-  const cancelTurn = () => {
+  const cancelRun = () => {
     if (!abort) return
     abort.abort()
   }
@@ -148,7 +148,7 @@ function App(props: TuiOptions) {
   useKeyboard((event) => {
     if (event.ctrl && event.name === "c") {
       if (activity().busy) {
-        cancelTurn()
+        cancelRun()
       } else if ((composerRef?.value() ?? "").length > 0) {
         composerRef?.clear()
         composerRef?.focus()
@@ -184,7 +184,7 @@ function App(props: TuiOptions) {
     }
 
     if (event.name === "escape" && activity().busy) {
-      cancelTurn()
+      cancelRun()
       event.preventDefault()
       event.stopPropagation()
     }
@@ -227,11 +227,11 @@ function App(props: TuiOptions) {
       trace.handleLoop(event)
 
       if (inCurrentTree(event)) {
-        if (event.type === "turn.phase") {
+        if (event.type === "step.phase") {
           // Each fact updates only its own field: a phase arriving must not
           // erase the step number the status bar is still showing.
           setActivity((current) => ({ ...current, phase: event.phase, busy: true }))
-        } else if (event.type === "turn.start") {
+        } else if (event.type === "step.start") {
           setActivity((current) => ({
             ...current,
             phase: "starting",
@@ -243,13 +243,13 @@ function App(props: TuiOptions) {
             startedAt: current.startedAt ?? Date.now(),
             busy: true,
           }))
-        } else if (event.type === "turn.end") {
+        } else if (event.type === "step.end") {
           abort = undefined
           setActivity((current) => ({
             ...current,
             phase: event.reason === "abort" ? "aborted" : event.reason === "error" ? "error" : "done",
             tool: undefined,
-            error: event.reason === "error" ? event.error ?? "turn failed" : undefined,
+            error: event.reason === "error" ? event.error ?? "step failed" : undefined,
             busy: false,
           }))
         }

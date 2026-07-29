@@ -1,14 +1,14 @@
 import { describe, expect, it } from "bun:test"
 import { defineAgent } from "@agent-core/blueprint"
-import { isFinalAllowedStep, resolveTurnExecutionPolicy } from "@agent-core/policy"
+import { isFinalAllowedStep, resolveStepExecutionPolicy } from "@agent-core/policy"
 import { DEFAULT_CORE_CONFIG, type CoreConfig } from "@agent-core/config"
 import { createDashScopeModel } from "@agent-core/llm/providers/dashscope"
 import type { AssistantMessage, SessionInfo } from "@agent-core/types"
 
 const model = createDashScopeModel({ modelID: "qwen3.7-plus" })
 
-function makeSession(assistantTurns: number): SessionInfo {
-  const messages: AssistantMessage[] = Array.from({ length: assistantTurns }, (_, index) => ({
+function makeSession(assistantSteps: number): SessionInfo {
+  const messages: AssistantMessage[] = Array.from({ length: assistantSteps }, (_, index) => ({
     id: `assistant-${index}`,
     role: "assistant",
     parentID: "user-1",
@@ -26,15 +26,15 @@ function makeSession(assistantTurns: number): SessionInfo {
   }
 }
 
-function resolve(input: { agentSteps: number; assistantTurns: number; config?: Partial<CoreConfig> }) {
+function resolve(input: { agentSteps: number; assistantSteps: number; config?: Partial<CoreConfig> }) {
   const config = { ...DEFAULT_CORE_CONFIG, ...input.config }
   const agent = defineAgent({ name: "lead", model, steps: input.agentSteps })
-  return resolveTurnExecutionPolicy(config, agent, makeSession(input.assistantTurns)).budget
+  return resolveStepExecutionPolicy(config, agent, makeSession(input.assistantSteps)).budget
 }
 
-describe("resolveTurnExecutionPolicy budgets", () => {
+describe("resolveStepExecutionPolicy budgets", () => {
   it("keeps the agent cap and the session remainder as independent numbers", () => {
-    const budget = resolve({ agentSteps: 20, assistantTurns: 12, config: { session_max_steps: 100 } })
+    const budget = resolve({ agentSteps: 20, assistantSteps: 12, config: { session_max_steps: 100 } })
 
     expect(budget.maxAgentSteps).toBe(20)
     expect(budget.sessionStepsUsed).toBe(12)
@@ -46,16 +46,16 @@ describe("resolveTurnExecutionPolicy budgets", () => {
     // counter against a shrinking remainder, so a run died at session_max/2.
     const agentSteps = 20
     for (let step = 1; step < agentSteps; step += 1) {
-      const budget = resolve({ agentSteps, assistantTurns: step - 1, config: { session_max_steps: 100 } })
+      const budget = resolve({ agentSteps, assistantSteps: step - 1, config: { session_max_steps: 100 } })
       expect(isFinalAllowedStep(budget, step)).toBe(false)
     }
 
-    const last = resolve({ agentSteps, assistantTurns: agentSteps - 1, config: { session_max_steps: 100 } })
+    const last = resolve({ agentSteps, assistantSteps: agentSteps - 1, config: { session_max_steps: 100 } })
     expect(isFinalAllowedStep(last, agentSteps)).toBe(true)
   })
 
   it("stops on the session budget when the session is nearly spent", () => {
-    const budget = resolve({ agentSteps: 20, assistantTurns: 9, config: { session_max_steps: 10 } })
+    const budget = resolve({ agentSteps: 20, assistantSteps: 9, config: { session_max_steps: 10 } })
 
     expect(budget.sessionStepsRemaining).toBe(1)
     expect(isFinalAllowedStep(budget, 3)).toBe(true)
@@ -66,7 +66,7 @@ describe("resolveTurnExecutionPolicy budgets", () => {
     const declared = defineAgent({ name: "lead", model, maxToolCalls: 64 })
     const inherited = defineAgent({ name: "general", model })
 
-    expect(resolveTurnExecutionPolicy(config, declared, makeSession(0)).budget.maxRunToolCalls).toBe(64)
-    expect(resolveTurnExecutionPolicy(config, inherited, makeSession(0)).budget.maxRunToolCalls).toBe(32)
+    expect(resolveStepExecutionPolicy(config, declared, makeSession(0)).budget.maxRunToolCalls).toBe(64)
+    expect(resolveStepExecutionPolicy(config, inherited, makeSession(0)).budget.maxRunToolCalls).toBe(32)
   })
 })

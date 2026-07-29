@@ -102,7 +102,7 @@ gate(beforeToolCall) → 参数校验 → describe → 开 ToolPart → beforeEx
   `mapError`（把失败映射成稳定 `ErrorInfo.code`）、`afterExecute`/`normalizeMetadata`（修整结果与 metadata）。
 - `ToolContext` 提供受控的 `executeTool()`，让嵌套工具调用复用标准执行路径，而不绕开
   core/tool-part（ToolPartTracker）/budget/event 边界。
-- 同一 turn 内的多个 tool call 由引擎整批并发执行（见 agent-core 的"工具并发派发"），工具自身
+- 同一 step 内的多个 tool call 由引擎整批并发执行（见 agent-core 的"工具并发派发"），工具自身
   只实现单次调用即可，也无须为并发做任何事——文件一致性由 `ctx.workspace` 保证。
 - core 工具：`task`、`task_resume`、`bash`、`read`（UTF-8 文本 + Office/PDF 文档解析、大小上限与截断）、
   `write`、`edit`、`grep`、`tavily`、`present_files`、`skill`、`view_image`。
@@ -124,7 +124,7 @@ gate(beforeToolCall) → 参数校验 → describe → 开 ToolPart → beforeEx
 - `write` 的 output 只回报写入字节数（不回显内容——模型刚发出的内容再回灌一遍会让长文档的
   上下文成本翻倍）；`edit` 回报改动落在第几行以及周围几行，作为「确实改对了地方」的回执。
   分段是必要的：模型单次输出有上限，一份由它原创生成的长文档必然拆成多步，
-  否则单次超大生成会撞上 turn 超时而前功尽弃。
+  否则单次超大生成会撞上 step 超时而前功尽弃。
 - **每个工具自报 `ToolDisplay`**（`@agent-core`）：`verb`（干了什么）、`target`（对什么干的，
   完整不缩写）、`summary`（结果，工具自己的说法）。
   它是语义，不是排版——工具不知道视口多宽，绝不预拼字符串；截断、分隔、配色由 surface 决定。

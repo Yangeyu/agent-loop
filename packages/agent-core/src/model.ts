@@ -77,9 +77,9 @@ export type ToolAttachment = {
 // Session data model
 // ---------------------------------------------------------------------------
 // Messages carry no back-reference to their session: ownership is expressed
-// once, by containment in SessionInfo. An assistant message records the turn
-// that produced it — there is no separate "turn" entity, so every event that
-// touches turn output points at the assistant message's id.
+// once, by containment in SessionInfo. An assistant message records the step
+// that produced it — there is no separate "step" entity, so every event that
+// touches step output points at the assistant message's id.
 
 export type UserMessage = {
   readonly id: string
@@ -92,7 +92,7 @@ export type UserMessage = {
 export type AssistantMessage = {
   readonly id: string
   readonly role: "assistant"
-  /** The user message this turn answers. */
+  /** The user message this step answers. */
   readonly parentID: string
   readonly agent: string
   readonly model: ProviderModel
@@ -200,13 +200,13 @@ export type SessionInfo = {
 
 export type FinishReason = "stop" | "tool-calls" | "length" | "error"
 
-export type TurnPhase = "starting" | "streaming" | "reasoning" | "responding" | "executing-tool" | "finishing"
+export type StepPhase = "starting" | "streaming" | "reasoning" | "responding" | "executing-tool" | "finishing"
 
 /**
- * How a turn terminated: a model finish, a failure, or an abort. Exactly one
- * `turn.end` is emitted per turn, with this discriminant.
+ * How a step terminated: a model finish, a failure, or an abort. Exactly one
+ * `step.end` is emitted per step, with this discriminant.
  */
-export type TurnEndReason = "finish" | "error" | "abort"
+export type StepEndReason = "finish" | "error" | "abort"
 
 // ---------------------------------------------------------------------------
 // State events — emitted by the session aggregate, the single writer.
@@ -254,9 +254,9 @@ export type StateEvent =
 // Loop events — emitted by the engine; the live activity protocol of the loop.
 // ---------------------------------------------------------------------------
 // Loop events answer "what is the loop busy with right now" and nothing more:
-// a run began, a turn began, the turn changed phase, a participant reported an
-// activity, the turn ended. Every fact that must survive replay travels on the
-// state channel instead. `messageID` is the assistant message the turn produces.
+// a run began, a step began, the step changed phase, a participant reported an
+// activity, the step ended. Every fact that must survive replay travels on the
+// state channel instead. `messageID` is the assistant message the step produces.
 
 export type LoopEnvelope = {
   readonly sessionID: string
@@ -270,19 +270,19 @@ export type ActivityStatus = "start" | "update" | "end"
 export type LoopEvent =
   | (LoopEnvelope & { readonly type: "session.start"; readonly text: string })
   | (LoopEnvelope & {
-      readonly type: "turn.start"
+      readonly type: "step.start"
       readonly messageID: string
       readonly step: number
-      /** The step cap this turn runs under, so a consumer can show progress against it. */
+      /** The step cap this step runs under, so a consumer can show progress against it. */
       readonly maxSteps: number
     })
-  | (LoopEnvelope & { readonly type: "turn.phase"; readonly messageID: string; readonly phase: TurnPhase })
+  | (LoopEnvelope & { readonly type: "step.phase"; readonly messageID: string; readonly phase: StepPhase })
   // What a participant other than the loop itself is busy with. `phase` covers
   // the loop's own steps; this covers everything the loop delegates —
   // compacting history, retrying a model call. The payload is semantic, like
   // ToolDisplay: a consumer renders it without branching on who produced it.
   | (LoopEnvelope & {
-      readonly type: "turn.activity"
+      readonly type: "step.activity"
       readonly messageID: string
       /** The producer, for correlating one activity's start/update/end. */
       readonly source: string
@@ -293,10 +293,10 @@ export type LoopEvent =
       readonly detail?: string
     })
   | (LoopEnvelope & {
-      readonly type: "turn.end"
+      readonly type: "step.end"
       readonly messageID: string
       readonly step: number
-      readonly reason: TurnEndReason
+      readonly reason: StepEndReason
       readonly finishReason?: FinishReason
       readonly error?: string
       readonly durationMs: number

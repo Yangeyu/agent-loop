@@ -1,5 +1,5 @@
 /**
- * Public API of the agent loop: drive one agent through turns until an outcome
+ * Public API of the agent loop: drive one agent through steps until an outcome
  * breaks, streaming into a session and dispatching the tools that agent holds.
  *
  * It does not know what a skill is, where the files are, or that more than one
@@ -35,16 +35,16 @@ export type {
   ToolCall,
   ToolGate,
   ToolOutcome,
-  TurnGate,
-  TurnJudgment,
-  TurnOutcome,
-  TurnOutcomeReason,
-  TurnTerminal,
+  StepGate,
+  StepJudgment,
+  StepOutcome,
+  StepOutcomeReason,
+  StepTerminal,
 } from "@agent-core/hooks"
 
-// Execution bounds, resolved per turn and enforced by middleware
-export { createTurnAbortSignal, isFinalAllowedStep, resolveTurnExecutionPolicy } from "@agent-core/policy"
-export type { TimeoutPolicy, TurnBudgetPolicy, TurnExecutionPolicy } from "@agent-core/policy"
+// Execution bounds, resolved per step and enforced by middleware
+export { createStepAbortSignal, isFinalAllowedStep, resolveStepExecutionPolicy } from "@agent-core/policy"
+export type { TimeoutPolicy, StepBudgetPolicy, StepExecutionPolicy } from "@agent-core/policy"
 
 // Config: the engine's knobs. A consumer's config type extends CoreConfig.
 export { DEFAULT_CORE_CONFIG } from "@agent-core/config"

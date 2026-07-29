@@ -12,10 +12,10 @@ import type { LLMChunk, LLMInput, Model } from "@agent-core/llm/types"
 import type { ToolPart } from "@agent-core/types"
 import { z } from "zod"
 
-// A model that issues the given tool calls in its first turn, then a plain answer
-// on the second — so one turn fans out the whole set and the loop then terminates.
+// A model that issues the given tool calls in its first step, then a plain answer
+// on the second — so one step fans out the whole set and the loop then terminates.
 function callsThenAnswer(calls: { toolCallId: string; toolName: string; args: unknown }[]): Model {
-  let turn = 0
+  let step = 0
   const first: LLMChunk[] = [
     ...calls.map((call) => ({ type: "tool-call" as const, ...call })),
     { type: "finish", finishReason: "tool-calls" },
@@ -32,8 +32,8 @@ function callsThenAnswer(calls: { toolCallId: string; toolName: string; args: un
       contextWindow: 100_000,
     },
     stream(_input: LLMInput) {
-      const chunks = turn === 0 ? first : answer
-      turn += 1
+      const chunks = step === 0 ? first : answer
+      step += 1
       return {
         fullStream: (async function* () {
           for (const chunk of chunks) yield chunk
@@ -43,7 +43,7 @@ function callsThenAnswer(calls: { toolCallId: string; toolName: string; args: un
   }
 }
 
-// Runs one turn whose batch is the given tools, and reports how many of them
+// Runs one step whose batch is the given tools, and reports how many of them
 // were ever in flight at the same time.
 async function measurePeakInFlight(input: { ids: string[]; limit: number }) {
   let inFlight = 0

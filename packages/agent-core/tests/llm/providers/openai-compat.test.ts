@@ -28,7 +28,7 @@ describe("openai-compat buildMessageContent", () => {
 })
 
 describe("openai-compat mapMessages tool grouping", () => {
-  it("maps an assistant turn to one message with all tool_calls, then the tool results", () => {
+  it("maps an assistant step to one message with all tool_calls, then the tool results", () => {
     const messages: ModelMessage[] = [
       {
         role: "assistant",

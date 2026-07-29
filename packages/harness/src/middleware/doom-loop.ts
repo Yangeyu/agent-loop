@@ -1,5 +1,5 @@
 /**
- * Detects repeated identical tool calls within a run and stops the turn.
+ * Detects repeated identical tool calls within a run and stops the step.
  * Holds the per-loop call history in closure; the detection rule lives here
  * since this middleware is its only consumer.
  */

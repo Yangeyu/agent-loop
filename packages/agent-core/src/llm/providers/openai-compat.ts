@@ -68,7 +68,7 @@ type AccumulatedToolCall = {
 
 /**
  * Builds one bound Model for an OpenAI-compatible endpoint: an OpenAI SDK client
- * pointed at the config's baseURL/apiKey, lazily created and reused across turns.
+ * pointed at the config's baseURL/apiKey, lazily created and reused across steps.
  * This is the shared base — a provider's createXxxModel factory (e.g.
  * createDashScopeModel) calls it with a resolved connection and target spec.
  *

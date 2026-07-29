@@ -3,14 +3,14 @@
  * classification; the backoff policy is replaceable behaviour and belongs here.
  *
  * The attempt counter lives in one wrapModelCall invocation's closure, so it
- * resets per turn without anyone resetting it. Reporting each attempt through
+ * resets per step without anyone resetting it. Reporting each attempt through
  * ctx.activity is what makes a 4-second backoff distinguishable from a hang.
  */
 import { classifyRetry } from "@agent-core"
 import type { MiddlewareFactory } from "@agent-core"
 import { RETRY_DEFAULTS } from "@harness/config"
 
-/** Exponential-backoff bounds for a turn's model call. */
+/** Exponential-backoff bounds for a step's model call. */
 export type RetryOptions = {
   maxRetries: number
   baseDelayMs: number

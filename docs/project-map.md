@@ -20,11 +20,11 @@ packages/
 │   └── src/
 │       ├── model.ts          # 零 import 的纯叶子：数据模型 + StateEvent/LoopEvent + applyStateEvent
 │       ├── loop.ts           # runLoop：一个 agent、一个会话，跑到收敛
-│       ├── turn.ts           # 跑单轮：wrapModelCall 洋葱 + 工具批次
+│       ├── step.ts           # 跑单轮：wrapModelCall 洋葱 + 工具批次
 │       ├── hooks.ts          # 8 个 hook 的 Middleware 契约 + MiddlewareStack
 │       ├── blueprint.ts      # defineAgent / AgentDefinition（tools 是定义数组）
 │       ├── create-agent.ts   # createAgent：可运行 agent 的唯一创建门径（环境经 deps 注入）
-│       ├── recorder.ts       # TurnRecorder：一个 turn 生命周期的唯一 owner
+│       ├── recorder.ts       # StepRecorder：一个 step 生命周期的唯一 owner
 │       ├── context.ts        # EngineDeps（config/sessions/events）+ createEngineDeps（具名内存默认）
 │       ├── policy.ts         # timeout + budgets 解析
 │       ├── tool-call.ts tool-part.ts error.ts
@@ -66,15 +66,15 @@ skills/                       # 工作区技能：一目录一技能（SKILL.md 
    `register(agent, { mode })` 注册（mode 是组合数据，不在 agent 对象上）。
 4. `runPrompt` 按名（或取默认）从 registry 解析 agent，调它的 `run()` —— 种入 user message、
    发 `session.start`、进入循环都发生在 agent-core 里，且只有这一份实现。
-5. 每一步（一个 turn）按生命周期推进：
-   `beforeTurn` → `beforeModelCall`（引擎种入 instructions）→ `wrapModelCall`（一次流式调用）
-   → 工具批次 → `afterTurn`（终态 + 去留一次裁决）。
-6. `agent-core/turn.ts` 经 `TurnRecorder` 把 text/reasoning/tool-call 写进 Sessions（状态事件随写入自动发出）。
+5. 每个 step 按生命周期推进：
+   `beforeStep` → `beforeModelCall`（引擎种入 instructions）→ `wrapModelCall`（一次流式调用）
+   → 工具批次 → `afterStep`（终态 + 去留一次裁决）。
+6. `agent-core/step.ts` 经 `StepRecorder` 把 text/reasoning/tool-call 写进 Sessions（状态事件随写入自动发出）。
 7. 工具经 `defineTool` 统一校验/执行/归一化；文件访问一律经工具自己持有的 `workspace`；
    `task` 创建 child session 后直接调 delegate 的 `agent.run()`——同一个 store 与总线由
    registry 准入保证。
-8. middleware 塑形结果：retry 包住模型调用，compaction 在 `beforeTurn` 压缩超长上下文，
-   budget/structured-output 在 `afterTurn` 收口。
+8. middleware 塑形结果：retry 包住模型调用，compaction 在 `beforeStep` 压缩超长上下文，
+   budget/structured-output 在 `afterStep` 收口。
 9. `events.ts` 分 state/loop 两通道广播，由 `apps/cli/src/logger.ts`（CLI）或 `tui/app.tsx`（TUI）
    订阅渲染。middleware 经 `ctx.activity()` 在 loop 通道上报告自己在做什么。
 

@@ -75,7 +75,7 @@ describe("editorial-data-story render (e2e)", () => {
       expect(usedTools).toContain("present_files")
 
       // Segmented, not one giant generation step — the skill mandates it and the
-      // per-turn timeout enforces it in practice.
+      // per-step timeout enforces it in practice.
       const writes = toolParts.filter((part) => part.toolName === "write")
       expect(writes.length).toBeGreaterThanOrEqual(4)
 

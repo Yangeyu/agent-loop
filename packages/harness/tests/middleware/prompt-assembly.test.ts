@@ -1,5 +1,5 @@
 /**
- * The system prompt's shape, asserted end to end: these run a real turn and read
+ * The system prompt's shape, asserted end to end: these run a real step and read
  * back the `system` array the model actually received. The behaviour under test
  * is ordering, which used to be an emergent property of each agent's middleware
  * array and therefore untestable by construction.
@@ -24,7 +24,7 @@ import type { LLMChunk, Model } from "@agent-core/llm/types"
 import { z } from "zod"
 import { createFakeModel } from "@agent-core"
 
-// A turn that ends the loop: `baseOutcome` continues on an empty assistant, so a
+// A step that ends the loop: `baseOutcome` continues on an empty assistant, so a
 // script with no text would spin forever on an agent that caps nothing. The text
 // is valid JSON so the same script also satisfies a structured-output run.
 const DONE: LLMChunk[] = [
@@ -43,7 +43,7 @@ const NOOP_TOOL = defineTool({
   },
 })
 
-// A model that records every turn's system fragments and replays one script per
+// A model that records every step's system fragments and replays one script per
 // call (the last script repeats), so a test can drive a multi-step loop.
 function recordingModel(scripts: LLMChunk[][] = [DONE]) {
   const systems: string[][] = []
@@ -141,7 +141,7 @@ describe("prompt assembly", () => {
     expect(systems[0]).toEqual(["FIRST", "SECOND"])
   })
 
-  it("drops a contributor that has nothing to say this turn", async () => {
+  it("drops a contributor that has nothing to say this step", async () => {
     const { model, systems } = recordingModel()
     const silent: PromptContributor = () => undefined
 
@@ -170,7 +170,7 @@ describe("prompt assembly", () => {
   it("renders the volatile slot last so everything above it is a stable prefix", async () => {
     const { model, systems } = recordingModel()
     // session_max_steps: 1 makes the first step the final allowed one, so the
-    // volatile slot is populated on the very first turn.
+    // volatile slot is populated on the very first step.
     await runCore({ model, config: { session_max_steps: 1 }, skills: [skill("demo")], format: JSON_FORMAT })
 
     const system = systems[0]
@@ -205,7 +205,7 @@ describe("prompt assembly", () => {
     expect(alone.systems[0].some((text) => text.includes("<available_subagents>"))).toBe(false)
   })
 
-  it("asks for structured output only when the turn requested it", async () => {
+  it("asks for structured output only when the step requested it", async () => {
     const structured = recordingModel()
     await runCore({ model: structured.model, format: JSON_FORMAT })
     expect(structured.systems[0].some((text) => text.includes("JSON Schema"))).toBe(true)
@@ -216,7 +216,7 @@ describe("prompt assembly", () => {
   })
 
   it("adds continuation guidance only after the first step", async () => {
-    // Turn 1 issues a tool call, which keeps the loop going into turn 2.
+    // Step 1 issues a tool call, which keeps the loop going into step 2.
     const { model, systems } = recordingModel([
       [{ type: "tool-call", toolCallId: "call-1", toolName: "noop", args: {} }, { type: "finish", finishReason: "tool_calls" }],
       DONE,

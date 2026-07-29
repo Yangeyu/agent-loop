@@ -18,7 +18,7 @@ export type AgentDefinition = {
   instructions: string[]
   /** The agent's tool set. */
   tools: ToolDefinition[]
-  /** Cap on turns per run; falls back to the runtime default when unset. */
+  /** Cap on steps per run; falls back to the runtime default when unset. */
   steps?: number
   /** Cap on tool calls per run; falls back to the runtime default when unset. */
   maxToolCalls?: number

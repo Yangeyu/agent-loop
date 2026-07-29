@@ -1,38 +1,38 @@
 /**
  * The agent loop. Agent-agnostic: it resolves the agent blueprint once per
- * run, builds the loop-scoped middleware stack, then drives turns until a
+ * run, builds the loop-scoped middleware stack, then drives steps until a
  * middleware-shaped outcome breaks.
  *
  * Lifecycle (this file is the authoritative ordering of the hook points):
  *
  *   caller ── append user message ──► runLoop
  *     beforeRun
- *     per step (one turn):
- *       TurnRecorder created (appends assistant message, emits turn.start)
- *       beforeTurn ──────────(gate stops)──► recorder.finish & return
+ *     per step:
+ *       StepRecorder created (appends assistant message, emits step.start)
+ *       beforeStep ──────────(gate stops)──► recorder.finish & return
  *       beforeModelCall                        (system + messages draft)
- *       runTurn:
+ *       runStep:
  *         wrapModelCall( stream ) ─► tool batch (beforeToolCall → execute → afterToolCall)
  *                                 ─► returns the still-open finishReason on a clean finish
- *       afterTurn ─► apply terminal (exactly once) ─► (break) return ; else next step
+ *       afterStep ─► apply terminal (exactly once) ─► (break) return ; else next step
  *     afterRun (in a finally)
  *
- * The loop itself emits only session.start; turn-scoped telemetry (turn.start /
- * turn.phase / turn.end) is the recorder's, and all session content flows
+ * The loop itself emits only session.start; step-scoped telemetry (step.start /
+ * step.phase / step.end) is the recorder's, and all session content flows
  * through the Sessions aggregate, which emits the state channel by itself.
  */
 import type { AgentDefinition } from "@agent-core/blueprint"
-import { createRunContext, createTurnContext, type EngineDeps, type TurnContext } from "@agent-core/context"
-import { createTurnAbortSignal, resolveTurnExecutionPolicy } from "@agent-core/policy"
-import { TurnRecorder } from "@agent-core/recorder"
-import { runTurn } from "@agent-core/turn"
-import { MiddlewareStack, type TurnOutcome, type TurnOutcomeReason } from "@agent-core/hooks"
+import { createRunContext, createStepContext, type EngineDeps, type StepContext } from "@agent-core/context"
+import { createStepAbortSignal, resolveStepExecutionPolicy } from "@agent-core/policy"
+import { StepRecorder } from "@agent-core/recorder"
+import { runStep } from "@agent-core/step"
+import { MiddlewareStack, type StepOutcome, type StepOutcomeReason } from "@agent-core/hooks"
 import { toModelMessages } from "@agent-core/llm/message"
 import { createID, type AssistantMessage, type SessionInfo, type UserMessage } from "@agent-core/types"
 
 /**
- * Drives the turn loop for an already-seeded session: builds the agent's
- * middleware stack once, then runs turns until an outcome breaks. Callers
+ * Drives the step loop for an already-seeded session: builds the agent's
+ * middleware stack once, then runs steps until an outcome breaks. Callers
  * append the run's user message before entering.
  *
  * @param deps - the engine dependencies
@@ -52,14 +52,14 @@ export async function runLoop(
   await stack.beforeRun(run)
 
   let step = 0
-  let reason: TurnOutcomeReason = "completed_without_output"
+  let reason: StepOutcomeReason = "completed_without_output"
 
   try {
     while (true) {
       step += 1
       const session = sessions.get(input.sessionID)
       const user = resolveLastUserMessage(session)
-      const policy = resolveTurnExecutionPolicy(deps.config, input.agent, session)
+      const policy = resolveStepExecutionPolicy(deps.config, input.agent, session)
 
       const assistant: AssistantMessage = {
         id: createID(),
@@ -70,13 +70,13 @@ export async function runLoop(
         time: { created: Date.now() },
       }
 
-      const turnAbort = createTurnAbortSignal({ parent: rootAbort, timeoutMs: policy.timeout.turnTimeoutMs })
+      const stepAbort = createStepAbortSignal({ parent: rootAbort, timeoutMs: policy.timeout.stepTimeoutMs })
 
-      // Appends the assistant message and emits turn.start; from here the
-      // recorder owns the turn's accumulation and terminal transition. It comes
+      // Appends the assistant message and emits step.start; from here the
+      // recorder owns the step's accumulation and terminal transition. It comes
       // before the context because the context borrows its activity emitter —
-      // turn-scoped loop telemetry has exactly one owner.
-      const recorder = new TurnRecorder({
+      // step-scoped loop telemetry has exactly one owner.
+      const recorder = new StepRecorder({
         sessions,
         loop: deps.events.loop,
         sessionID: input.sessionID,
@@ -87,7 +87,7 @@ export async function runLoop(
         assistant,
       })
 
-      const ctx = createTurnContext({
+      const ctx = createStepContext({
         run,
         deps,
         policy,
@@ -95,12 +95,12 @@ export async function runLoop(
         messageID: assistant.id,
         tools: input.agent.tools,
         step,
-        abort: turnAbort.signal,
+        abort: stepAbort.signal,
         openActivity: (activity) => recorder.openActivity(activity),
       })
 
       try {
-        const gate = await stack.beforeTurn(ctx)
+        const gate = await stack.beforeStep(ctx)
         if (!gate.proceed) {
           reason = gate.reason
           recorder.finish("stop")
@@ -116,11 +116,11 @@ export async function runLoop(
           messages: toModelMessages(sessions.get(input.sessionID)),
         })
 
-        const { sawToolCall, finishReason } = await runTurn(ctx, stack, recorder, draft)
+        const { sawToolCall, finishReason } = await runStep(ctx, stack, recorder, draft)
 
-        // One judgment per turn: the stack sees how the turn ended and settles the
+        // One judgment per step: the stack sees how the step ended and settles the
         // terminal (open only on a clean finish) and the loop continuation together.
-        const judgment = await stack.afterTurn(ctx, {
+        const judgment = await stack.afterStep(ctx, {
           finish: {
             finishReason,
             text: sessions.messageText(input.sessionID, assistant.id, { includeSynthetic: false }),
@@ -146,7 +146,7 @@ export async function runLoop(
         if (outcome.kind === "break" && outcome.note) recorder.appendNote(outcome.note)
         if (outcome.kind === "break") return sessions.get(input.sessionID)
       } finally {
-        turnAbort.dispose()
+        stepAbort.dispose()
       }
     }
   } finally {
@@ -160,10 +160,10 @@ function resolveLastUserMessage(session: SessionInfo): UserMessage {
   return user
 }
 
-// The base turn outcome, derived purely from the assistant message state and
+// The base step outcome, derived purely from the assistant message state and
 // whether tool calls were seen. Policy-driven overrides (step budget,
-// structured output) are middleware on afterTurn.
-function baseOutcome(ctx: TurnContext, sawToolCall: boolean): TurnOutcome {
+// structured output) are middleware on afterStep.
+function baseOutcome(ctx: StepContext, sawToolCall: boolean): StepOutcome {
   const session = ctx.sessions.get(ctx.sessionID)
   const assistant = session.messages.find((message) => message.id === ctx.messageID)
   const hasFinalText = assistant

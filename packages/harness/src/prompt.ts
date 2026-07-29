@@ -26,7 +26,7 @@ import type { HookContext } from "@agent-core"
  * - `convention` — how the engine expects any agent to work.
  * - `capability` — what this agent can reach: skills, delegable subagents.
  * - `policy` — constraints this request carries, e.g. a structured schema.
- * - `volatile` — per-step state; changes every turn, so it renders last.
+ * - `volatile` — per-step state; changes every step, so it renders last.
  */
 export type PromptSlot = "identity" | "convention" | "capability" | "policy" | "volatile"
 
@@ -39,12 +39,12 @@ export type SystemSection = {
 }
 
 /**
- * Produces zero or more system sections for one turn.
+ * Produces zero or more system sections for one step.
  *
- * A contributor is a pure read of the turn context — it never writes session
+ * A contributor is a pure read of the step context — it never writes session
  * state and never sees the draft, so it cannot depend on what another
  * contributor produced. That is what makes the rendered order a property of
- * SLOT_ORDER alone. Returning `undefined` means "nothing to say this turn".
+ * SLOT_ORDER alone. Returning `undefined` means "nothing to say this step".
  */
 export type PromptContributor = (
   ctx: HookContext,

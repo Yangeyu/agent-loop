@@ -1,15 +1,15 @@
 /**
- * TurnRecorder: the single owner of one turn's lifecycle.
+ * StepRecorder: the single owner of one step's lifecycle.
  *
- * It is the only engine object that writes turn output — the assistant message,
+ * It is the only engine object that writes step output — the assistant message,
  * its text/reasoning parts, and (via trackToolCall) tool parts — and the only
- * emitter of turn-scoped loop telemetry (turn.start / turn.phase / turn.end).
+ * emitter of step-scoped loop telemetry (step.start / step.phase / step.end).
  * Content writes go through the Sessions aggregate, so state events fall out of
  * the writes themselves; the recorder never emits state by hand.
  *
- * Construction appends the assistant message and emits turn.start; exactly one
- * of finish / fail / abort terminates the turn (later terminals are ignored, so
- * an abort racing a finish cannot double-report). All turn accumulation state —
+ * Construction appends the assistant message and emits step.start; exactly one
+ * of finish / fail / abort terminates the step (later terminals are ignored, so
+ * an abort racing a finish cannot double-report). All step accumulation state —
  * phase, open part cursors, counters — lives here, with the store as the only
  * other copy.
  */
@@ -27,10 +27,10 @@ import {
   type LoopEvent,
   type ReasoningPart,
   type TextPart,
-  type TurnPhase,
+  type StepPhase,
 } from "@agent-core/types"
 
-const VALID_PHASE_TRANSITIONS: Record<TurnPhase, TurnPhase[]> = {
+const VALID_PHASE_TRANSITIONS: Record<StepPhase, StepPhase[]> = {
   starting: ["streaming", "finishing"],
   streaming: ["reasoning", "responding", "executing-tool", "finishing"],
   reasoning: ["streaming", "responding", "executing-tool", "finishing"],
@@ -39,8 +39,8 @@ const VALID_PHASE_TRANSITIONS: Record<TurnPhase, TurnPhase[]> = {
   finishing: [],
 }
 
-export class TurnRecorder {
-  private phase: TurnPhase = "starting"
+export class StepRecorder {
+  private phase: StepPhase = "starting"
   private textPart?: TextPart
   private reasoningPart?: ReasoningPart
   private sawText = false
@@ -64,7 +64,7 @@ export class TurnRecorder {
   ) {
     this.current = input.sessions.appendMessage(input.sessionID, input.assistant)
     input.loop.emit({
-      type: "turn.start",
+      type: "step.start",
       ...this.envelope(),
       messageID: this.current.id,
       step: input.step,
@@ -72,34 +72,34 @@ export class TurnRecorder {
     })
   }
 
-  /** The current snapshot of this turn's assistant message. */
+  /** The current snapshot of this step's assistant message. */
   get assistant(): AssistantMessage {
     return this.current
   }
 
-  /** The assistant message id — the turn's identity in events and hooks. */
+  /** The assistant message id — the step's identity in events and hooks. */
   get messageID(): string {
     return this.current.id
   }
 
-  /** How many tool calls this turn has issued. */
+  /** How many tool calls this step has issued. */
   get toolCalls(): number {
     return this.toolCallCount
   }
 
   /**
-   * Moves the turn to a new phase, validating the transition, and emits
-   * turn.phase. Re-entering the current phase is a no-op.
+   * Moves the step to a new phase, validating the transition, and emits
+   * step.phase. Re-entering the current phase is a no-op.
    */
-  enterPhase(phase: TurnPhase) {
+  enterPhase(phase: StepPhase) {
     if (this.phase === phase) return
     const allowed = VALID_PHASE_TRANSITIONS[this.phase]
     if (!allowed.includes(phase)) {
-      throw new Error(`Invalid turn phase transition: ${this.phase} -> ${phase}`)
+      throw new Error(`Invalid step phase transition: ${this.phase} -> ${phase}`)
     }
 
     this.phase = phase
-    this.input.loop.emit({ type: "turn.phase", ...this.envelope(), messageID: this.messageID, phase })
+    this.input.loop.emit({ type: "step.phase", ...this.envelope(), messageID: this.messageID, phase })
   }
 
   /** Streams a reasoning delta into the open reasoning part (opening one if needed). */
@@ -196,7 +196,7 @@ export class TurnRecorder {
   openActivity(input: { source: string; label: string; detail?: string }): ActivityHandle {
     const emit = (status: ActivityStatus, detail?: string) => {
       this.input.loop.emit({
-        type: "turn.activity",
+        type: "step.activity",
         ...this.envelope(),
         messageID: this.messageID,
         source: input.source,
@@ -221,7 +221,7 @@ export class TurnRecorder {
     }
   }
 
-  /** Terminates the turn as finished (model completed), optionally with structured output. */
+  /** Terminates the step as finished (model completed), optionally with structured output. */
   finish(finishReason: FinishReason, structured?: unknown) {
     this.terminate(
       {
@@ -232,12 +232,12 @@ export class TurnRecorder {
     )
   }
 
-  /** Terminates the turn as failed, recording the error on the assistant message. */
+  /** Terminates the step as failed, recording the error on the assistant message. */
   fail(error: ErrorInfo) {
     this.terminate({ error, finish: "error" }, { reason: "error", error: error.message })
   }
 
-  /** Terminates the turn as aborted. */
+  /** Terminates the step as aborted. */
   abort() {
     this.terminate(
       { error: { message: "Aborted", retryable: false, code: "aborted" }, finish: "error" },
@@ -259,7 +259,7 @@ export class TurnRecorder {
     })
 
     this.input.loop.emit({
-      type: "turn.end",
+      type: "step.end",
       ...this.envelope(),
       messageID: this.messageID,
       step: this.input.step,

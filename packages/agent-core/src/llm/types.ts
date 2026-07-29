@@ -23,7 +23,7 @@ export type ModelCapabilities = {
   /** Whether the model accepts image content blocks (multimodal vision input). */
   vision: boolean
   /**
-   * Whether the model can emit several tool calls in one turn. When true the
+   * Whether the model can emit several tool calls in one step. When true the
    * provider requests parallel calls and the engine dispatches them
    * concurrently. Opted in per model — many OpenAI-compatible endpoints
    * (DashScope included) default it off.
@@ -58,7 +58,7 @@ export type Model = {
   stream(input: LLMInput): LLMStreamResult
 }
 
-/** A tool call the assistant issued in a turn (the request half of a call). */
+/** A tool call the assistant issued in a step (the request half of a call). */
 export type ModelToolCall = {
   id: string
   name: string
@@ -88,7 +88,7 @@ export type ModelMessage =
     }
 
 /**
- * The fully assembled input for one model turn, handed to a Model's stream().
+ * The fully assembled input for one model step, handed to a Model's stream().
  * Holds exactly what the transport sends — the conversation is already projected
  * to system + messages upstream (see llm/message.ts), so no session/agent context
  * leaks into the wire layer.

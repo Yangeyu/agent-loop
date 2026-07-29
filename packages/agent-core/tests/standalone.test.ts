@@ -119,7 +119,7 @@ describe("an agent built from agent-core alone", () => {
 
     const seen: LoopEvent[] = []
     agent.events.loop.subscribe((event) => {
-      if (event.type === "turn.activity") seen.push(event)
+      if (event.type === "step.activity") seen.push(event)
     })
 
     await agent.run({ text: "hi" })

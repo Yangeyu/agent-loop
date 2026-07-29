@@ -88,7 +88,7 @@ export function createTraceFolder(input: {
       return
     }
 
-    if (event.type === "turn.end" && event.reason === "error" && event.error) {
+    if (event.type === "step.end" && event.reason === "error" && event.error) {
       appendEntry({
         id: input.createTraceID(),
         ...baseEntry(event),

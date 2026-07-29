@@ -2,7 +2,7 @@
  * The one middleware that writes `draft.system`. Everything an agent says to
  * the model arrives as a contributor, so the system prompt's order is declared
  * by SLOT_ORDER, independent of middleware position. A middleware that
- * transforms `draft.messages` or gates/judges a turn is on the *execution*
+ * transforms `draft.messages` or gates/judges a step is on the *execution*
  * axis and must not append to `system`.
  */
 import type { MiddlewareFactory } from "@agent-core"

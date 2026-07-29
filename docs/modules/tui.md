@@ -17,7 +17,7 @@
 ## 数据流
 
 - 订阅 `runtime.events.state`（内容）与 `runtime.events.loop`（遥测）：内容条目由 trace folder
-  按 partID 折叠，活动状态（spinner/phase）来自 loop 的 `turn.start/phase/end`。
+  按 partID 折叠，活动状态（spinner/phase）来自 loop 的 `step.start/phase/end`。
 - 条目自带 `rootID`/`sessionChain`/`topLevel`，会话树过滤与「折叠某个子 agent 分支」都是一次比较，
   不爬 parentID 链。
 - **trace 不认识任何具体工具**：一次工具调用的措辞来自工具自己声明的 `ToolDisplay`

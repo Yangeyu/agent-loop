@@ -3,11 +3,11 @@
  *
  * `state` carries StateEvents and is fed exclusively by the Sessions aggregate —
  * engine code never emits state by hand. `loop` carries LoopEvents, the engine's
- * telemetry about the turn loop itself. Consumers subscribe per channel, so an
+ * telemetry about the step loop itself. Consumers subscribe per channel, so an
  * observer of loop health never has to filter content traffic and vice versa.
  *
  * Listeners are isolated: a throwing subscriber is reported and skipped, never
- * allowed to break the engine turn that emitted the event.
+ * allowed to break the engine step that emitted the event.
  */
 import type { LoopEvent, StateEvent } from "@agent-core/model"
 
@@ -39,7 +39,7 @@ function createChannel<E>(name: string): EventChannel<E> {
         try {
           listener(event)
         } catch (error) {
-          // A subscriber must never be able to crash the engine mid-turn.
+          // A subscriber must never be able to crash the engine mid-step.
           console.error(`[events] ${name} listener failed:`, error)
         }
       }

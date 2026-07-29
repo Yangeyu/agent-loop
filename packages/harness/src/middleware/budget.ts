@@ -4,7 +4,7 @@
  * They ship together because they read the same predicate — a warning that could
  * drift from the stop it warns about is worse than no warning.
  */
-import { isFinalAllowedStep, type TurnBudgetPolicy } from "@agent-core"
+import { isFinalAllowedStep, type StepBudgetPolicy } from "@agent-core"
 import type { MiddlewareFactory } from "@agent-core"
 import type { PromptContributor } from "@harness/prompt"
 
@@ -34,7 +34,7 @@ export const budget: MiddlewareFactory = () => {
   return {
     name: "budget",
 
-    beforeTurn(ctx) {
+    beforeStep(ctx) {
       if (ctx.policy.budget.sessionStepsRemaining <= 0) {
         return {
           proceed: false,
@@ -68,7 +68,7 @@ export const budget: MiddlewareFactory = () => {
       return { action: "proceed" }
     },
 
-    afterTurn(ctx, judgment) {
+    afterStep(ctx, judgment) {
       const outcome = judgment.outcome
       if (outcome.kind !== "continue") return judgment
       if (!isFinalAllowedStep(ctx.policy.budget, ctx.step)) return judgment
@@ -98,7 +98,7 @@ export const budget: MiddlewareFactory = () => {
   }
 }
 
-function resolveStepBudgetStopReason(budget: TurnBudgetPolicy) {
+function resolveStepBudgetStopReason(budget: StepBudgetPolicy) {
   if (budget.sessionStepsRemaining <= 1) return "total session step budget reached"
   return "max steps reached"
 }

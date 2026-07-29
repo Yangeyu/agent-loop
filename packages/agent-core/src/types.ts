@@ -46,8 +46,8 @@ export type {
   ToolPart,
   ToolRunningState,
   ToolState,
-  TurnEndReason,
-  TurnPhase,
+  StepEndReason,
+  StepPhase,
   UserMessage,
 } from "@agent-core/model"
 
@@ -80,7 +80,7 @@ export type ToolContext = {
   sessions: Sessions
   events: RuntimeEventBus
   sessionID: string
-  /** The assistant message (turn record) this tool call belongs to. */
+  /** The assistant message (step record) this tool call belongs to. */
   messageID: string
   agent: string
   abort: AbortSignal

@@ -42,7 +42,7 @@ describe("structured-output middleware", () => {
     expect(assistant.error).toBeUndefined()
   })
 
-  it("fails the turn when structured output is not valid JSON", async () => {
+  it("fails the step when structured output is not valid JSON", async () => {
     const assistant = await lastAssistant([
       { type: "text-delta", textDelta: "not json" },
       { type: "finish", finishReason: "stop" },

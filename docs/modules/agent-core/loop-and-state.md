@@ -20,11 +20,11 @@
 
 1. **会话数据模型**：`SessionInfo`（含 `rootID`）、`SessionMessage`、`MessagePart`（text /
    reasoning / compaction / image / tool）。消息不携带 sessionID 回指；assistant message 即
-   turn 的记录。tool part 上的 `ToolDisplay` 是工具对自己这次调用的语义描述
+   step 的记录。tool part 上的 `ToolDisplay` 是工具对自己这次调用的语义描述
    （`verb`/`target`/`summary`），必填——消费端因此无需各写一遍 `?? toolName` 兜底。
    它刻意不含任何排版：措辞属于工具，宽度与配色属于 surface。
 2. **两类事件**：`StateEvent`（会话状态变更，由 `Sessions` 聚合在写入时发出）与 `LoopEvent`
-   （活动协议：`session.start` / `turn.start` / `turn.phase` / `turn.activity` / `turn.end`，
+   （活动协议：`session.start` / `step.start` / `step.phase` / `step.activity` / `step.end`，
    只回答"循环现在在忙什么"；一切需要活过回放的事实必须走 state 通道）。事件信封自带
    `sessionID/rootID`，会话树归属判定是 O(1) 比较。
 3. **共享投影**：`applyStateEvent`（纯 reducer）+ `partsOf` / `messageText`。折叠一个会话的
@@ -44,10 +44,10 @@
   经 harness 装配端到端驱动）。
 - 事件总线（`events.ts`）分两个通道：
   - **state**：只由 `Sessions` 发出；消费端用 `applyStateEvent` 投影回会话状态。
-  - **loop**：由循环（`session.start`）、recorder（turn 各帧）、以及**任何 middleware**
-    （`turn.activity`）发出。
-  - listener 异常按订阅者隔离，订阅方永远炸不掉引擎 turn。
-- `turn.activity` 是 middleware 报告自己在做什么的唯一通道。它存在的理由：功能都在 middleware
+  - **loop**：由循环（`session.start`）、recorder（step 各帧）、以及**任何 middleware**
+    （`step.activity`）发出。
+  - listener 异常按订阅者隔离，订阅方永远炸不掉引擎 step。
+- `step.activity` 是 middleware 报告自己在做什么的唯一通道。它存在的理由：功能都在 middleware
   里，核心事件词汇却是封闭的——compaction 跑一次完整 LLM 调用、retry 退避四秒，期间界面上和
   卡死无法区分。middleware 拿到的是窄能力 `ctx.activity()` 而不是整条总线，`source` 由
   `MiddlewareStack` 按 `middleware.name` 绑定，调用方不自报家门。
@@ -56,7 +56,7 @@
 
 ## 身份模型
 
-没有独立的 "turn" 实体：**一个 turn 产出恰好一条 assistant message**，事件与 hook 里的
+没有独立的 "step" 实体：**一个 step 产出恰好一条 assistant message**，事件与 hook 里的
 `messageID` 永远指被变更/被产出的那条消息。消息不携带 sessionID 回指（归属由包含关系表达）；
 `SessionInfo.rootID` 在创建时定根，子会话继承。
 
@@ -72,17 +72,17 @@
   store 与总线（harness 这样建它的每个 agent）；省略即落到 `createEngineDeps()` 的私有内存
   引擎。会话按 `run({ sessionID })` 逐次选择，一个实例服务任意多个会话；种入 user message、
   发 `session.start` 只在 `run()` 里有一份实现。
-- `loop.ts` — `runLoop`，逐 turn 驱动，包内私有（不出 barrel——进循环只经 `createAgent`）。
+- `loop.ts` — `runLoop`，逐 step 驱动，包内私有（不出 barrel——进循环只经 `createAgent`）。
   顶部注释是生命周期的权威定义。
-- `recorder.ts` — `TurnRecorder`：一个 turn 生命周期的唯一 owner。构造时追加 assistant message
-  并发 `turn.start`；持有相位机、流式 part 游标、计数器；`finish/fail/abort` 恰好终结一次
-  （后到的终态被忽略，abort 与 finish 竞态不会双报）。也是 `turn.activity` 的发射点——turn 级
+- `recorder.ts` — `StepRecorder`：一个 step 生命周期的唯一 owner。构造时追加 assistant message
+  并发 `step.start`；持有相位机、流式 part 游标、计数器；`finish/fail/abort` 恰好终结一次
+  （后到的终态被忽略，abort 与 finish 竞态不会双报）。也是 `step.activity` 的发射点——step 级
   遥测只有一个所有者。
-- `turn.ts` — 跑单轮：把一次流式调用交给 `wrapModelCall` 洋葱，返回它发起的 tool call，
+- `step.ts` — 跑单轮：把一次流式调用交给 `wrapModelCall` 洋葱，返回它发起的 tool call，
   然后执行那一批。
 - `hooks.ts` — `Middleware` 契约（8 个 hook）与 `RunContext` / `HookContext`（只读；状态经 hook
   返回值回流引擎）。
-- `policy.ts` — 把 config 与 agent 约束解析成 turn 级执行策略（timeout / budgets）。
+- `policy.ts` — 把 config 与 agent 约束解析成 step 级执行策略（timeout / budgets）。
 - `session/` — `Sessions` 聚合 + `SessionPersistence`（read/persist/list 三方法契约）+
   `MemorySessionPersistence`（未注入时的具名默认）。内核只带契约与内存默认；真实后端
   （file/数据库/远端）是消费方的，以实例注入（`createEngineDeps({ persistence })` /
@@ -99,64 +99,64 @@
 
 ```text
 beforeRun
-  ├─ ( beforeTurn                        门控 + 唯一的副作用点
+  ├─ ( beforeStep                        门控 + 唯一的副作用点
   │    → beforeModelCall                 纯折叠 (ctx, draft) => draft
   │    → wrapModelCall( 一次流式调用 )     洋葱，retry 落在这里
   │    → ( beforeToolCall → afterToolCall )*
-  │    → afterTurn )*                    终态 + 循环去留
+  │    → afterStep )*                    终态 + 循环去留
   └─ afterRun                            在 finally 里跑
 ```
 
-- `beforeTurn` 是**承重的副作用点**：compaction 在这里改写 session history，故意不放进纯折叠。
-  这也是保留 turn 这个 subject 的原因——LangChain 的 `agent/model/tool` 三分法没有这一层。
+- `beforeStep` 是**承重的副作用点**：compaction 在这里改写 session history，故意不放进纯折叠。
+  这也是保留 step 这个 subject 的原因——LangChain 的 `agent/model/tool` 三分法没有这一层。
 - **tool 侧刻意不是 wrap 形态**：门控顺序执行、执行并发（`prepareToolCall` / `executeToolCall`
   分离），因为计数型 guard 只有顺序到达才正确。wrap 包住整个调用会让两个并发调用同时读到
   "还剩 1 次"。model 侧一轮一次调用，没有这个约束。
 - `wrapModelCall` 只包**流**，不包它引发的工具批次。因此重试一次失败的流永远不会重放已经执行
   过的工具——重试发生时一个都还没跑。
-- `TurnOutcomeReason` 是**开放联合**：循环自己的五个具名，其余是 middleware 的词汇
+- `StepOutcomeReason` 是**开放联合**：循环自己的五个具名，其余是 middleware 的词汇
   （`step_budget_reached` 是 budget middleware 的说法，不是循环知道的事实）。
 
 ## 数据流
 
-`runLoop` 每一步是一个 turn，按固定生命周期推进：
+`runLoop` 逐 step 推进，每个 step 有固定生命周期：
 
 ```text
-TurnRecorder 构造（追加 assistant message，发 turn.start）
-beforeTurn ──(gate 拦截)──► recorder.finish，返回
+StepRecorder 构造（追加 assistant message，发 step.start）
+beforeStep ──(gate 拦截)──► recorder.finish，返回
 beforeModelCall        # 引擎以 agent.instructions 种入草稿；middleware 折叠 system+messages
-runTurn:
+runStep:
   wrapModelCall( stream ) ─► 返回 finishReason + 这轮发起的 tool call
   批量并发执行(beforeToolCall → execute → afterToolCall)
-afterTurn              # 一次裁决：terminal（仅干净收束时开放）+ outcome
+afterStep              # 一次裁决：terminal（仅干净收束时开放）+ outcome
 引擎应用 terminal（恰好一次）──(outcome break)──► 返回 ; 否则下一步
 afterRun（finally）
 ```
 
-- **stream 消费**：`turn.ts` 把 reasoning/text 增量交给 recorder（落 part + 自动发 `part.delta`），
-  并把每个 tool-call chunk 收集到本 turn 的待执行集合。
+- **stream 消费**：`step.ts` 把 reasoning/text 增量交给 recorder（落 part + 自动发 `part.delta`），
+  并把每个 tool-call chunk 收集到本 step 的待执行集合。
 - **工具并发派发**：流耗尽后，按发起顺序逐个 `prepareToolCall`（gate → 校验 → describe）并开好
   tool part（`part.created` 确定性入场、且一次到位带全 display），再以有界并发整批
-  `executeToolCall`——同时在飞至多 `policy.toolConcurrency` 个。这个界由每个 turn 独立持有，
-  嵌套 subagent 的扇出各自成界、互不争用。一批全部 settle 后才进入下一 turn，保证每个 tool call
+  `executeToolCall`——同时在飞至多 `policy.toolConcurrency` 个。这个界由每个 step 独立持有，
+  嵌套 subagent 的扇出各自成界、互不争用。一批全部 settle 后才进入下一 step，保证每个 tool call
   都有结果可供回放。
   派发器**不看工具语义**：它必须在任何工具解析参数之前定下并发度，因而根本无从判断两个调用会不会
   冲突——按工具类别猜（"只读才并发"）只是用一个粗代理指标掩盖这个信息缺口，代价是把并行委派一起
   关掉。一致性归资源持有者。调用之间的**因果顺序**则归模型——一批 tool call 是 provider 层
-  "这些可以同时做"的声明，依赖前一个结果的调用属于下一个 turn。
-- **终态归属**：`turn.ts` 是 turn 终态的唯一所有者，把这批 per-call outcome 归约成单一
+  "这些可以同时做"的声明，依赖前一个结果的调用属于下一个 step。
+- **终态归属**：`step.ts` 是 step 终态的唯一所有者，把这批 per-call outcome 归约成单一
   continue/stop（首个 stop/abort 按发起顺序胜出）。`tool-call.ts` 是纯 per-call 执行单元：只经
   tracker 写自己那一个 part，不触碰 recorder 终态，可安全并发。
 - **工具结果**：`tool-call.ts` 不发任何事件——一次调用的全部可观测事实就是 tool part 的状态转换，
   由 tracker 写穿产生。
-- **裁决**：`afterTurn` 一次性决定 turn 终态（`terminal`：finish/fail + structured + finishReason
+- **裁决**：`afterStep` 一次性决定 step 终态（`terminal`：finish/fail + structured + finishReason
   覆写）与循环去留（`outcome`：`continue | break`）。终态失败而 outcome 仍为 continue 时，
   引擎兜底改为 `break/assistant_error`。
 - **状态事实来源**：`Sessions` 维护 `messages` 与 `parts`；读取得到的是不可变快照
   （copy-on-write），持有者无法绕过聚合改状态。
-- **预算的作用域各不相同**，读 `TurnBudgetPolicy` 字段名而不是靠直觉：
+- **预算的作用域各不相同**，读 `StepBudgetPolicy` 字段名而不是靠直觉：
   - 工具调用：middleware 栈在 `runLoop` 的 while 之外构建一次，所以 budget middleware 的计数器
-    **跨整个 run 累加**——`maxRunToolCalls` 是一次 run 的总闸；限制单 turn 并发扇出的是另一个数
+    **跨整个 run 累加**——`maxRunToolCalls` 是一次 run 的总闸；限制单 step 并发扇出的是另一个数
     `toolConcurrency`。两者混淆会让一次正常的长交付物在中途被拒。
   - 步数：`maxAgentSteps`（本 run，与从 1 递增的 `ctx.step` 比）与 `sessionStepsRemaining`
     （整个 session，随 assistant 消息递减）是**两个独立判据**，由 `isFinalAllowedStep()` 统一裁决，
@@ -168,7 +168,7 @@ afterRun（finally）
 
 - 新 middleware：实现 `Middleware` 的相关 hook。不需要改这个包。
 - 新工具：`defineTool()`，把它需要的协作者装进自己的工厂闭包。不需要改这个包。
-- 新执行预算/策略：扩展 `policy.ts`，从 config 解析，而不是在 turn 里写死。
+- 新执行预算/策略：扩展 `policy.ts`，从 config 解析，而不是在 step 里写死。
 - 新持久化后端：实现 `SessionPersistence`（三个方法），以实例注入
   （`createEngineDeps({ persistence })` 或 harness `createRuntime({ persistence })`）。
   不需要改这个包，也永远不给 config 加新的后端字符串。

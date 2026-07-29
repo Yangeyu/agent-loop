@@ -1,15 +1,15 @@
 /**
  * Engine-internal contexts: the immutable input bundles for a run and for one
- * turn inside it. Middleware see the RunContext / HookContext views; the engine
- * additionally knows the user message and the resolved tools. All turn-scoped
+ * step inside it. Middleware see the RunContext / HookContext views; the engine
+ * additionally knows the user message and the resolved tools. All step-scoped
  * *accumulation* (phase, open parts, counters, terminal state) lives in the
- * TurnRecorder — context carries no mutable state, so nothing can hold a stale
+ * StepRecorder — context carries no mutable state, so nothing can hold a stale
  * shadow of the store.
  */
 import { DEFAULT_CORE_CONFIG, type CoreConfig } from "@agent-core/config"
 import { createRuntimeEvents, type RuntimeEventBus } from "@agent-core/events"
 import type { Model } from "@agent-core/llm/types"
-import type { TurnExecutionPolicy } from "@agent-core/policy"
+import type { StepExecutionPolicy } from "@agent-core/policy"
 import type { AgentDefinition } from "@agent-core/blueprint"
 import type { ActivityEmitter, RunContext, StackContext } from "@agent-core/hooks"
 import { MemorySessionPersistence, Sessions, type SessionPersistence } from "@agent-core/session"
@@ -49,8 +49,8 @@ export function createEngineDeps(options?: {
   return { config, events, sessions: new Sessions(persistence, events.state) }
 }
 
-/** The engine-internal turn context: StackContext plus the turn's resolved inputs. */
-export type TurnContext = StackContext & {
+/** The engine-internal step context: StackContext plus the step's resolved inputs. */
+export type StepContext = StackContext & {
   readonly user: UserMessage
   readonly tools: ToolDefinition[]
   readonly events: RuntimeEventBus
@@ -80,23 +80,23 @@ export function createRunContext(input: {
 }
 
 /**
- * Assembles the per-turn TurnContext from the run context and turn inputs.
+ * Assembles the per-step StepContext from the run context and step inputs.
  *
- * @param input - the run context and engine deps, plus this turn's policy, user
+ * @param input - the run context and engine deps, plus this step's policy, user
  *   message, assistant message id, tools, step number, abort, and emitter
- * @returns the immutable turn context
+ * @returns the immutable step context
  */
-export function createTurnContext(input: {
+export function createStepContext(input: {
   run: RunContext
   deps: EngineDeps
-  policy: TurnExecutionPolicy
+  policy: StepExecutionPolicy
   user: UserMessage
   messageID: string
   tools: ToolDefinition[]
   step: number
   abort: AbortSignal
   openActivity: ActivityEmitter
-}): TurnContext {
+}): StepContext {
   return {
     ...input.run,
     events: input.deps.events,

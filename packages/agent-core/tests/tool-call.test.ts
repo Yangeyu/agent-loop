@@ -1,9 +1,9 @@
 import { describe, expect, it } from "bun:test"
 import { defineAgent } from "@agent-core/blueprint"
 import { DEFAULT_CORE_CONFIG } from "@agent-core/config"
-import { createRunContext, createTurnContext } from "@agent-core/context"
-import { resolveTurnExecutionPolicy } from "@agent-core/policy"
-import { TurnRecorder } from "@agent-core/recorder"
+import { createRunContext, createStepContext } from "@agent-core/context"
+import { resolveStepExecutionPolicy } from "@agent-core/policy"
+import { StepRecorder } from "@agent-core/recorder"
 import { executeToolCall, openToolPart, prepareToolCall } from "@agent-core/tool-call"
 import { MiddlewareStack } from "@agent-core/hooks"
 import { createRuntimeEvents } from "@agent-core/events"
@@ -193,8 +193,8 @@ function createToolCallHarness(tool: ToolDefinition) {
 
   const deps = { config, sessions, events }
 
-  // Appends the assistant message and owns the turn lifecycle.
-  const recorder = new TurnRecorder({
+  // Appends the assistant message and owns the step lifecycle.
+  const recorder = new StepRecorder({
     sessions,
     loop: events.loop,
     sessionID: session.id,
@@ -206,7 +206,7 @@ function createToolCallHarness(tool: ToolDefinition) {
   })
   recorder.enterPhase("streaming")
 
-  const ctx = createTurnContext({
+  const ctx = createStepContext({
     run: createRunContext({
       deps,
       agent,
@@ -215,7 +215,7 @@ function createToolCallHarness(tool: ToolDefinition) {
       abort: new AbortController().signal,
     }),
     deps,
-    policy: resolveTurnExecutionPolicy(config, agent, sessions.get(session.id)),
+    policy: resolveStepExecutionPolicy(config, agent, sessions.get(session.id)),
     user,
     messageID: assistant.id,
     tools: [tool],
@@ -227,7 +227,7 @@ function createToolCallHarness(tool: ToolDefinition) {
   const stack = MiddlewareStack.build([])
 
   return {
-    // Both halves, in the order the turn runs them — so a test exercises the
+    // Both halves, in the order the step runs them — so a test exercises the
     // same path production takes, including the display the part opens with.
     dispatch: async (chunk: { toolCallId: string; toolName: string; args: unknown }) => {
       const prepared = await prepareToolCall(ctx, stack, chunk)

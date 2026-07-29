@@ -20,13 +20,13 @@ const ConfigSchema = z.object({
   model_max_retries: z.coerce.number().int().min(0).default(RETRY_DEFAULTS.maxRetries),
   model_retry_base_delay_ms: z.coerce.number().int().min(1).default(RETRY_DEFAULTS.baseDelayMs),
   model_retry_max_delay_ms: z.coerce.number().int().min(1).default(RETRY_DEFAULTS.maxDelayMs),
-  // Assistant turns across a whole session, spanning every run in it; sits
+  // Assistant steps across a whole session, spanning every run in it; sits
   // well above any one agent's per-run cap.
   session_max_steps: z.coerce.number().int().min(1).default(100),
   subagent_max_depth: z.coerce.number().int().min(0).default(2),
-  turn_timeout_ms: z.coerce.number().int().min(1).default(300000),
+  step_timeout_ms: z.coerce.number().int().min(1).default(300000),
   // Total tool calls one agent run may make — a runaway guard, sized so a
-  // document-producing run finishes well inside it. Per-turn fan-out is
+  // document-producing run finishes well inside it. Per-step fan-out is
   // tool_max_concurrency.
   run_max_tool_calls: z.coerce.number().int().min(1).default(32),
   tool_max_concurrency: z.coerce.number().int().min(1).default(4),
@@ -50,7 +50,7 @@ export function loadConfigFromEnv(env: NodeJS.ProcessEnv = process.env): Config 
     model_retry_max_delay_ms: env.MODEL_RETRY_MAX_DELAY_MS,
     session_max_steps: env.SESSION_MAX_STEPS,
     subagent_max_depth: env.SUBAGENT_MAX_DEPTH,
-    turn_timeout_ms: env.TURN_TIMEOUT_MS,
+    step_timeout_ms: env.STEP_TIMEOUT_MS,
     run_max_tool_calls: env.RUN_MAX_TOOL_CALLS,
     tool_max_concurrency: env.TOOL_MAX_CONCURRENCY,
     compaction_trigger_ratio: env.COMPACTION_TRIGGER_RATIO,

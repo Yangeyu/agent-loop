@@ -46,10 +46,10 @@
 > 同一个点上——`afterToolCall` 本仓零实现，但 pi 有同名 hook、LangChain 有等价的 `wrap_tool_call`，
 > 两个独立设计都认为这个接缝值得存在，那它就是已验证的扩展点。
 
-> **原则：hook 名字要读得出执行顺序。** 命名一半语义一半位置（`beforeTurn` 与 `assembleContext`
+> **原则：hook 名字要读得出执行顺序。** 命名一半语义一半位置（`beforeStep` 与 `assembleContext`
 > 都在模型调用前跑，从名字看不出谁先谁后），就等于把执行顺序藏进了实现。采用
-> `<position><Subject>` 之后整组按顺序连读：`beforeRun → beforeTurn → beforeModelCall →
-> wrapModelCall → beforeToolCall/afterToolCall → afterTurn → afterRun`。
+> `<position><Subject>` 之后整组按顺序连读：`beforeRun → beforeStep → beforeModelCall →
+> wrapModelCall → beforeToolCall/afterToolCall → afterStep → afterRun`。
 
 > **原则：工具的依赖装进工具的闭包，不挂到上下文上。** `ToolContext` 一旦从 `EngineDeps` 派生，
 > "这个工具需要 X"就自动变成"引擎必须持有 X"——文件树与技能目录就是这么进内核的。

@@ -41,7 +41,7 @@ export function createLeadAgent(deps: {
     // The lead runs whole deliverables in one context: loading a skill, reading
     // its assets, then writing a document skeleton and filling it in section by
     // section.
-    // Both bounds are sized for that shape rather than for a short Q&A turn.
+    // Both bounds are sized for that shape rather than for a short Q&A step.
     steps: 20,
     maxToolCalls: 32,
     // One contributor per capability-bearing tool above: `skill` announces what

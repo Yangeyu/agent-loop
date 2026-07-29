@@ -18,7 +18,7 @@ import {
 import type { LLMChunk } from "@agent-core/llm/types"
 import { createFakeModel } from "@agent-core"
 
-const TURN_SCRIPT: LLMChunk[] = [
+const STEP_SCRIPT: LLMChunk[] = [
   { type: "reasoning", textDelta: "let me think" },
   { type: "reasoning", textDelta: " about this" },
   { type: "text-delta", textDelta: "here is " },
@@ -31,7 +31,7 @@ async function buildRuntime() {
   runtime.agent_registry.register(createAgent({
     name: "lead",
     steps: 4,
-    model: createFakeModel({ chunks: TURN_SCRIPT }),
+    model: createFakeModel({ chunks: STEP_SCRIPT }),
     middleware: [...baseMiddleware()],
     deps: runtime,
   }), { mode: "primary" })

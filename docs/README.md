@@ -17,7 +17,7 @@ docs/
 ├── project-map.md     # 整体结构、主执行链路、扩展点
 └── modules/
     ├── agent-core/                    # 通用 agent loop（packages/agent-core）
-    │   ├── loop-and-state.md          # 数据模型、循环、turn 生命周期、hook 契约、session 状态
+    │   ├── loop-and-state.md          # 数据模型、循环、step 生命周期、hook 契约、session 状态
     │   └── llm-and-providers.md       # Model 端口、provider、流式协议
     ├── harness/                       # 编排层（packages/harness）
     │   ├── agents-and-tools.md        # agent 模块、prompt 组装、工具、技能、委派、工作区

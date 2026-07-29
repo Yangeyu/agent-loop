@@ -1,8 +1,8 @@
 /**
  * Console renderer for CLI runs: folds the state channel (content) and the loop
- * channel (telemetry) into terminal output. Stream text is keyed by the turn's
+ * channel (telemetry) into terminal output. Stream text is keyed by the step's
  * assistant message id; `part.delta` carries the part type, so the renderer
- * needs no store access and no part bookkeeping beyond the turn header state.
+ * needs no store access and no part bookkeeping beyond the step header state.
  */
 import type { LoopEvent, RuntimeEventBus, StateEvent, ToolDisplay, ToolPart } from "@agent-core"
 
@@ -12,7 +12,7 @@ type RendererOptions = {
   outputMode: OutputMode
 }
 
-type TurnOutput = {
+type StepOutput = {
   agent: string
   reasoning: string
   answer: string
@@ -26,10 +26,10 @@ type StreamState = {
 }
 
 type OutputRenderer = {
-  onReasoning(messageID: string, delta: string, output: TurnOutput): void
-  onText(messageID: string, delta: string, output: TurnOutput): void
-  flush(messageID: string, output: TurnOutput): void
-  detach(outputs: Map<string, TurnOutput>): void
+  onReasoning(messageID: string, delta: string, output: StepOutput): void
+  onText(messageID: string, delta: string, output: StepOutput): void
+  flush(messageID: string, output: StepOutput): void
+  detach(outputs: Map<string, StepOutput>): void
 }
 
 const ANSI = {
@@ -121,7 +121,7 @@ class BufferedOutputRenderer implements OutputRenderer {
 
   onText() {}
 
-  flush(_: string, output: TurnOutput) {
+  flush(_: string, output: StepOutput) {
     if (output.reasoning.trim()) {
       printLine(style(`Thinking - ${output.agent}`, ANSI.dim, ANSI.bold))
       printLine(clipLines(output.reasoning, MAX_REASONING_LINES))
@@ -135,7 +135,7 @@ class BufferedOutputRenderer implements OutputRenderer {
     }
   }
 
-  detach(outputs: Map<string, TurnOutput>) {
+  detach(outputs: Map<string, StepOutput>) {
     for (const [messageID, output] of outputs.entries()) {
       this.flush(messageID, output)
     }
@@ -146,7 +146,7 @@ class StreamingOutputRenderer implements OutputRenderer {
   private states = new Map<string, StreamState>()
   private reasoningLines = new Map<string, number>()
 
-  onReasoning(messageID: string, delta: string, output: TurnOutput) {
+  onReasoning(messageID: string, delta: string, output: StepOutput) {
     const state = this.getState(messageID)
     if (!state.reasoningOpen) {
       this.closeAnswer(state)
@@ -169,7 +169,7 @@ class StreamingOutputRenderer implements OutputRenderer {
     this.reasoningLines.set(messageID, Math.max(currentCount, nextCount))
   }
 
-  onText(messageID: string, delta: string, output: TurnOutput) {
+  onText(messageID: string, delta: string, output: StepOutput) {
     const state = this.getState(messageID)
     this.closeReasoning(state)
     if (!state.answerOpen) {
@@ -221,7 +221,7 @@ class StreamingOutputRenderer implements OutputRenderer {
 
 class ConsoleLogger {
   private announced = new Set<string>()
-  private outputs = new Map<string, TurnOutput>()
+  private outputs = new Map<string, StepOutput>()
   private agents = new Map<string, string>()
   private renderer: OutputRenderer
   private bannerShown = false
@@ -283,13 +283,13 @@ class ConsoleLogger {
       return
     }
 
-    if (event.type === "turn.start") {
+    if (event.type === "step.start") {
       this.agents.set(event.messageID, event.agent)
       printLine(style(`Step ${event.step} - ${event.agent}`, ANSI.cyan, ANSI.bold))
       return
     }
 
-    if (event.type === "turn.end") {
+    if (event.type === "step.end") {
       this.flush(event.messageID)
 
       if (event.reason === "abort") {
@@ -356,7 +356,7 @@ class ConsoleLogger {
   private getOutput(messageID: string) {
     const existing = this.outputs.get(messageID)
     if (existing) return existing
-    const created: TurnOutput = {
+    const created: StepOutput = {
       agent: this.agents.get(messageID) ?? "agent",
       reasoning: "",
       answer: "",

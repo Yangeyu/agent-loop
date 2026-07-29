@@ -10,7 +10,7 @@ import { z } from "zod"
 // presence so the test can assert the system prompt actually reached the model.
 function probeModel(): { model: Model; seenSystem: string[][] } {
   const seenSystem: string[][] = []
-  let turn = 0
+  let step = 0
   const model: Model = {
     providerID: "fake",
     spec: {
@@ -21,7 +21,7 @@ function probeModel(): { model: Model; seenSystem: string[][] } {
     stream(input: LLMInput) {
       seenSystem.push([...input.system])
       const chunks: LLMChunk[] =
-        turn === 0
+        step === 0
           ? [
               { type: "tool-call", toolCallId: "c1", toolName: "echo", args: {} },
               { type: "finish", finishReason: "tool-calls" },
@@ -30,7 +30,7 @@ function probeModel(): { model: Model; seenSystem: string[][] } {
               { type: "text-delta", textDelta: "standalone done" },
               { type: "finish", finishReason: "stop" },
             ]
-      turn += 1
+      step += 1
       return {
         fullStream: (async function* () {
           for (const chunk of chunks) yield chunk

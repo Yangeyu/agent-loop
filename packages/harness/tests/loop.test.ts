@@ -12,10 +12,10 @@ import type { LLMChunk, LLMInput, Model } from "@agent-core/llm/types"
 import type { AssistantMessage, ToolPart } from "@agent-core/types"
 import { z } from "zod"
 
-// A model that replays one scripted chunk list per turn, then keeps answering
-// "done" if the loop asks for more turns than scripted.
-function scripted(turns: LLMChunk[][]): Model {
-  let turn = 0
+// A model that replays one scripted chunk list per step, then keeps answering
+// "done" if the loop asks for more steps than scripted.
+function scripted(steps: LLMChunk[][]): Model {
+  let step = 0
   return {
     providerID: "fake",
     spec: {
@@ -24,11 +24,11 @@ function scripted(turns: LLMChunk[][]): Model {
       contextWindow: 100_000,
     },
     stream(_input: LLMInput) {
-      const chunks = turns[turn] ?? [
+      const chunks = steps[step] ?? [
         { type: "text-delta", textDelta: "done" },
         { type: "finish", finishReason: "stop" },
       ]
-      turn += 1
+      step += 1
       return {
         fullStream: (async function* () {
           for (const chunk of chunks) yield chunk
@@ -83,7 +83,7 @@ async function run(
 
 const SCHEMA = { type: "object", properties: { value: { type: "number" } } }
 
-describe("runLoop turn judgment", () => {
+describe("runLoop step judgment", () => {
   it("breaks on final text and records the model finish", async () => {
     const { runtime, session, assistants } = await run(scripted([answer("hello")]))
 
@@ -93,7 +93,7 @@ describe("runLoop turn judgment", () => {
     expect(runtime.sessions.messageText(session.id, assistants[0].id)).toBe("hello")
   })
 
-  it("continues after a tool-call turn, then breaks on the answer", async () => {
+  it("continues after a tool-call step, then breaks on the answer", async () => {
     const { assistants } = await run(scripted([toolCall("echo"), answer("after tool")]), { tools: [echoTool] })
 
     expect(assistants.length).toBe(2)
@@ -101,7 +101,7 @@ describe("runLoop turn judgment", () => {
     expect(assistants[1].finish).toBe("stop")
   })
 
-  it("captures structured output on the final turn", async () => {
+  it("captures structured output on the final step", async () => {
     const { assistants } = await run(scripted([answer('{"value": 42}')]), { format: { type: "json_schema", schema: SCHEMA } })
 
     expect(assistants.length).toBe(1)
@@ -109,9 +109,9 @@ describe("runLoop turn judgment", () => {
     expect(assistants[0].error).toBeUndefined()
   })
 
-  it("does not parse structured output on an intermediate tool-call turn", async () => {
-    // A pure tool-call turn has no final text; it must pass through unparsed and
-    // the structured result must come from the closing turn.
+  it("does not parse structured output on an intermediate tool-call step", async () => {
+    // A pure tool-call step has no final text; it must pass through unparsed and
+    // the structured result must come from the closing step.
     const { assistants } = await run(scripted([toolCall("echo"), answer('{"value": 7}')]), {
       tools: [echoTool],
       format: { type: "json_schema", schema: SCHEMA },
@@ -122,7 +122,7 @@ describe("runLoop turn judgment", () => {
     expect(assistants[1].structured).toEqual({ value: 7 })
   })
 
-  it("fails the turn on invalid structured output", async () => {
+  it("fails the step on invalid structured output", async () => {
     const { assistants } = await run(scripted([answer("not json")]), { format: { type: "json_schema", schema: SCHEMA } })
 
     expect(assistants.length).toBe(1)
@@ -143,7 +143,7 @@ describe("runLoop turn judgment", () => {
     expect(runtime.sessions.messageText(session.id, assistants[0].id)).toContain("[Stopped:")
   })
 
-  it("stops the turn when a doom loop of identical calls is detected", async () => {
+  it("stops the step when a doom loop of identical calls is detected", async () => {
     const sameCall = (id: string): LLMChunk[] => toolCall("echo", {}, id)
     const { runtime, session, assistants } = await run(
       scripted([sameCall("c1"), sameCall("c2"), sameCall("c3"), sameCall("c4"), answer("never")]),

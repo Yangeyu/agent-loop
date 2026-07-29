@@ -2,7 +2,7 @@
  * Retry as a middleware, asserted end to end through the wrapModelCall onion.
  * Two things are under test that were previously untestable: that a failed
  * stream is re-issued at all, and that each attempt is *visible* — before this,
- * a backoff was indistinguishable from a hung turn on any surface.
+ * a backoff was indistinguishable from a hung step on any surface.
  */
 import { describe, expect, it } from "bun:test"
 import { createAgent } from "@agent-core"
@@ -53,14 +53,14 @@ function run(model: Model, maxRetries: number) {
 
   const activity: LoopEvent[] = []
   runtime.events.loop.subscribe((event) => {
-    if (event.type === "turn.activity") activity.push(event)
+    if (event.type === "step.activity") activity.push(event)
   })
 
   return { runtime, activity, finish: () => runPrompt({ runtime, text: "go", agent: "retrier" }) }
 }
 
 describe("createRetry", () => {
-  it("re-issues a retryable stream failure and lets the turn finish", async () => {
+  it("re-issues a retryable stream failure and lets the step finish", async () => {
     const flaky = flakyModel(2, () => new Error("rate limit exceeded"))
     const { activity, finish } = run(flaky.model, 2)
 
@@ -69,7 +69,7 @@ describe("createRetry", () => {
     expect(flaky.calls()).toBe(3)
     const assistant = session.messages.find((message) => message.role === "assistant")
     expect(assistant?.error).toBeUndefined()
-    expect(activity.map((event) => event.type === "turn.activity" && event.status)).toEqual([
+    expect(activity.map((event) => event.type === "step.activity" && event.status)).toEqual([
       "start",
       "end",
       "start",
@@ -86,7 +86,7 @@ describe("createRetry", () => {
     // The middleware calls ctx.activity({ label, detail }); the stack supplies
     // `source` from middleware.name, so a producer can never mislabel itself.
     expect(activity[0]).toMatchObject({
-      type: "turn.activity",
+      type: "step.activity",
       source: "retry",
       label: "retrying model call",
       detail: "attempt 1 of 2",

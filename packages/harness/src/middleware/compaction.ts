@@ -1,5 +1,5 @@
 /**
- * Proactive compaction as explicit session maintenance, run at beforeTurn (an
+ * Proactive compaction as explicit session maintenance, run at beforeStep (an
  * already-effectful pre-flight point — keeps beforeModelCall a pure fold).
  * When the estimated context exceeds contextWindow × triggerRatio, it keeps the
  * recent half of the conversation (cut at a user-message boundary) and replaces
@@ -53,10 +53,10 @@ export function createCompaction(opts: CompactionOptions): MiddlewareFactory {
     return {
       name: "compaction",
 
-      async beforeTurn(ctx) {
+      async beforeStep(ctx) {
         const session = ctx.sessions.get(ctx.sessionID)
         const messages = toModelMessages(session)
-        // ctx.system is not yet assembled at beforeTurn; the system prompt is small
+        // ctx.system is not yet assembled at beforeStep; the system prompt is small
         // relative to history, and the 0.75 ratio leaves headroom, so estimating
         // messages alone is sufficient to gate.
         const estimate = estimateModelTokens([], messages)
@@ -88,7 +88,7 @@ export function createCompaction(opts: CompactionOptions): MiddlewareFactory {
 
 /**
  * Keeps the recent ~retainRatio of message records, snapping the cut forward
- * to the next user message so the kept window starts on a clean user turn.
+ * to the next user message so the kept window starts on a clean user step.
  *
  * @returns the index where the kept window begins, or undefined when there is
  *   no older half to summarize or no user boundary to snap to
