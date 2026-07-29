@@ -1,7 +1,7 @@
 /**
  * Lifecycle hook contracts + dispatch. Middleware is the transform/decision
  * layer that can rewrite context, wrap the model call, gate tool calls, and
- * shape turn outcomes. It is distinct from the event bus (event/bus.ts), which
+ * shape turn outcomes. It is distinct from the event bus (events.ts), which
  * is observation only.
  *
  * Hook names follow <position><Subject>, so the set reads in execution order:

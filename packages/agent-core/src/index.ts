@@ -60,8 +60,8 @@ export { MemorySessionPersistence, Sessions } from "@agent-core/session"
 export type { SessionPersistence } from "@agent-core/session"
 
 // Events: the two-channel observation bus
-export { createRuntimeEvents } from "@agent-core/event/bus"
-export type { EventChannel, RuntimeEventBus } from "@agent-core/event/bus"
+export { createRuntimeEvents } from "@agent-core/events"
+export type { EventChannel, RuntimeEventBus } from "@agent-core/events"
 
 // The model port + the providers that satisfy it
 export { createDashScopeModel, createFakeModel, createOpenAICompatModel } from "@agent-core/llm/index"

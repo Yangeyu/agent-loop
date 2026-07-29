@@ -22,12 +22,11 @@
  * through the Sessions aggregate, which emits the state channel by itself.
  */
 import type { AgentDefinition } from "@agent-core/blueprint"
-import { createRunContext, createTurnContext, type EngineDeps } from "@agent-core/context"
-import { baseOutcome } from "@agent-core/outcome"
+import { createRunContext, createTurnContext, type EngineDeps, type TurnContext } from "@agent-core/context"
 import { createTurnAbortSignal, resolveTurnExecutionPolicy } from "@agent-core/policy"
 import { TurnRecorder } from "@agent-core/recorder"
 import { runTurn } from "@agent-core/turn"
-import { MiddlewareStack, type TurnOutcomeReason } from "@agent-core/hooks"
+import { MiddlewareStack, type TurnOutcome, type TurnOutcomeReason } from "@agent-core/hooks"
 import { toModelMessages } from "@agent-core/llm/message"
 import { createID, type AssistantMessage, type SessionInfo, type UserMessage } from "@agent-core/types"
 
@@ -159,4 +158,21 @@ function resolveLastUserMessage(session: SessionInfo): UserMessage {
   const user = [...session.messages].reverse().find((message) => message.role === "user")
   if (!user) throw new Error("No user message found")
   return user
+}
+
+// The base turn outcome, derived purely from the assistant message state and
+// whether tool calls were seen. Policy-driven overrides (step budget,
+// structured output) are middleware on afterTurn.
+function baseOutcome(ctx: TurnContext, sawToolCall: boolean): TurnOutcome {
+  const session = ctx.sessions.get(ctx.sessionID)
+  const assistant = session.messages.find((message) => message.id === ctx.messageID)
+  const hasFinalText = assistant
+    ? ctx.sessions.messageText(ctx.sessionID, assistant.id, { includeSynthetic: false }).trim().length > 0
+    : false
+
+  if (assistant?.role === "assistant" && assistant.error) return { kind: "break", reason: "assistant_error" }
+  if (sawToolCall) return { kind: "continue", reason: "tool_calls" }
+  if (assistant && !hasFinalText) return { kind: "continue", reason: "empty_assistant" }
+  if (hasFinalText) return { kind: "break", reason: "final_text" }
+  return { kind: "break", reason: "completed_without_output" }
 }

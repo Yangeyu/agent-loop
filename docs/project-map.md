@@ -27,9 +27,9 @@ packages/
 │       ├── recorder.ts       # TurnRecorder：一个 turn 生命周期的唯一 owner
 │       ├── context.ts        # EngineDeps（config/sessions/events）+ createEngineDeps（具名内存默认）
 │       ├── policy.ts         # timeout + budgets 解析
-│       ├── outcome.ts tool-call.ts tool-part.ts error.ts
+│       ├── tool-call.ts tool-part.ts error.ts
 │       ├── session/          # Sessions 聚合（唯一写入者）+ SessionPersistence 契约 + 内存默认
-│       ├── event/            # 双通道总线（state / loop）
+│       ├── events.ts         # 双通道总线（state / loop）
 │       ├── llm/              # Model 端口 + providers + classify + fake
 │       ├── tool/             # defineTool + fake-context
 │       ├── config.ts types.ts index.ts
@@ -75,7 +75,7 @@ skills/                       # 工作区技能：一目录一技能（SKILL.md 
    registry 准入保证。
 8. middleware 塑形结果：retry 包住模型调用，compaction 在 `beforeTurn` 压缩超长上下文，
    budget/structured-output 在 `afterTurn` 收口。
-9. `event/bus.ts` 分 state/loop 两通道广播，由 `apps/cli/src/logger.ts`（CLI）或 `tui/app.tsx`（TUI）
+9. `events.ts` 分 state/loop 两通道广播，由 `apps/cli/src/logger.ts`（CLI）或 `tui/app.tsx`（TUI）
    订阅渲染。middleware 经 `ctx.activity()` 在 loop 通道上报告自己在做什么。
 
 > 主链路的完整生命周期注释以 `agent-core/src/loop.ts` 顶部为准。

@@ -15,7 +15,7 @@
  */
 import type { ActivityHandle } from "@agent-core/hooks"
 import { ToolPartTracker } from "@agent-core/tool-part"
-import type { EventChannel } from "@agent-core/event/bus"
+import type { EventChannel } from "@agent-core/events"
 import type { Sessions } from "@agent-core/session"
 import {
   createID,

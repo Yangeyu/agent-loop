@@ -5,7 +5,7 @@
  * public: otherwise every consumer hand-rolls this same stub.
  */
 import { DEFAULT_CORE_CONFIG } from "@agent-core/config"
-import { createRuntimeEvents } from "@agent-core/event/bus"
+import { createRuntimeEvents } from "@agent-core/events"
 import { MemorySessionPersistence, Sessions } from "@agent-core/session"
 import type { ToolContext } from "@agent-core/types"
 

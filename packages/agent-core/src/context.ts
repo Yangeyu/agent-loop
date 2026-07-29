@@ -7,7 +7,7 @@
  * shadow of the store.
  */
 import { DEFAULT_CORE_CONFIG, type CoreConfig } from "@agent-core/config"
-import { createRuntimeEvents, type RuntimeEventBus } from "@agent-core/event/bus"
+import { createRuntimeEvents, type RuntimeEventBus } from "@agent-core/events"
 import type { Model } from "@agent-core/llm/types"
 import type { TurnExecutionPolicy } from "@agent-core/policy"
 import type { AgentDefinition } from "@agent-core/blueprint"

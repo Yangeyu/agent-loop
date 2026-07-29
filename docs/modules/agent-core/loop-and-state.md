@@ -41,7 +41,7 @@
   完成「构造新不可变快照 → persist → 发 StateEvent」，因此状态事件流在构造上完备：无法改状态
   而不发事件，也无法不改状态而发状态事件。
   不变量测试：`tests/session/state-events.test.ts`（折叠状态事件流 ≡ store 快照）。
-- 事件总线（`event/bus.ts`）分两个通道：
+- 事件总线（`events.ts`）分两个通道：
   - **state**：只由 `Sessions` 发出；消费端用 `applyStateEvent` 投影回会话状态。
   - **loop**：由循环（`session.start`）、recorder（turn 各帧）、以及**任何 middleware**
     （`turn.activity`）发出。

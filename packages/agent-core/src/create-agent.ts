@@ -9,7 +9,7 @@
 import { defineAgent, type AgentDefinition } from "@agent-core/blueprint"
 import { createEngineDeps, type EngineDeps } from "@agent-core/context"
 import { runLoop } from "@agent-core/loop"
-import type { RuntimeEventBus } from "@agent-core/event/bus"
+import type { RuntimeEventBus } from "@agent-core/events"
 import type { Model } from "@agent-core/llm/types"
 import type { MiddlewareFactory } from "@agent-core/hooks"
 import type { Sessions } from "@agent-core/session"

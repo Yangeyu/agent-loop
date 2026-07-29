@@ -24,7 +24,7 @@ import {
   type StateEvent,
   type TextPart,
 } from "@agent-core/model"
-import type { EventChannel } from "@agent-core/event/bus"
+import type { EventChannel } from "@agent-core/events"
 import type { SessionPersistence } from "@agent-core/session/persistence"
 import { createID } from "@agent-core/types"
 
