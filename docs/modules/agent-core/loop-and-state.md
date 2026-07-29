@@ -40,7 +40,8 @@
 - `Sessions`（`session/sessions.ts`）是会话状态的**唯一写入者**。每个 mutator 在同一个方法体内
   完成「构造新不可变快照 → persist → 发 StateEvent」，因此状态事件流在构造上完备：无法改状态
   而不发事件，也无法不改状态而发状态事件。
-  不变量测试：`tests/session/state-events.test.ts`（折叠状态事件流 ≡ store 快照）。
+  不变量测试：`packages/harness/tests/state-events.test.ts`（折叠状态事件流 ≡ store 快照，
+  经 harness 装配端到端驱动）。
 - 事件总线（`events.ts`）分两个通道：
   - **state**：只由 `Sessions` 发出；消费端用 `applyStateEvent` 投影回会话状态。
   - **loop**：由循环（`session.start`）、recorder（turn 各帧）、以及**任何 middleware**
@@ -63,7 +64,8 @@
 
 - `context.ts` — `EngineDeps`：`config` / `sessions` / `events`，三样，就是循环写不出来就跑不了
   的那些。工具需要的其余东西（文件树、技能目录、别的 agent）由工具自己在闭包里持有。
-  `createEngineDeps({ config?, events? })` 是它的具名默认工厂：内存持久化、私有总线。
+  `createEngineDeps({ config?, events?, persistence? })` 是它的具名默认工厂：内存持久化、
+  私有总线，三者都可单独注入替换。
 - `blueprint.ts` + `create-agent.ts` — 蓝图（`defineAgent` / `AgentDefinition`，`tools` 是
   `ToolDefinition[]` 而非待解析的名字）与**唯一的创建门径** `createAgent(spec & { deps? })` →
   `Agent`：模型 + 工具 + middleware 包成可直接 `run()` 的单元。`deps` 注入即共享调用方的
