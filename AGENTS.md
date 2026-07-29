@@ -47,7 +47,7 @@ then confirm details in code.
 | --- | --- |
 | Anything — overall structure & execution path | [`docs/project-map.md`](docs/project-map.md) |
 | Engineering conventions & accumulated principles | [`docs/conventions.md`](docs/conventions.md) |
-| **agent-core** — data model, the loop, turn lifecycle, hooks, session state | [`docs/modules/agent-core/loop-and-state.md`](docs/modules/agent-core/loop-and-state.md) |
+| **agent-core** — data model, the loop, step lifecycle, hooks, session state | [`docs/modules/agent-core/loop-and-state.md`](docs/modules/agent-core/loop-and-state.md) |
 | **agent-core** — models, providers, streaming protocol | [`docs/modules/agent-core/llm-and-providers.md`](docs/modules/agent-core/llm-and-providers.md) |
 | **harness** — agents, prompt assembly, tools, skills, delegation, workspace | [`docs/modules/harness/agents-and-tools.md`](docs/modules/harness/agents-and-tools.md) |
 | **harness** — runtime assembly, middleware catalogue, config layering | [`docs/modules/harness/runtime-and-middleware.md`](docs/modules/harness/runtime-and-middleware.md) |
