@@ -31,6 +31,7 @@ export type { AgentMode, AgentRegistration, AgentRegistry } from "@harness/regis
 export {
   budget,
   createCompaction,
+  createMemoryExtraction,
   createRetry,
   doomLoop,
   promptAssembly,
@@ -50,11 +51,26 @@ export type { PromptContributor, PromptSlot, SystemSection } from "@harness/prom
 export { engineConventions } from "@harness/agents/shared/base-prompt"
 export { createAvailableSkills } from "@harness/tools/skill"
 export { createSubagentList } from "@harness/tools/task"
+export { createMemoryRecall } from "@harness/tools/memory"
 
 // Tools
 export { createCoreTools } from "@harness/tools"
 export type { CoreToolDeps } from "@harness/tools"
 export type { TaskArgs, TaskResumeArgs } from "@harness/tools/task"
+
+// Memory: the cross-session fact store — contract plus the file backend.
+// External backends arrive as injected instances (createRuntime({ memory })).
+export type {
+  ArchiveReason,
+  MemoryIndexEntry,
+  MemoryOrigin,
+  MemoryRecord,
+  MemoryScope,
+  MemoryStore,
+  MemoryType,
+  RecallHint,
+} from "@harness/memory/types"
+export { FileMemoryStore } from "@harness/memory/file-store"
 
 // Skills: the data contract + the filesystem discovery brick (SKILL.md dirs)
 export type { SkillInfo } from "@harness/skills/types"

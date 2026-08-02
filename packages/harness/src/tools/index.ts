@@ -1,6 +1,7 @@
 import { createGrepTool } from "@harness/tools/grep"
 import { createBashTool } from "@harness/tools/bash"
 import { createEditTool } from "@harness/tools/edit"
+import { createMemoryForgetTool, createMemoryReadTool, createMemorySaveTool } from "@harness/tools/memory"
 import { createPresentFilesTool } from "@harness/tools/present-files"
 import { createReadTool } from "@harness/tools/read"
 import { createSkillTool } from "@harness/tools/skill"
@@ -10,6 +11,7 @@ import { createViewImageTool } from "@harness/tools/view-image"
 import { createWriteTool } from "@harness/tools/write"
 import type { AgentRegistry } from "@harness/registry"
 import type { Config } from "@harness/config"
+import type { MemoryStore } from "@harness/memory/types"
 import type { Model } from "@agent-core"
 import type { SkillRegistry } from "@harness/skills/registry"
 import type { ToolDefinition } from "@agent-core"
@@ -21,6 +23,7 @@ export type CoreToolDeps = {
   workspace: Workspace
   skills: SkillRegistry
   agents: AgentRegistry
+  memory: MemoryStore
   config: Config
 }
 
@@ -47,5 +50,8 @@ export function createCoreTools(deps: CoreToolDeps): ToolDefinition[] {
     createPresentFilesTool({ workspace }),
     createSkillTool({ skills: deps.skills, workspace }),
     createViewImageTool({ model: deps.visionModel, workspace }),
+    createMemorySaveTool({ memory: deps.memory }),
+    createMemoryReadTool({ memory: deps.memory }),
+    createMemoryForgetTool({ memory: deps.memory }),
   ]
 }

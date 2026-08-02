@@ -9,5 +9,6 @@ export { structuredOutput, structuredOutputPrompt } from "@harness/middleware/st
 export { budget, stepGuidance } from "@harness/middleware/budget"
 export { doomLoop } from "@harness/middleware/doom-loop"
 export { createCompaction } from "@harness/middleware/compaction"
+export { createMemoryExtraction } from "@harness/middleware/memory-extraction"
 export { viewImage } from "@harness/middleware/view-image"
 export { estimateModelTokens } from "@harness/middleware/token-estimate"

@@ -3,6 +3,8 @@ import { createAgentRegistry, type AgentRegistry } from "@harness/registry"
 import type { EngineDeps, SessionPersistence } from "@agent-core"
 import { createRuntimeEvents, Sessions } from "@agent-core"
 import { createSessionPersistence } from "@harness/persistence"
+import { FileMemoryStore } from "@harness/memory/file-store"
+import type { MemoryStore } from "@harness/memory/types"
 import { createSkillRegistry, type SkillRegistry } from "@harness/skills/registry"
 import { createWorkspace, type Workspace } from "@harness/workspace"
 
@@ -17,9 +19,14 @@ export type RuntimeContext = EngineDeps & {
   agent_registry: AgentRegistry
   skill_registry: SkillRegistry
   workspace: Workspace
+  memory: MemoryStore
 }
 
-export function createRuntimeContext(options?: { config?: Config; persistence?: SessionPersistence }): RuntimeContext {
+export function createRuntimeContext(options?: {
+  config?: Config
+  persistence?: SessionPersistence
+  memory?: MemoryStore
+}): RuntimeContext {
   const config = options?.config ?? getConfig()
   const events = createRuntimeEvents()
   // An injected backend wins; the config string selects among the built-ins.
@@ -35,5 +42,8 @@ export function createRuntimeContext(options?: { config?: Config; persistence?: 
     agent_registry: createAgentRegistry({ sessions }),
     skill_registry: createSkillRegistry(),
     workspace: createWorkspace(config.workspace_root),
+    // Same policy as sessions: an injected backend wins, else the built-in
+    // file store rooted at the config directory.
+    memory: options?.memory ?? new FileMemoryStore(config.memory_dir),
   }
 }

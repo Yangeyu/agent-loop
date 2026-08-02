@@ -41,6 +41,7 @@ packages/
 │       ├── tools/            # createCoreTools 及内置工具（每个工具自带依赖闭包）
 │       ├── middleware/       # retry、compaction、budget、doom-loop、prompt-assembly…
 │       ├── skills/           # SKILL.md 目录发现 + registry + 契约
+│       ├── memory/           # 跨 session 记忆：契约 + 文件后端 + 巩固词汇（工具与召回在 tools/memory）
 │       ├── workspace/        # 本地文件树的所有者：工具文件访问的唯一入口
 │       ├── runtime/          # 组合层：context（RuntimeContext）、bootstrap（createCoreRuntime）
 │       ├── persistence.ts    # 内建存储后端（file）+ config 选择；外部后端以实例注入
@@ -84,8 +85,8 @@ skills/                       # 工作区技能：一目录一技能（SKILL.md 
 ## 组合即代码
 
 - `harness/runtime/bootstrap.ts`：`createCoreRuntime({ chat, summarizer, config, skills })` —— 标准装配。
-- `harness/agents/index.ts`：`createCoreAgents({ model, summarizer, tools, skills, agents, retry, engine })`。
-- `harness/tools/index.ts`：`createCoreTools({ visionModel, workspace, skills, agents, config })`。
+- `harness/agents/index.ts`：`createCoreAgents({ model, summarizer, tools, skills, agents, memory, retry, engine })`。
+- `harness/tools/index.ts`：`createCoreTools({ visionModel, workspace, skills, agents, memory, config })`。
 - `apps/cli/src/compose.ts`：唯一的 provider 绑定点。skill 来自 `config.skills_dir`
   （默认 `./skills`，相对运行目录解析，不存在即视为没有）——加技能不必改这个文件。
 - `agent-core/agent.ts`：`createAgent(spec & { deps? })` —— 唯一的创建门径。

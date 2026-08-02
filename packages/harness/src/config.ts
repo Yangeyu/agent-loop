@@ -9,6 +9,9 @@ export const COMPACTION_DEFAULTS = { triggerRatio: 0.75, retainRatio: 0.5 }
 const ConfigSchema = z.object({
   session_store: z.enum(["memory", "file"]).default("memory"),
   session_store_dir: z.string().default("./data/sessions"),
+  // Where the file-backed memory store keeps its records. Created lazily on
+  // the first write, so a runtime that never saves a memory touches nothing.
+  memory_dir: z.string().default("./data/memory"),
   // The directory the file tools resolve relative paths against. Defaults to the
   // process directory, which is the one place `cwd` is allowed to enter — tools
   // read it from the workspace, never from the process.
@@ -43,6 +46,7 @@ export function loadConfigFromEnv(env: NodeJS.ProcessEnv = process.env): Config 
   return ConfigSchema.parse({
     session_store: env.SESSION_STORE,
     session_store_dir: env.SESSION_STORE_DIR,
+    memory_dir: env.MEMORY_DIR,
     workspace_root: env.WORKSPACE_ROOT,
     skills_dir: env.SKILLS_DIR,
     model_max_retries: env.MODEL_MAX_RETRIES,

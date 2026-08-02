@@ -12,9 +12,10 @@
 
 ## 关键入口
 
-- `runtime/context.ts` — `RuntimeContext = EngineDeps & { agent_registry, skill_registry, workspace }`。
-  两半是分开的类型：循环需要 `config`/`sessions`/`events`；想知道什么是 skill、文件在哪，是这一层
-  在想知道。
+- `runtime/context.ts` — `RuntimeContext = EngineDeps & { agent_registry, skill_registry, workspace, memory }`。
+  两半是分开的类型：循环需要 `config`/`sessions`/`events`；想知道什么是 skill、文件在哪、
+  记住过什么，是这一层在想知道。`memory` 与 sessions 同策略：注入实例优先，缺省落到
+  `FileMemoryStore(config.memory_dir)`（懒建目录，从不写就不碰盘）。
 - `runtime/bootstrap.ts` — `createRuntime({ config, skills })` 建一个不带 agent 的 runtime
   （agent 需要 runtime 的 EngineDeps 才能创建，所以永远是先有 runtime、再注册可运行 agent）；
   `createCoreRuntime({ chat, summarizer, config, skills })` 是标准装配（见下）；`runPrompt()` 跑一次。
@@ -26,19 +27,19 @@
   内核只带契约与内存默认，「想把会话存在磁盘上」是这一层的选择；外部后端（数据库/远端）
   不加配置字符串，以实例注入 `createRuntime({ persistence })`。
 - `config.ts` — zod schema，`Config extends CoreConfig`。核心那四个旋钮加上这层要的
-  （session_store/workspace/skills/委派深度/compaction/retry）。
+  （session_store/workspace/skills/memory_dir/委派深度/compaction/retry）。
 - `middleware/` — `promptAssembly`、`structuredOutput`、`budget`、`doomLoop`、`createCompaction`、
-  `createRetry`、`viewImage`、`estimateModelTokens`。
+  `createMemoryExtraction`、`createRetry`、`viewImage`、`estimateModelTokens`。
 
 ## 标准装配
 
 `createCoreRuntime` 把整条装配收在一处，顺序是承重的：
 
 ```text
-createRuntimeContext(config)      # sessions / events / workspace / 两个空注册表
+createRuntimeContext(config)      # sessions / events / workspace / memory / 两个空注册表
   → 注册 skills
-  → createCoreTools({ visionModel, workspace, skills, agents, config })
-  → createCoreAgents({ model, summarizer, tools, skills, agents, retry, engine: runtime })
+  → createCoreTools({ visionModel, workspace, skills, agents, memory, config })
+  → createCoreAgents({ model, summarizer, tools, skills, agents, memory, retry, engine: runtime })
   → 注册 agents                   # registry 只准入建在本 runtime store 上的 agent
 ```
 
@@ -60,6 +61,7 @@ surface 只决定 provider（`apps/cli/src/compose.ts` 是唯一的模型绑定�
 | `budget` | `beforeStep` / `beforeToolCall` / `afterStep` | 步数与工具调用预算（配套的 `stepGuidance` 在同模块） |
 | `doomLoop` | `beforeToolCall` | 挡住重复的无进展调用 |
 | `createCompaction` | `beforeStep` | 超过 `contextWindow × triggerRatio` 时把较早一半压成 summary |
+| `createMemoryExtraction` | `afterRun` | run 收尾（finally 语义，崩溃的 run 也覆盖）从对话抽取 feedback 记忆并按权限规则巩固 |
 | `viewImage` | `beforeModelCall` | 把 file 类图片源解析成 base64（只碰 `draft.messages`） |
 
 - **retry 是 middleware 而不是循环的一部分**：通用循环需要的是"让人实现重试的接缝"

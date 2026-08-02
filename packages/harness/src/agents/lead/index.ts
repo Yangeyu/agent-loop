@@ -3,8 +3,10 @@ import { baseMiddleware } from "@harness/agents/shared/base-middleware"
 import type { AgentRegistry } from "@harness/registry"
 import { createAgent, type Agent, type EngineDeps, type Model } from "@agent-core"
 import type { SkillRegistry } from "@harness/skills/registry"
-import { createCompaction, viewImage, type RetryOptions } from "@harness/middleware"
+import { createCompaction, createMemoryExtraction, viewImage, type RetryOptions } from "@harness/middleware"
+import type { MemoryStore } from "@harness/memory/types"
 import { createAvailableSkills } from "@harness/tools/skill"
+import { createMemoryRecall } from "@harness/tools/memory"
 import { createSubagentList } from "@harness/tools/task"
 import type { ToolDefinition } from "@agent-core"
 
@@ -19,6 +21,7 @@ import type { ToolDefinition } from "@agent-core"
  * @param deps.tools - the tools it may call
  * @param deps.skills - the skill catalogue it announces
  * @param deps.agents - the agent registry it announces delegates from
+ * @param deps.memory - the memory store it recalls from and saves to
  * @param deps.retry - model-call retry bounds
  * @param deps.engine - the runtime's engine deps (shared store and bus)
  */
@@ -28,6 +31,7 @@ export function createLeadAgent(deps: {
   tools: ToolDefinition[]
   skills: SkillRegistry
   agents: AgentRegistry
+  memory: MemoryStore
   retry?: RetryOptions
   engine: EngineDeps
 }): Agent {
@@ -45,11 +49,22 @@ export function createLeadAgent(deps: {
     steps: 20,
     maxToolCalls: 32,
     // One contributor per capability-bearing tool above: `skill` announces what
-    // it can load, `task` announces who it can delegate to.
+    // it can load, `task` announces who it can delegate to, `memory_*`
+    // announce the recall index and the curation rules.
     middleware: [
-      ...baseMiddleware([createAvailableSkills({ skills: deps.skills }), createSubagentList({ agents: deps.agents })], deps.retry),
+      ...baseMiddleware(
+        [
+          createAvailableSkills({ skills: deps.skills }),
+          createSubagentList({ agents: deps.agents }),
+          createMemoryRecall({ memory: deps.memory }),
+        ],
+        deps.retry,
+      ),
       viewImage,
       createCompaction({ summarizer: deps.summarizer }),
+      // Settle-time extraction shares compaction's cheap model — both are
+      // single-shot side calls that never re-enter the loop.
+      createMemoryExtraction({ memory: deps.memory, extractor: deps.summarizer }),
     ],
   })
 }

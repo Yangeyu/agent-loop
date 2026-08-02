@@ -1,6 +1,6 @@
 # Agent 与 Tool
 
-> 范围：`packages/harness` 的 `agents/`、`tools/`、`skills/`、`workspace/`、`prompt.ts`、`registry.ts`。
+> 范围：`packages/harness` 的 `agents/`、`tools/`、`skills/`、`memory/`、`workspace/`、`prompt.ts`、`registry.ts`。
 > 循环本身与工具/middleware 契约在 [agent-core](../agent-core/loop-and-state.md)。
 
 ## 职责
@@ -68,6 +68,7 @@ PromptContributor[]（读 ctx 的动态片段）──┘        按 SLOT_ORDER 
   | `structuredOutputPrompt` | `structuredOutput` middleware | `hasStructuredOutputFormat` |
   | `createAvailableSkills` | `skill` 工具 | 同一份 `SkillRegistry` |
   | `createSubagentList` | `task` 工具 | `isDelegable`（准入判据） |
+  | `createMemoryRecall` | `memory_*` 工具 | 同一份 `MemoryStore` |
   | `engineConventions` | 无（普适基线） | — |
 
   判据是**它和谁共享不变量**。把它们收进一个 `prompt/` 目录，就等于让"告诉模型能委派谁"
@@ -105,7 +106,8 @@ gate(beforeToolCall) → 参数校验 → describe → 开 ToolPart → beforeEx
 - 同一 step 内的多个 tool call 由引擎整批并发执行（见 agent-core 的"工具并发派发"），工具自身
   只实现单次调用即可，也无须为并发做任何事——文件一致性由 `ctx.workspace` 保证。
 - core 工具：`task`、`task_resume`、`bash`、`read`（UTF-8 文本 + Office/PDF 文档解析、大小上限与截断）、
-  `write`、`edit`、`grep`、`tavily`、`present_files`、`skill`、`view_image`。
+  `write`、`edit`、`grep`、`tavily`、`present_files`、`skill`、`view_image`、
+  `memory_save` / `memory_read` / `memory_forget`（见「记忆」）。
 - 文件能力只有三件：`read` 读、`write` 创建或整体替换、`edit` 改已有内容。**没有 `append`**：
   它曾作为 `write` 的一个 mode 存在，用来分段生成长文档，后来独立成工具，最后被整个删掉。
   理由是 `append` 严格劣于 `edit`——它是**盲写**，不知道文件当前是什么状态，前一步写错或失败了
@@ -178,6 +180,39 @@ gate(beforeToolCall) → 参数校验 → describe → 开 ToolPart → beforeEx
   它根本不知道涉及哪些路径）。`Workspace` 把这份保证变成资源持有者的内在性质，工具因此不需要声明
   任何调度提示。曾经真实损坏过文件的「两个 `edit` 并发读-改-写」，现在由 `workspace.mutate` 的
   按路径互斥消除。
+
+## 记忆
+
+`memory/` 是跨 session 事实的所有者：`types.ts` 定契约（`MemoryRecord` + `MemoryStore` 的
+recall/read/upsert/remove），`file-store.ts` 是文件实现（一事一档 markdown、frontmatter 值
+JSON 编码保证精确 round-trip、tmp+rename 原子写、损坏即抛），`consolidate.ts` 是自动抽取
+写入路径的词汇（候选 schema、裁决 schema、`authorize` 权限规则），由收尾抽取 middleware
+（`middleware/memory-extraction.ts`，见 runtime 文档的目录表）消费。工具与召回按
+「contributor 跟拥有者走」住在 `tools/memory.ts`。
+
+- **维度是元数据不是多个存储**：`type`（user/feedback/project/reference）与 `scope`
+  （workspace/global）是记录上的两个正交字段，抽取和召回都走同一条索引。
+- **召回两段式**：`createMemoryRecall` 每步注入索引（每条一行）与策展规则，正文由模型经
+  `memory_read` 按需取。索引在 `capability` slot，store 不变时整段可作稳定前缀缓存；与
+  skills 公告不同，**空库也渲染**——「值得记就存」的习惯必须在第一条记忆之前就说出口。
+- **写入权限是确定性规则，不是模型判断**：`origin: "explicit"`（memory_save，环内直写）
+  高于 `"extracted"`（收尾抽取）；抽取候选永远无权覆盖显式记录，只能留 `disputed`
+  标记。同名更新累积 `sources` 溯源链并清除争议标记；`supersedes` 在同一步原子归档旧记录。
+- **收尾抽取两段式**：run 结束时（`afterRun`，finally 语义——崩溃的 run 里的反馈也不丢）
+  抽取模型（与 compaction 共用廉价模型，单次 `.stream()` 不重入）先从对话文本抽候选，
+  再逐候选对着同型比较集裁决（add/update/supersede/drop，不确定即 drop——漏记有恢复
+  信号、错删没有）；`authorize` 在任何写入前按信任序放行或降格。当前只放行 `feedback`
+  型候选；抽取失败等于丢弃这次抽取（经 activity 上报），永不失败 run。
+- **删除即归档**：`memory_forget` 按理由（falsified/expired/superseded）移入 `archive/`，
+  离开索引但不销毁——`falsified` 的比率就是抽取器的错误率，是免费的校准数据。物理删除
+  只留给人。
+- **单写者**：memory 工具在 `LEAD_ONLY` 内，子 agent 不带；lead 委派时把相关事实写进
+  task prompt。`recall(hint?)` 的 hint 是建议性的（可多返回、禁编造），相关性检索将来以
+  后端升级进入，契约不动。
+- 记忆名是身份也是文件名，`MEMORY_NAME_PATTERN` 的 kebab-case 白名单同时就是路径逃逸
+  的防线。
+- 验收测试：`tests/memory/memory.test.ts` ——session A 存入的事实必须出现在全新 runtime
+  的 session B 系统提示里，这一条定义了整个能力「做成了没有」。
 
 ## 工作区
 

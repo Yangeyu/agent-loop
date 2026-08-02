@@ -2,14 +2,17 @@ import { createGeneralAgent } from "@harness/agents/general"
 import { createLeadAgent } from "@harness/agents/lead"
 import type { AgentRegistration, AgentRegistry } from "@harness/registry"
 import type { EngineDeps, Model } from "@agent-core"
+import type { MemoryStore } from "@harness/memory/types"
 import type { SkillRegistry } from "@harness/skills/registry"
 import type { RetryOptions } from "@harness/middleware"
 import type { ToolDefinition } from "@agent-core"
 
 // Withheld from the delegated subagent: the two delegation tools, because a
-// subagent that can delegate turns a two-level tree into an unbounded one, and
-// view_image, which the lead owns as the vision entry point.
-const LEAD_ONLY = new Set(["task", "task_resume", "view_image"])
+// subagent that can delegate turns a two-level tree into an unbounded one;
+// view_image, which the lead owns as the vision entry point; and the memory
+// tools — one writer keeps consolidation free of concurrent adjudication, and
+// the lead relays any relevant fact in the task prompt it delegates.
+const LEAD_ONLY = new Set(["task", "task_resume", "view_image", "memory_save", "memory_read", "memory_forget"])
 
 /**
  * Builds the core agent set with its roles: lead (primary orchestrator,
@@ -22,6 +25,7 @@ const LEAD_ONLY = new Set(["task", "task_resume", "view_image"])
  * @param deps.tools - the full core tool set; each agent takes its own slice
  * @param deps.skills - the skill catalogue both agents announce
  * @param deps.agents - the registry the lead announces its delegates from
+ * @param deps.memory - the memory store the lead recalls from and saves to
  * @param deps.retry - model-call retry bounds, shared by both agents
  * @param deps.engine - the runtime's engine deps, shared by both agents
  */
@@ -31,6 +35,7 @@ export function createCoreAgents(deps: {
   tools: ToolDefinition[]
   skills: SkillRegistry
   agents: AgentRegistry
+  memory: MemoryStore
   retry?: RetryOptions
   engine: EngineDeps
 }): AgentRegistration[] {

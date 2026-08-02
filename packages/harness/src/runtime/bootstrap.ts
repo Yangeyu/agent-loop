@@ -5,6 +5,7 @@
  */
 import { createRuntimeContext, type RuntimeContext } from "@harness/runtime/context"
 import { loadConfigFromEnv, type Config } from "@harness/config"
+import type { MemoryStore } from "@harness/memory/types"
 import type { Model, SessionPersistence } from "@agent-core"
 import { createCoreAgents } from "@harness/agents"
 import { createCoreTools } from "@harness/tools"
@@ -15,13 +16,14 @@ import type { ImageSource, OutputFormat } from "@agent-core"
  * The runtime's assembly inputs. Agents are absent by design: a runnable agent
  * needs the runtime's EngineDeps at creation, so agents are created after the
  * runtime exists and registered on it (see createCoreRuntime). `persistence`
- * injects an external session store; omitted, the config string selects a
- * built-in backend.
+ * and `memory` inject external backends; omitted, config selects the
+ * built-ins.
  */
 export type RuntimeAssembly = {
   config?: Config
   skills?: SkillInfo[]
   persistence?: SessionPersistence
+  memory?: MemoryStore
 }
 
 /**
@@ -32,7 +34,11 @@ export type RuntimeAssembly = {
  * @param options - config, the skills to register, and an optional session store
  */
 export function createRuntime(options?: RuntimeAssembly): RuntimeContext {
-  const runtime = createRuntimeContext({ config: options?.config, persistence: options?.persistence })
+  const runtime = createRuntimeContext({
+    config: options?.config,
+    persistence: options?.persistence,
+    memory: options?.memory,
+  })
   for (const skill of options?.skills ?? []) runtime.skill_registry.register(skill)
   return runtime
 }
@@ -54,8 +60,9 @@ export function createCoreRuntime(options: {
   config?: Config
   skills?: SkillInfo[]
   persistence?: SessionPersistence
+  memory?: MemoryStore
 }): RuntimeContext {
-  const runtime = createRuntimeContext({ config: options.config, persistence: options.persistence })
+  const runtime = createRuntimeContext({ config: options.config, persistence: options.persistence, memory: options.memory })
   for (const skill of options.skills ?? []) runtime.skill_registry.register(skill)
 
   const tools = createCoreTools({
@@ -64,6 +71,7 @@ export function createCoreRuntime(options: {
     workspace: runtime.workspace,
     skills: runtime.skill_registry,
     agents: runtime.agent_registry,
+    memory: runtime.memory,
     config: runtime.config,
   })
 
@@ -73,6 +81,7 @@ export function createCoreRuntime(options: {
     tools,
     skills: runtime.skill_registry,
     agents: runtime.agent_registry,
+    memory: runtime.memory,
     retry: {
       maxRetries: runtime.config.model_max_retries,
       baseDelayMs: runtime.config.model_retry_base_delay_ms,
