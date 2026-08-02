@@ -25,7 +25,7 @@ import type { AgentDefinition } from "@agent-core/agent"
 import type { EngineDeps } from "@agent-core/context"
 import { createRunContext, createStepContext, type StepContext } from "@agent-core/engine/context"
 import { createStepAbortSignal, resolveStepExecutionPolicy } from "@agent-core/policy"
-import { StepRecorder } from "@agent-core/engine/recorder"
+import { openActivity, StepRecorder } from "@agent-core/engine/recorder"
 import { runStep } from "@agent-core/engine/step"
 import { MiddlewareStack } from "@agent-core/engine/stack"
 import type { StepOutcome, StepOutcomeReason } from "@agent-core/hooks"
@@ -49,7 +49,17 @@ export async function runLoop(
   const model = input.agent.model
   const stack = MiddlewareStack.build(input.agent.assemble().middleware)
   const rootAbort = input.abort ?? new AbortController().signal
-  const run = createRunContext({ deps, agent: input.agent, model, sessionID: input.sessionID, abort: rootAbort })
+  // The run-boundary activity emitter: same event, no messageID — a consumer
+  // renders these at run level. Inside a step the recorder's emitter shadows it.
+  const envelope = { sessionID: input.sessionID, rootID: sessions.get(input.sessionID).rootID, agent: input.agent.name }
+  const run = createRunContext({
+    deps,
+    agent: input.agent,
+    model,
+    sessionID: input.sessionID,
+    abort: rootAbort,
+    openActivity: (activity) => openActivity(deps.events.loop, envelope, activity),
+  })
 
   await stack.beforeRun(run)
 

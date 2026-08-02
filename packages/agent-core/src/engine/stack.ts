@@ -8,12 +8,14 @@
  * reverse, the usual setup/teardown pairing.
  */
 import type {
+  ActivityEmitter,
   ContextDraft,
   HookContext,
   Middleware,
   MiddlewareFactory,
   ModelCallResult,
   RunContext,
+  RunStackContext,
   RunSummary,
   StackContext,
   StepGate,
@@ -31,15 +33,15 @@ export class MiddlewareStack {
     return new MiddlewareStack(factories.map((factory) => factory()))
   }
 
-  async beforeRun(ctx: RunContext): Promise<void> {
+  async beforeRun(ctx: RunStackContext): Promise<void> {
     for (const middleware of this.middleware) {
-      await middleware.beforeRun?.(ctx)
+      await middleware.beforeRun?.(this.runScope(ctx, middleware))
     }
   }
 
-  async afterRun(ctx: RunContext, summary: RunSummary): Promise<void> {
+  async afterRun(ctx: RunStackContext, summary: RunSummary): Promise<void> {
     for (let index = this.middleware.length - 1; index >= 0; index -= 1) {
-      await this.middleware[index].afterRun?.(ctx, summary)
+      await this.middleware[index].afterRun?.(this.runScope(ctx, this.middleware[index]), summary)
     }
   }
 
@@ -110,12 +112,18 @@ export class MiddlewareStack {
     return current
   }
 
-  // Binds `activity` to this middleware's name. Derived per dispatch rather than
-  // held, because the emitter underneath is step-scoped.
+  // Binds `activity` to this middleware's name, derived per dispatch. The
+  // step and run variants differ only in the emitter the engine handed over:
+  // the step one attaches a messageID, the run one does not.
   private scope(ctx: StackContext, middleware: Middleware): HookContext {
-    return {
-      ...ctx,
-      activity: (input) => ctx.openActivity({ ...input, source: middleware.name }),
-    }
+    return { ...ctx, activity: this.bind(ctx.openActivity, middleware) }
+  }
+
+  private runScope(ctx: RunStackContext, middleware: Middleware): RunContext {
+    return { ...ctx, activity: this.bind(ctx.openActivity, middleware) }
+  }
+
+  private bind(open: ActivityEmitter, middleware: Middleware) {
+    return (input: { label: string; detail?: string }) => open({ ...input, source: middleware.name })
   }
 }

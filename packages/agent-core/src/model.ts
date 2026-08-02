@@ -283,7 +283,12 @@ export type LoopEvent =
   // ToolDisplay: a consumer renders it without branching on who produced it.
   | (LoopEnvelope & {
       readonly type: "step.activity"
-      readonly messageID: string
+      /**
+       * The step the activity belongs to. Absent when it was reported at a
+       * run boundary (beforeRun/afterRun) — there is no step to attach to,
+       * and a consumer renders it at run level.
+       */
+      readonly messageID?: string
       /** The producer, for correlating one activity's start/update/end. */
       readonly source: string
       readonly status: ActivityStatus

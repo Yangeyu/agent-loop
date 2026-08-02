@@ -213,6 +213,7 @@ function createToolCallHarness(tool: ToolDefinition) {
       model: agent.model,
       sessionID: session.id,
       abort: new AbortController().signal,
+      openActivity: () => ({ update() {}, end() {} }),
     }),
     deps,
     policy: resolveStepExecutionPolicy(config, agent, sessions.get(session.id)),

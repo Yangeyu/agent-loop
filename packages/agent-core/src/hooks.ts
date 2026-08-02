@@ -54,6 +54,14 @@ export type RunContext = {
    * single-shot calls may call it directly, bypassing the stack.
    */
   readonly model: Model
+  /**
+   * Reports what this middleware is doing, as step.activity loop events. The
+   * stack binds the source from `middleware.name`. Run-scoped because
+   * reporting is a property of middleware executing, not of steps: a
+   * beforeRun/afterRun hook speaks too (its events carry no messageID and
+   * render at run level); step-scoped hooks get the step-bound emitter.
+   */
+  readonly activity: (input: { label: string; detail?: string }) => ActivityHandle
 }
 
 /** Step-scoped context: the run context plus what this step resolved. */
@@ -66,11 +74,6 @@ export type HookContext = RunContext & {
   readonly abort: AbortSignal
   /** The structured-output format requested for this step. */
   readonly format?: OutputFormat
-  /**
-   * Reports what this middleware is doing, as step.activity loop events. The
-   * stack binds the source from `middleware.name`.
-   */
-  readonly activity: (input: { label: string; detail?: string }) => ActivityHandle
 }
 
 /** One reported activity, from `ctx.activity(...)` to its end. */
@@ -88,6 +91,9 @@ export type ActivityEmitter = (input: { source: string; label: string; detail?: 
  * unbound. The stack names the source per middleware before dispatch.
  */
 export type StackContext = Omit<HookContext, "activity"> & { readonly openActivity: ActivityEmitter }
+
+/** The run-scoped counterpart of StackContext, for beforeRun/afterRun dispatch. */
+export type RunStackContext = Omit<RunContext, "activity"> & { readonly openActivity: ActivityEmitter }
 
 export type ToolCall = {
   toolName: string
@@ -196,7 +202,10 @@ export type Middleware = {
   afterStep?(ctx: HookContext, judgment: StepJudgment): StepJudgment | Promise<StepJudgment>
   /**
    * Run teardown, in a finally — where a middleware holding a resource
-   * (subprocess, temp dir, connection) releases it.
+   * (subprocess, temp dir, connection) releases it, and where settle-time
+   * side work (flushing a buffer, extracting memories) belongs. External
+   * effects are fine here; *session-state* effects stay at beforeStep, the
+   * stack's one sanctioned point for them.
    */
   afterRun?(ctx: RunContext, summary: RunSummary): void | Promise<void>
 }

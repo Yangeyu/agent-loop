@@ -11,7 +11,7 @@ import type { EngineDeps } from "@agent-core/context"
 import type { RuntimeEventBus } from "@agent-core/events"
 import type { Model } from "@agent-core/llm/types"
 import type { StepExecutionPolicy } from "@agent-core/policy"
-import type { ActivityEmitter, RunContext, StackContext } from "@agent-core/hooks"
+import type { ActivityEmitter, RunStackContext, StackContext } from "@agent-core/hooks"
 import type { UserMessage } from "@agent-core/model"
 import type { ToolDefinition } from "@agent-core/tool/tool"
 
@@ -23,9 +23,11 @@ export type StepContext = StackContext & {
 }
 
 /**
- * Assembles the run context: what holds still for the whole loop.
+ * Assembles the run context: what holds still for the whole loop. Activity
+ * arrives unbound (the stack names the source per middleware), carried by the
+ * run-boundary emitter — its events have no messageID.
  *
- * @param input - engine deps plus the run's agent, model, session id, and abort
+ * @param input - engine deps plus the run's agent, model, session id, abort, and emitter
  * @returns the immutable run context
  */
 export function createRunContext(input: {
@@ -34,7 +36,8 @@ export function createRunContext(input: {
   model: Model
   sessionID: string
   abort: AbortSignal
-}): RunContext {
+  openActivity: ActivityEmitter
+}): RunStackContext {
   return {
     config: input.deps.config,
     sessions: input.deps.sessions,
@@ -42,6 +45,7 @@ export function createRunContext(input: {
     sessionID: input.sessionID,
     abort: input.abort,
     model: input.model,
+    openActivity: input.openActivity,
   }
 }
 
@@ -53,7 +57,7 @@ export function createRunContext(input: {
  * @returns the immutable step context
  */
 export function createStepContext(input: {
-  run: RunContext
+  run: RunStackContext
   deps: EngineDeps
   policy: StepExecutionPolicy
   user: UserMessage
@@ -71,6 +75,8 @@ export function createStepContext(input: {
     policy: input.policy,
     abort: input.abort,
     format: input.user.format,
+    // Shadows the run-boundary emitter: inside a step, activities carry the
+    // step's messageID and render under it.
     openActivity: input.openActivity,
     user: input.user,
     tools: input.tools,

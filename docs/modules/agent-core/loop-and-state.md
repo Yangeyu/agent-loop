@@ -51,6 +51,10 @@
   里，核心事件词汇却是封闭的——compaction 跑一次完整 LLM 调用、retry 退避四秒，期间界面上和
   卡死无法区分。middleware 拿到的是窄能力 `ctx.activity()` 而不是整条总线，`source` 由
   `MiddlewareStack` 按 `middleware.name` 绑定，调用方不自报家门。
+  `activity` 住在 `RunContext`（报告是"middleware 在执行"的普适能力，不是 step 数据）：
+  step 级 hook 拿到的发射器带 `messageID`，run 边界（beforeRun/afterRun）的不带——
+  消费端据此决定渲染在 step 下还是 run 级。收尾抽取这类 teardown middleware 因此
+  也能报告自己（`messageID` 缺席即 run 级）。
   载荷是语义化的（`label`/`detail`/`status`）而非开放的 `data`——同 `ToolDisplay` 的理由：
   消费端必须能在不知道产出方是谁的情况下渲染它。
 

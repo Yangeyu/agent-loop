@@ -194,31 +194,7 @@ export class StepRecorder {
    * @returns the handle that updates and closes this activity
    */
   openActivity(input: { source: string; label: string; detail?: string }): ActivityHandle {
-    const emit = (status: ActivityStatus, detail?: string) => {
-      this.input.loop.emit({
-        type: "step.activity",
-        ...this.envelope(),
-        messageID: this.messageID,
-        source: input.source,
-        status,
-        label: input.label,
-        detail,
-      })
-    }
-
-    emit("start", input.detail)
-    let ended = false
-
-    return {
-      update(detail) {
-        if (!ended) emit("update", detail)
-      },
-      end(detail) {
-        if (ended) return
-        ended = true
-        emit("end", detail)
-      },
-    }
+    return openActivity(this.input.loop, { ...this.envelope(), messageID: this.messageID }, input)
   }
 
   /** Terminates the step as finished (model completed), optionally with structured output. */
@@ -271,5 +247,47 @@ export class StepRecorder {
 
   private envelope() {
     return { sessionID: this.input.sessionID, rootID: this.input.rootID, agent: this.input.agent }
+  }
+}
+
+/**
+ * Emits one activity's start and returns the handle that updates and closes
+ * it. Shared by the recorder (step-scoped, with a messageID) and the loop's
+ * run boundaries (no messageID — the event renders at run level), so the
+ * start/update/end idempotency lives in exactly one place.
+ *
+ * @param loop - the loop event channel
+ * @param envelope - the event envelope, with a messageID only inside a step
+ * @param input - the producer's name, what it is doing, and optional detail
+ * @returns the activity handle
+ */
+export function openActivity(
+  loop: EventChannel<LoopEvent>,
+  envelope: { sessionID: string; rootID: string; agent: string; messageID?: string },
+  input: { source: string; label: string; detail?: string },
+): ActivityHandle {
+  const emit = (status: ActivityStatus, detail?: string) => {
+    loop.emit({
+      type: "step.activity",
+      ...envelope,
+      source: input.source,
+      status,
+      label: input.label,
+      detail,
+    })
+  }
+
+  emit("start", input.detail)
+  let ended = false
+
+  return {
+    update(detail) {
+      if (!ended) emit("update", detail)
+    },
+    end(detail) {
+      if (ended) return
+      ended = true
+      emit("end", detail)
+    },
   }
 }
