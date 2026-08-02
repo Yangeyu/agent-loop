@@ -10,8 +10,8 @@
  *   - reasoning_content: qwen streams CoT in this non-standard delta field.
  */
 import { z } from "zod"
-import type { Model, ProviderModelSpec } from "@agent-core/llm/types"
-import { createOpenAICompatModel } from "@agent-core/llm/providers/openai-compat"
+import type { Model, ProviderModelSpec } from "@agent-core"
+import { createOpenAICompatModel } from "@providers/openai-compat"
 
 // The streaming delta shape we read DashScope's non-standard reasoning field off
 // of (not part of the OpenAI SDK types, hence the local declaration).

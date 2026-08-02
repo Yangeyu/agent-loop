@@ -7,7 +7,7 @@
  * beforeModelCall fold (messages -> messages, no store writes), so it does not
  * break fold purity.
  */
-import { resolveImageSource } from "@agent-core"
+import { resolveImageSource } from "@harness/image"
 import type { ModelContentBlock, ModelMessage } from "@agent-core"
 import type { MiddlewareFactory } from "@agent-core"
 

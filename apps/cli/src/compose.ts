@@ -4,7 +4,7 @@
  * harness's standard assembly.
  */
 import { createCoreRuntime, getConfig, loadSkillsFromDir, type Config, type RuntimeContext } from "@harness"
-import { createDashScopeModel } from "@agent-core"
+import { createDashScopeModel } from "@providers"
 
 const CHAT_MODEL_ID = "qwen3.7-plus"
 const SUMMARIZER_MODEL_ID = "qwen3.6-flash"

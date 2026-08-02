@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test"
 import { toModelMessages } from "@agent-core/llm/message"
-import type { AssistantMessage, MessagePart, SessionInfo, ToolPart, UserMessage } from "@agent-core/types"
+import type { AssistantMessage, MessagePart, SessionInfo, ToolPart, UserMessage } from "@agent-core/model"
 
 function userSession(parts: MessagePart[]): SessionInfo {
   const user: UserMessage = {

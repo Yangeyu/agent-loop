@@ -6,21 +6,17 @@
  * agent might exist — those belong to whatever orchestrates it (@harness is the
  * first such consumer). Everything a consumer adds arrives through two
  * contracts, middleware and tools, neither of which requires editing this
- * package.
+ * package. The machinery under engine/ is not part of this surface and never
+ * appears here.
  */
 
-// The loop, behind its one door: createAgent
-export { createAgent } from "@agent-core/create-agent"
-export type { Agent, AgentRunInput, CreateAgentSpec } from "@agent-core/create-agent"
+// The agent, behind its one door: createAgent
+export { createAgent } from "@agent-core/agent"
+export type { Agent, AgentDefinition, AgentRunInput, CreateAgentSpec } from "@agent-core/agent"
 export { createEngineDeps } from "@agent-core/context"
 export type { EngineDeps } from "@agent-core/context"
 
-// The agent blueprint
-export { defineAgent } from "@agent-core/blueprint"
-export type { AgentDefinition, AgentSpec } from "@agent-core/blueprint"
-
-// Middleware: the transform/decision layer
-export { MiddlewareStack } from "@agent-core/hooks"
+// Middleware: the transform/decision port
 export type {
   ActivityEmitter,
   ActivityHandle,
@@ -50,8 +46,15 @@ export type { TimeoutPolicy, StepBudgetPolicy, StepExecutionPolicy } from "@agen
 export { DEFAULT_CORE_CONFIG } from "@agent-core/config"
 export type { CoreConfig } from "@agent-core/config"
 
-// Tools
+// The tool port: the contract, the factory, and the shipped test double
 export { defineTool, ToolExecutionError } from "@agent-core/tool/tool"
+export type {
+  AnyToolDefinition,
+  SessionHistoryMessage,
+  ToolContext,
+  ToolDefinition,
+  ToolExecuteResult,
+} from "@agent-core/tool/tool"
 export { createToolContext } from "@agent-core/tool/fake-context"
 
 // Sessions: the aggregate (single writer of session state), the storage
@@ -63,29 +66,28 @@ export type { SessionPersistence } from "@agent-core/session"
 export { createRuntimeEvents } from "@agent-core/events"
 export type { EventChannel, RuntimeEventBus } from "@agent-core/events"
 
-// The model port + the providers that satisfy it
-export { createDashScopeModel, createFakeModel, createOpenAICompatModel } from "@agent-core/llm/index"
+// The model port: the stream protocol, the session -> messages projection,
+// failure classification, and the shipped fake. Concrete providers live in
+// @providers and are injected as bound Model instances.
+export { DEFAULT_TEMPERATURE } from "@agent-core/llm/types"
 export type {
-  DashScopeConfig,
-  FakeModelOptions,
   LLMChunk,
   LLMInput,
+  LLMStreamResult,
   Model,
   ModelCapabilities,
   ModelContentBlock,
   ModelMessage,
-  OpenAICompatModelConfig,
   ProviderModelSpec,
-} from "@agent-core/llm/index"
-export { resolveImageSource } from "@agent-core/llm/index"
-export { toModelMessages } from "@agent-core/llm/message"
+} from "@agent-core/llm/types"
+export { serializeContentBlocks, toModelMessages } from "@agent-core/llm/message"
 export { classifyRetry } from "@agent-core/llm/classify"
 export type { RetryCategory, RetryClassification } from "@agent-core/llm/classify"
+export { createFakeModel } from "@agent-core/llm/fake"
+export type { FakeModelOptions } from "@agent-core/llm/fake"
 
 // Failure normalization
 export { isAbortError, toErrorInfo } from "@agent-core/error"
 
 // The data model + event vocabulary: messages, parts, sessions, the reducer
-export * from "@agent-core/types"
-export { applyStateEvent, emptyProjection } from "@agent-core/model"
-export type { SessionProjection } from "@agent-core/model"
+export * from "@agent-core/model"

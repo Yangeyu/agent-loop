@@ -12,27 +12,28 @@
 
 ## 顶层结构
 
-分层是**包边界**：`agent-core ← harness ← surfaces`，单向。
+分层是**包边界**：`agent-core ← harness ← surfaces`（单向），providers 立于 harness 之侧：
+`agent-core ← providers ← 组合根/e2e`——厂商绑定不进内核，也不进编排层。
 
 ```text
 packages/
 ├── agent-core/               # ★ 通用 agent loop，别名 @agent-core
-│   └── src/
-│       ├── model.ts          # 零 import 的纯叶子：数据模型 + StateEvent/LoopEvent + applyStateEvent
-│       ├── loop.ts           # runLoop：一个 agent、一个会话，跑到收敛
-│       ├── step.ts           # 跑单轮：wrapModelCall 洋葱 + 工具批次
-│       ├── hooks.ts          # 8 个 hook 的 Middleware 契约 + MiddlewareStack
-│       ├── blueprint.ts      # defineAgent / AgentDefinition（tools 是定义数组）
-│       ├── create-agent.ts   # createAgent：可运行 agent 的唯一创建门径（环境经 deps 注入）
-│       ├── recorder.ts       # StepRecorder：一个 step 生命周期的唯一 owner
+│   └── src/                  # 根 = 门与词汇；session/ llm/ tool/ = 端口；engine/ = 密封机房
+│       ├── model.ts          # 零 import 的纯叶子：数据模型 + StateEvent/LoopEvent + applyStateEvent + createID
+│       ├── agent.ts          # AgentDefinition + createAgent：可运行 agent 的唯一创建门径（环境经 deps 注入）
 │       ├── context.ts        # EngineDeps（config/sessions/events）+ createEngineDeps（具名内存默认）
+│       ├── hooks.ts          # middleware 端口：8 个 hook 的契约（派发语义在 engine/stack.ts）
 │       ├── policy.ts         # timeout + budgets 解析
-│       ├── tool-call.ts tool-part.ts error.ts
-│       ├── session/          # Sessions 聚合（唯一写入者）+ SessionPersistence 契约 + 内存默认
 │       ├── events.ts         # 双通道总线（state / loop）
-│       ├── llm/              # Model 端口 + providers + classify + fake
-│       ├── tool/             # defineTool + fake-context
-│       ├── config.ts types.ts index.ts
+│       ├── session/          # Sessions 聚合（唯一写入者）+ SessionPersistence 契约 + 内存默认
+│       ├── llm/              # Model 端口：流协议 + 投影 + classify + fake（厂商绑定在 providers 包）
+│       ├── tool/             # 工具端口：契约 + defineTool + fake-context
+│       ├── engine/           # 机器（barrel 永不触及）：loop、step、recorder、tool-call、
+│       │                     #   tool-part、context 装配、MiddlewareStack
+│       ├── config.ts error.ts index.ts
+│
+├── providers/                # ★ 厂商绑定（Model 端口的实现），别名 @providers
+│   └── src/                  # openai-compat 底座 + dashscope；只被组合根与 e2e 消费
 │
 ├── harness/                  # ★ 编排层：基于 agent-core 的编码 agent，别名 @harness
 │   └── src/
@@ -60,7 +61,7 @@ skills/                       # 工作区技能：一目录一技能（SKILL.md 
 ## 主执行链路
 
 1. `apps/cli/src/index.ts` 解析参数，选择 CLI 或 TUI；`runPrompt()`（`@harness` 出口）发起一次 session。
-2. `apps/cli/src/compose.ts`（组合根）构建模型实例，交给 `createCoreRuntime`。
+2. `apps/cli/src/compose.ts`（组合根）用 `@providers` 的工厂构建模型实例，交给 `createCoreRuntime`。
 3. `createCoreRuntime` 装配：注册 skill → 建工具（各自持有 workspace/skills/agents 闭包）→
    以 runtime 自己的 EngineDeps 建 agent（agent-core 的 `createAgent`，唯一门径）→
    `register(agent, { mode })` 注册（mode 是组合数据，不在 agent 对象上）。
@@ -69,7 +70,7 @@ skills/                       # 工作区技能：一目录一技能（SKILL.md 
 5. 每个 step 按生命周期推进：
    `beforeStep` → `beforeModelCall`（引擎种入 instructions）→ `wrapModelCall`（一次流式调用）
    → 工具批次 → `afterStep`（终态 + 去留一次裁决）。
-6. `agent-core/step.ts` 经 `StepRecorder` 把 text/reasoning/tool-call 写进 Sessions（状态事件随写入自动发出）。
+6. `agent-core/engine/step.ts` 经 `StepRecorder` 把 text/reasoning/tool-call 写进 Sessions（状态事件随写入自动发出）。
 7. 工具经 `defineTool` 统一校验/执行/归一化；文件访问一律经工具自己持有的 `workspace`；
    `task` 创建 child session 后直接调 delegate 的 `agent.run()`——同一个 store 与总线由
    registry 准入保证。
@@ -87,7 +88,7 @@ skills/                       # 工作区技能：一目录一技能（SKILL.md 
 - `harness/tools/index.ts`：`createCoreTools({ visionModel, workspace, skills, agents, config })`。
 - `apps/cli/src/compose.ts`：唯一的 provider 绑定点。skill 来自 `config.skills_dir`
   （默认 `./skills`，相对运行目录解析，不存在即视为没有）——加技能不必改这个文件。
-- `agent-core/create-agent.ts`：`createAgent(spec & { deps? })` —— 唯一的创建门径。
+- `agent-core/agent.ts`：`createAgent(spec & { deps? })` —— 唯一的创建门径。
   harness 注入 runtime 的 EngineDeps；独立嵌入省略 deps，落到具名的 `createEngineDeps()`
   私有内存引擎。会话按 `run({ sessionID })` 逐次选择，一个 agent 实例服务任意多个会话。
 
@@ -102,8 +103,8 @@ skills/                       # 工作区技能：一目录一技能（SKILL.md 
 - **新 prompt 片段**：写一个 `PromptContributor` 并声明 slot，**放在它所描述的那个模块里**
   （工具/中间件/agent），由该 agent 的 `baseMiddleware([...])` 传入；顺序由 `SLOT_ORDER` 决定，
   不由注册位置决定。
-- **新 provider**：在 `agent-core/llm/providers/` 新建 `create<Vendor>Model`，自带 `ConnectionSchema`；
-  走 OpenAI 兼容端点就建在 `createOpenAICompatModel` 之上。
+- **新 provider**：在 `packages/providers/src/` 新建 `create<Vendor>Model`，自带 `ConnectionSchema`；
+  走 OpenAI 兼容端点就建在 `createOpenAICompatModel` 之上。引擎与 harness 都不用动。
 - **不需要编排层的场景**：直接依赖 `@agent-core`，用 `createAgent` 搭一个带自定义工具的 agent
   （形态见 `packages/agent-core/tests/standalone.test.ts`）。
 

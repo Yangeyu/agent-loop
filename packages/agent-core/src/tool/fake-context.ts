@@ -7,7 +7,7 @@
 import { DEFAULT_CORE_CONFIG } from "@agent-core/config"
 import { createRuntimeEvents } from "@agent-core/events"
 import { MemorySessionPersistence, Sessions } from "@agent-core/session"
-import type { ToolContext } from "@agent-core/types"
+import type { ToolContext } from "@agent-core/tool/tool"
 
 /**
  * Builds a ToolContext backed by in-memory sessions and a private event bus.

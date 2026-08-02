@@ -4,7 +4,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { viewImage } from "@harness/middleware/view-image"
 import type { HookContext } from "@agent-core/hooks"
-import type { ModelMessage } from "@agent-core/llm/types"
+import type { ModelMessage } from "@agent-core"
 
 const assemble = viewImage().beforeModelCall!
 // The middleware only reads ctx.model.spec.capabilities.vision; stub a vision model.

@@ -398,3 +398,8 @@ function withParts(
 ): SessionProjection {
   return { ...projection, parts: { ...projection.parts, [messageID]: parts } }
 }
+
+/** Mints a short random id — the one id vocabulary sessions, messages, and parts share. */
+export function createID() {
+  return Math.random().toString(36).slice(2, 10)
+}

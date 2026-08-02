@@ -12,21 +12,20 @@
  * tool-part state transition written through the tracker, and the state channel
  * carries those automatically (part.created / part.updated).
  */
-import type { StepContext } from "@agent-core/context"
-import type { StepRecorder } from "@agent-core/recorder"
-import type { MiddlewareStack, ToolCall } from "@agent-core/hooks"
+import type { StepContext } from "@agent-core/engine/context"
+import type { StepRecorder } from "@agent-core/engine/recorder"
+import type { MiddlewareStack } from "@agent-core/engine/stack"
+import type { ToolCall } from "@agent-core/hooks"
 import { isAbortError } from "@agent-core/error"
-import type { ToolPartTracker } from "@agent-core/tool-part"
-import { toToolExecutionErrorInfo } from "@agent-core/tool/tool"
+import type { ToolPartTracker } from "@agent-core/engine/tool-part"
 import {
-  createID,
+  toToolExecutionErrorInfo,
   type AnyToolDefinition,
-  type ErrorInfo,
   type SessionHistoryMessage,
   type ToolContext,
-  type ToolDisplayPatch,
   type ToolExecuteResult,
-} from "@agent-core/types"
+} from "@agent-core/tool/tool"
+import { createID, type ErrorInfo, type ToolDisplayPatch } from "@agent-core/model"
 
 /**
  * The result of running one tool call to completion: a successful result, a

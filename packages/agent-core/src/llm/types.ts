@@ -1,5 +1,6 @@
 /** Core LLM protocol types shared across the runtime and providers. */
-import type { ImageSource, ToolDefinition } from "@agent-core/types"
+import type { ImageSource } from "@agent-core/model"
+import type { ToolDefinition } from "@agent-core/tool/tool"
 
 export const DEFAULT_TEMPERATURE = 0.2
 

@@ -12,7 +12,7 @@
  * reads as a summary followed by the retained tail.
  */
 import type { ModelContentBlock, ModelMessage, ModelToolCall } from "@agent-core/llm/types"
-import type { AssistantMessage, CompactionPart, ImagePart, MessagePart, SessionInfo, TextPart, ToolPart } from "@agent-core/types"
+import type { AssistantMessage, CompactionPart, ImagePart, MessagePart, SessionInfo, TextPart, ToolPart } from "@agent-core/model"
 
 /**
  * Projects a session into the ordered ModelMessage list for an LLM step.

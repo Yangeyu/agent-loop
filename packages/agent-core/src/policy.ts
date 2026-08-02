@@ -3,8 +3,8 @@
  * Budgets are *resolved* here but *enforced* by the budget middleware.
  */
 import type { CoreConfig } from "@agent-core/config"
-import type { AgentDefinition } from "@agent-core/blueprint"
-import type { SessionInfo } from "@agent-core/types"
+import type { AgentDefinition } from "@agent-core/agent"
+import type { SessionInfo } from "@agent-core/model"
 
 /** Per-step timeout bound. */
 export type TimeoutPolicy = {

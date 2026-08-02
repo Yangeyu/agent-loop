@@ -14,7 +14,7 @@ import {
 import {
   type LoopEvent,
 } from "@agent-core"
-import type { LLMChunk, Model } from "@agent-core/llm/types"
+import type { LLMChunk, Model } from "@agent-core"
 import { createFakeModel } from "@agent-core"
 
 const DONE: LLMChunk[] = [

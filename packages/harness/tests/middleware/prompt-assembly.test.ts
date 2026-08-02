@@ -20,7 +20,7 @@ import {
   defineTool,
   type CreateAgentSpec,
 } from "@agent-core"
-import type { LLMChunk, Model } from "@agent-core/llm/types"
+import type { LLMChunk, Model } from "@agent-core"
 import { z } from "zod"
 import { createFakeModel } from "@agent-core"
 

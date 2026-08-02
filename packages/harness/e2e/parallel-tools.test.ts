@@ -8,11 +8,9 @@ import {
   createTestRuntime,
   runPrompt,
 } from "@harness"
-import {
-  createDashScopeModel,
-} from "@agent-core"
+import { createDashScopeModel } from "@providers"
 import { createReadTool } from "@harness/tools/read"
-import type { ToolPart } from "@agent-core/types"
+import type { ToolPart } from "@agent-core"
 
 import { createWorkspace } from "@harness/workspace"
 

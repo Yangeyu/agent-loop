@@ -1,11 +1,11 @@
 import { describe, expect, it } from "bun:test"
-import { defineAgent } from "@agent-core/blueprint"
+import { defineAgent } from "@agent-core/agent"
 import { isFinalAllowedStep, resolveStepExecutionPolicy } from "@agent-core/policy"
 import { DEFAULT_CORE_CONFIG, type CoreConfig } from "@agent-core/config"
-import { createDashScopeModel } from "@agent-core/llm/providers/dashscope"
-import type { AssistantMessage, SessionInfo } from "@agent-core/types"
+import { createFakeModel } from "@agent-core/llm/fake"
+import type { AssistantMessage, SessionInfo } from "@agent-core/model"
 
-const model = createDashScopeModel({ modelID: "qwen3.7-plus" })
+const model = createFakeModel()
 
 function makeSession(assistantSteps: number): SessionInfo {
   const messages: AssistantMessage[] = Array.from({ length: assistantSteps }, (_, index) => ({

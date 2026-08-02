@@ -62,34 +62,40 @@
 
 ## 关键入口
 
+根目录是门与词汇加端口契约；`session/` `llm/` `tool/` 是三个端口；`engine/` 是密封机房——
+循环机器全部在里面，barrel 永不触及（`check:boundaries` 的 `agent-core-barrel` 规则强制）。
+
 - `context.ts` — `EngineDeps`：`config` / `sessions` / `events`，三样，就是循环写不出来就跑不了
   的那些。工具需要的其余东西（文件树、技能目录、别的 agent）由工具自己在闭包里持有。
   `createEngineDeps({ config?, events?, persistence? })` 是它的具名默认工厂：内存持久化、
   私有总线，三者都可单独注入替换。
-- `blueprint.ts` + `create-agent.ts` — 蓝图（`defineAgent` / `AgentDefinition`，`tools` 是
-  `ToolDefinition[]` 而非待解析的名字）与**唯一的创建门径** `createAgent(spec & { deps? })` →
-  `Agent`：模型 + 工具 + middleware 包成可直接 `run()` 的单元。`deps` 注入即共享调用方的
+- `agent.ts` — agent 的全部：`AgentDefinition`（`tools` 是 `ToolDefinition[]` 而非待解析的名字）
+  与**唯一的创建门径** `createAgent(spec & { deps? })` → `Agent`：模型 + 工具 + middleware 包成
+  可直接 `run()` 的单元。`deps` 注入即共享调用方的
   store 与总线（harness 这样建它的每个 agent）；省略即落到 `createEngineDeps()` 的私有内存
   引擎。会话按 `run({ sessionID })` 逐次选择，一个实例服务任意多个会话；种入 user message、
   发 `session.start` 只在 `run()` 里有一份实现。
-- `loop.ts` — `runLoop`，逐 step 驱动，包内私有（不出 barrel——进循环只经 `createAgent`）。
+- `engine/loop.ts` — `runLoop`，逐 step 驱动，包内私有（不出 barrel——进循环只经 `createAgent`）。
   顶部注释是生命周期的权威定义。
-- `recorder.ts` — `StepRecorder`：一个 step 生命周期的唯一 owner。构造时追加 assistant message
+- `engine/recorder.ts` — `StepRecorder`：一个 step 生命周期的唯一 owner。构造时追加 assistant message
   并发 `step.start`；持有相位机、流式 part 游标、计数器；`finish/fail/abort` 恰好终结一次
   （后到的终态被忽略，abort 与 finish 竞态不会双报）。也是 `step.activity` 的发射点——step 级
   遥测只有一个所有者。
-- `step.ts` — 跑单轮：把一次流式调用交给 `wrapModelCall` 洋葱，返回它发起的 tool call，
+- `engine/step.ts` — 跑单轮：把一次流式调用交给 `wrapModelCall` 洋葱，返回它发起的 tool call，
   然后执行那一批。
-- `hooks.ts` — `Middleware` 契约（8 个 hook）与 `RunContext` / `HookContext`（只读；状态经 hook
-  返回值回流引擎）。
+- `hooks.ts` — middleware 端口：`Middleware` 契约（8 个 hook）与 `RunContext` / `HookContext`
+  （只读；状态经 hook 返回值回流引擎）。折叠/洋葱/短路的派发语义是机器的事，在
+  `engine/stack.ts`（`MiddlewareStack`）。
 - `policy.ts` — 把 config 与 agent 约束解析成 step 级执行策略（timeout / budgets）。
 - `session/` — `Sessions` 聚合 + `SessionPersistence`（read/persist/list 三方法契约）+
   `MemorySessionPersistence`（未注入时的具名默认）。内核只带契约与内存默认；真实后端
   （file/数据库/远端）是消费方的，以实例注入（`createEngineDeps({ persistence })` /
   harness 的 `createRuntime({ persistence })`）。契约是同步的——流式期间每个 delta 都会
   `persist`，慢后端照 harness file 后端的模式做：内存缓存为真值、write-behind 到介质。
-- `tool-part.ts` — 工具调用生命周期：纯状态转换（reducer）+ `ToolPartTracker`，后者经
+- `engine/tool-part.ts` — 工具调用生命周期：纯状态转换（reducer）+ `ToolPartTracker`，后者经
   `Sessions.replacePart` 写穿——每次转换同时就是 `part.updated` 事件，无手工镜像。
+- `tool/tool.ts` — 工具端口的完整一份：契约（`ToolDefinition` / `ToolContext`）+ `defineTool`
+  工厂（统一校验/执行/错误分类）。
 - `llm/fake.ts`、`tool/fake-context.ts` — 随包发布的测试替身。端口是公开的，否则每个消费方
   各手写一份同样的 stub。
 
@@ -133,7 +139,7 @@ afterStep              # 一次裁决：terminal（仅干净收束时开放）+ 
 afterRun（finally）
 ```
 
-- **stream 消费**：`step.ts` 把 reasoning/text 增量交给 recorder（落 part + 自动发 `part.delta`），
+- **stream 消费**：`engine/step.ts` 把 reasoning/text 增量交给 recorder（落 part + 自动发 `part.delta`），
   并把每个 tool-call chunk 收集到本 step 的待执行集合。
 - **工具并发派发**：流耗尽后，按发起顺序逐个 `prepareToolCall`（gate → 校验 → describe）并开好
   tool part（`part.created` 确定性入场、且一次到位带全 display），再以有界并发整批
@@ -144,10 +150,10 @@ afterRun（finally）
   冲突——按工具类别猜（"只读才并发"）只是用一个粗代理指标掩盖这个信息缺口，代价是把并行委派一起
   关掉。一致性归资源持有者。调用之间的**因果顺序**则归模型——一批 tool call 是 provider 层
   "这些可以同时做"的声明，依赖前一个结果的调用属于下一个 step。
-- **终态归属**：`step.ts` 是 step 终态的唯一所有者，把这批 per-call outcome 归约成单一
-  continue/stop（首个 stop/abort 按发起顺序胜出）。`tool-call.ts` 是纯 per-call 执行单元：只经
+- **终态归属**：`engine/step.ts` 是 step 终态的唯一所有者，把这批 per-call outcome 归约成单一
+  continue/stop（首个 stop/abort 按发起顺序胜出）。`engine/tool-call.ts` 是纯 per-call 执行单元：只经
   tracker 写自己那一个 part，不触碰 recorder 终态，可安全并发。
-- **工具结果**：`tool-call.ts` 不发任何事件——一次调用的全部可观测事实就是 tool part 的状态转换，
+- **工具结果**：`engine/tool-call.ts` 不发任何事件——一次调用的全部可观测事实就是 tool part 的状态转换，
   由 tracker 写穿产生。
 - **裁决**：`afterStep` 一次性决定 step 终态（`terminal`：finish/fail + structured + finishReason
   覆写）与循环去留（`outcome`：`continue | break`）。终态失败而 outcome 仍为 continue 时，

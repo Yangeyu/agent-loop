@@ -2,8 +2,8 @@ import { describe, expect, it } from "bun:test"
 import { createAgent } from "@agent-core"
 import { baseMiddleware, createTestRuntime, runPrompt } from "@harness"
 import { createCompaction, resolveCutBoundary } from "@harness/middleware/compaction"
-import type { LLMChunk } from "@agent-core/llm/types"
-import type { SessionMessage } from "@agent-core/types"
+import type { LLMChunk } from "@agent-core"
+import type { SessionMessage } from "@agent-core"
 import { createFakeModel } from "@agent-core"
 
 const ANSWER_SCRIPT: LLMChunk[] = [

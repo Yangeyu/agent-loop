@@ -5,9 +5,10 @@ execution, subagent delegation, session state, provider adaptation, and compacti
 It is a from-scratch build of the core machinery an agent runtime needs — not a product
 clone — with these moving parts:
 
-- `runSession` / `runLoop` (`agent/loop.ts`) as the outer agentic loop
-- `core/step.ts` as the per-step stream-and-tool executor
-- `Model.stream()` (`llm/`) as the model-facing boundary — one bound model per agent, no registry
+- `createAgent` (`agent-core`) as the one door to a runnable agent; `run()` seeds a
+  session and drives `runLoop` (`agent-core/src/engine/`) to convergence
+- `Model.stream()` (the `llm/` port) as the model-facing boundary — one bound model per
+  agent, no registry; vendor bindings live in `packages/providers`
 - the `task` tool as the subagent orchestration primitive
 - the `compaction` middleware as the context compaction path
 - `structured-output` middleware for JSON-schema-style final answers
@@ -19,26 +20,34 @@ clone — with these moving parts:
 
 ## Files
 
-Bun workspaces — `packages/*` (libraries) and `apps/*` (runnable surfaces). Cross-package imports use the aliases `@harness/*`, `@tui/*`, `@contracts`.
+Bun workspaces — `packages/*` (libraries) and `apps/*` (runnable surfaces). Layering is
+one-way: `agent-core <- harness <- surfaces (cli/tui)`, with `providers` beside the
+harness (`agent-core <- providers <- the composition root`).
 
-- `packages/harness/`: the agent harness (engine). Key areas:
-  - `src/agent/`: the agent kernel — blueprint/createAgent, the 5-hook middleware contract (`hooks.ts`), the loop (`loop.ts`), per-step executor (`step.ts`), policy, retry
-  - `src/std/`: standard bricks — middleware (compaction, structured-output, view-image, budgets), the lead/general agents, core tools
-  - `src/llm/`: the `Model` abstraction and providers (`providers/openai-compat.ts` base, `providers/dashscope.ts`)
-  - `src/agent/`: agents as self-contained modules (`lead/`, `general/`)
-  - `src/tool/`: `defineTool` harness and built-in tools (`task`, `bash`, `read`, …)
-  - `src/workspace/`: the owner of the local file tree — every file tool's single point of access
-  - `tests/`: centralized harness test suite, organized by source module area
-  - `e2e/`: end-to-end cases against the real model, skipped without an API key
-- `packages/tui/`: `src/app.tsx` componentized OpenTUI/Solid terminal UI
-- `packages/contracts/`: the pure shared leaf — data model + event vocabulary the harness and surfaces speak
-- `apps/cli/`: `src/index.ts` CLI bootstrap and mode selection, `src/compose.ts` the composition root (the one place providers are bound), `src/logger.ts` CLI UI renderer (`stream` / `buffered`)
+- `packages/agent-core/`: the general agent loop, alias `@agent-core`. Root = the door
+  and the vocabulary (`agent.ts`, `model.ts`, `context.ts`, `hooks.ts`, `policy.ts`);
+  `session/` `llm/` `tool/` = the ports (contract + named default/fake each);
+  `engine/` = sealed machinery (loop, step, recorder, tool dispatch) the barrel never
+  re-exports.
+- `packages/providers/`: vendor bindings for the Model port, alias `@providers`
+  (`openai-compat.ts` base, `dashscope.ts`); consumed only by the composition root and
+  e2e suites.
+- `packages/harness/`: the orchestration layer, alias `@harness` — agents (`lead/`,
+  `general/`), tools, middleware (compaction, retry, budget, structured-output),
+  skills, workspace, the runtime assembly (`runtime/`), and the file session store
+  (`persistence.ts`).
+  - `tests/`: harness test suite on fakes; `e2e/`: cases against the real model,
+    skipped without an API key
+- `packages/tui/`: `src/app.tsx` componentized OpenTUI/Solid terminal UI, alias `@tui`
+- `apps/cli/`: `src/index.ts` CLI bootstrap and mode selection, `src/compose.ts` the
+  composition root (the one place provider models are bound), `src/logger.ts` CLI UI
+  renderer (`stream` / `buffered`)
 - `skills/`: workspace skills, one directory per skill (`SKILL.md` + assets); discovered at startup
 - `bunfig.toml`: bun preload for OpenTUI Solid JSX transforms
 
 ## Import Conventions
 
-- Use per-package absolute aliases for project source modules: `@harness/*`, `@tui/*`, `@contracts` (registered in `tsconfig.base.json`). Example: `@harness/agent/loop`.
+- Cross-package imports go through the package barrels (`@agent-core`, `@providers`, `@harness`); inside a package use its own alias (`@agent-core/*`, `@harness/*`, `@tui/*`) — all registered in `tsconfig.base.json`.
 - Do not use relative imports for project-internal modules unless there is a strong reason.
 - Do not add `.js` suffixes to TypeScript source imports.
 - `bun run build` bundles the CLI with `Bun.build` (alias resolution via tsconfig paths), emitting runnable ESM to `dist/`.
@@ -47,7 +56,7 @@ Bun workspaces — `packages/*` (libraries) and `apps/*` (runnable surfaces). Cr
 
 ```bash
 bun install
-bun run start "read packages/harness/src/agent/loop.ts and explain the loop"
+bun run start "read packages/agent-core/src/engine/loop.ts and explain the loop"
 ```
 
 The project is bun-first for local development:
@@ -55,7 +64,7 @@ The project is bun-first for local development:
 - `bun run start` runs the TypeScript CLI entrypoint directly
 - `bun run tui` opens the interactive TUI directly
 - `bun run build` bundles the CLI with Bun.build into `dist/`
-- `bun run test:harness` runs the centralized `packages/harness/tests` suite
+- `bun run test` runs every package suite (`test:core` / `test:providers` / `test:harness` / `test:tui`)
 - `bun run test:harness:e2e` runs the `packages/harness/e2e` cases against the real model (needs `DASHSCOPE_API_KEY`; skipped without one)
 - `bun run test:tui` runs the focused `packages/tui/tests` suite
 
@@ -88,7 +97,7 @@ bun run tui
 You can also open the TUI and immediately submit a prompt:
 
 ```bash
-bun run tui "read packages/harness/src/agent/loop.ts and explain the loop"
+bun run tui "read packages/agent-core/src/engine/loop.ts and explain the loop"
 ```
 
 Built-in tools: `read`, `write`, `edit`, `grep`, `bash`, `tavily`, `present_files`, `view_image`, `task` / `task_resume`, and `skill`.
@@ -102,19 +111,19 @@ The runtime supports skills discovered from `skills/`: the system prompt exposes
 Example with the simple CLI display:
 
 ```bash
-bun run start "Use the available tools when helpful. Read packages/harness/src/agent/loop.ts and explain runLoop."
+bun run start "Use the available tools when helpful. Read packages/agent-core/src/engine/loop.ts and explain runLoop."
 ```
 
 Streaming mode prints the answer as it arrives and keeps tool activity readable:
 
 ```bash
-bun run start --output stream "Use the available tools when helpful. Read packages/harness/src/agent/loop.ts and explain runLoop."
+bun run start --output stream "Use the available tools when helpful. Read packages/agent-core/src/engine/loop.ts and explain runLoop."
 ```
 
 Buffered mode waits until the step completes, then prints compact thinking/answer blocks:
 
 ```bash
-bun run start --output buffered "Use the available tools when helpful. Read packages/harness/src/agent/loop.ts and explain runLoop."
+bun run start --output buffered "Use the available tools when helpful. Read packages/agent-core/src/engine/loop.ts and explain runLoop."
 ```
 
 The split-pane TUI now uses `@opentui/solid` components, keeps the current session transcript on the right and session/status navigation on the left, and renders user/assistant/thinking/tool content in separate cards. It supports:

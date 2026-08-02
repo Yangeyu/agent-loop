@@ -8,8 +8,8 @@ import {
 import {
   defineTool,
 } from "@agent-core"
-import type { LLMChunk, LLMInput, Model } from "@agent-core/llm/types"
-import type { ToolPart } from "@agent-core/types"
+import type { LLMChunk, LLMInput, Model } from "@agent-core"
+import type { ToolPart } from "@agent-core"
 import { z } from "zod"
 
 // A model that issues the given tool calls in its first step, then a plain answer

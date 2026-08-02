@@ -21,14 +21,16 @@
  * step.phase / step.end) is the recorder's, and all session content flows
  * through the Sessions aggregate, which emits the state channel by itself.
  */
-import type { AgentDefinition } from "@agent-core/blueprint"
-import { createRunContext, createStepContext, type EngineDeps, type StepContext } from "@agent-core/context"
+import type { AgentDefinition } from "@agent-core/agent"
+import type { EngineDeps } from "@agent-core/context"
+import { createRunContext, createStepContext, type StepContext } from "@agent-core/engine/context"
 import { createStepAbortSignal, resolveStepExecutionPolicy } from "@agent-core/policy"
-import { StepRecorder } from "@agent-core/recorder"
-import { runStep } from "@agent-core/step"
-import { MiddlewareStack, type StepOutcome, type StepOutcomeReason } from "@agent-core/hooks"
+import { StepRecorder } from "@agent-core/engine/recorder"
+import { runStep } from "@agent-core/engine/step"
+import { MiddlewareStack } from "@agent-core/engine/stack"
+import type { StepOutcome, StepOutcomeReason } from "@agent-core/hooks"
 import { toModelMessages } from "@agent-core/llm/message"
-import { createID, type AssistantMessage, type SessionInfo, type UserMessage } from "@agent-core/types"
+import { createID, type AssistantMessage, type SessionInfo, type UserMessage } from "@agent-core/model"
 
 /**
  * Drives the step loop for an already-seeded session: builds the agent's

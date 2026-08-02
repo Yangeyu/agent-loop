@@ -4,8 +4,8 @@ import {
   toCompletedToolPart,
   toErroredToolPart,
   toMetadataPatchedToolPart,
-} from "@agent-core/tool-part"
-import type { ToolPart } from "@agent-core/types"
+} from "@agent-core/engine/tool-part"
+import type { ToolPart } from "@agent-core/model"
 
 function running(display?: Parameters<typeof createRunningToolPart>[0]["display"]): ToolPart {
   return createRunningToolPart({

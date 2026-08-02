@@ -8,7 +8,7 @@ import {
 import {
   type AssistantMessage,
 } from "@agent-core"
-import type { LLMChunk } from "@agent-core/llm/types"
+import type { LLMChunk } from "@agent-core"
 import { createFakeModel } from "@agent-core"
 
 const JSON_FORMAT = { type: "json_schema" as const, schema: { type: "object" } }

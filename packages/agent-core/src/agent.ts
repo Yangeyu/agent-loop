@@ -1,40 +1,55 @@
 /**
- * createAgent: the single door through which a runnable agent is made. The
- * spec is the blueprint half (name, model, instructions, tools, middleware);
- * `deps` is the environment half — inject a runtime's EngineDeps to share its
- * sessions and event bus, or omit it for a private in-memory engine
- * (createEngineDeps). An agent needing skills, delegation, or a file tree
- * composes them in as tools and middleware.
+ * The agent: its definition and the single door through which a runnable one
+ * is made. The spec is the blueprint half (name, model, instructions, tools,
+ * middleware); `deps` is the environment half — inject a runtime's EngineDeps
+ * to share its sessions and event bus, or omit it for a private in-memory
+ * engine (createEngineDeps). An agent needing skills, delegation, or a file
+ * tree composes them in as tools and middleware.
  */
-import { defineAgent, type AgentDefinition } from "@agent-core/blueprint"
 import { createEngineDeps, type EngineDeps } from "@agent-core/context"
-import { runLoop } from "@agent-core/loop"
+import { runLoop } from "@agent-core/engine/loop"
 import type { RuntimeEventBus } from "@agent-core/events"
 import type { Model } from "@agent-core/llm/types"
 import type { MiddlewareFactory } from "@agent-core/hooks"
 import type { Sessions } from "@agent-core/session"
-import {
-  createID,
-  type ImageSource,
-  type OutputFormat,
-  type SessionInfo,
-  type ToolDefinition,
-  type UserMessage,
-} from "@agent-core/types"
+import { createID, type ImageSource, type OutputFormat, type SessionInfo, type UserMessage } from "@agent-core/model"
+import type { ToolDefinition } from "@agent-core/tool/tool"
 
 /** The blueprint half plus the optional environment half. */
 export type CreateAgentSpec = {
   name?: string
   description?: string
+  /** A bound model instance, built by a provider factory. */
   model: Model
+  /** Instruction fragments the engine seeds into the system prompt. */
   instructions?: string[]
   middleware?: MiddlewareFactory[]
   tools?: ToolDefinition[]
+  /** Cap on steps per run; falls back to the runtime default when unset. */
   steps?: number
+  /** Cap on tool calls per run; falls back to the runtime default when unset. */
   maxToolCalls?: number
   format?: OutputFormat
   /** The engine environment to run on; omitted = a private in-memory engine. */
   deps?: EngineDeps
+}
+
+/**
+ * A capability surface (instructions, tools, middleware) bound to a concrete
+ * model instance — the static half of an agent, the view middleware and the
+ * engine read.
+ */
+export type AgentDefinition = {
+  name: string
+  description?: string
+  model: Model
+  instructions: string[]
+  tools: ToolDefinition[]
+  steps?: number
+  maxToolCalls?: number
+  format?: OutputFormat
+  /** Instantiates the agent's middleware, once per run. */
+  assemble(): { middleware: MiddlewareFactory[] }
 }
 
 /** One run request: the user text, and which session answers it (new when unset). */
@@ -66,17 +81,7 @@ export type Agent = {
  * @returns the runnable agent
  */
 export function createAgent(spec: CreateAgentSpec): Agent {
-  const definition = defineAgent({
-    name: spec.name ?? "agent",
-    description: spec.description,
-    model: spec.model,
-    instructions: spec.instructions,
-    tools: spec.tools,
-    steps: spec.steps,
-    maxToolCalls: spec.maxToolCalls,
-    format: spec.format,
-    middleware: spec.middleware ?? [],
-  })
+  const definition = defineAgent(spec)
   const deps = spec.deps ?? createEngineDeps()
 
   return {
@@ -91,6 +96,22 @@ export function createAgent(spec: CreateAgentSpec): Agent {
       seedUserMessage(deps, definition, session.id, input)
       return runLoop(deps, { sessionID: session.id, agent: definition, abort: input.abort })
     },
+  }
+}
+
+/** Normalizes a spec into the definition: names the agent, defaults collections. */
+export function defineAgent(spec: Omit<CreateAgentSpec, "deps">): AgentDefinition {
+  const middleware = spec.middleware ?? []
+  return {
+    name: spec.name ?? "agent",
+    description: spec.description,
+    model: spec.model,
+    instructions: spec.instructions ?? [],
+    tools: spec.tools ?? [],
+    steps: spec.steps,
+    maxToolCalls: spec.maxToolCalls,
+    format: spec.format,
+    assemble: () => ({ middleware }),
   }
 }
 

@@ -26,7 +26,7 @@ import {
 } from "@agent-core/model"
 import type { EventChannel } from "@agent-core/events"
 import type { SessionPersistence } from "@agent-core/session/persistence"
-import { createID } from "@agent-core/types"
+import { createID } from "@agent-core/model"
 
 export class Sessions {
   constructor(

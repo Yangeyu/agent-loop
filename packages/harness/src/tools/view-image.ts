@@ -10,7 +10,7 @@
  * mapping.
  */
 import path from "node:path"
-import { resolveImageSource } from "@agent-core"
+import { resolveImageSource } from "@harness/image"
 import type { LLMInput, Model, ModelMessage } from "@agent-core"
 import { defineTool } from "@agent-core"
 import { type AnyToolDefinition, type ImageSource, type ToolContext } from "@agent-core"

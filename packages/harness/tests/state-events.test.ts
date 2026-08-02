@@ -15,7 +15,7 @@ import {
 import {
   type StateEvent,
 } from "@agent-core"
-import type { LLMChunk } from "@agent-core/llm/types"
+import type { LLMChunk } from "@agent-core"
 import { createFakeModel } from "@agent-core"
 
 const STEP_SCRIPT: LLMChunk[] = [

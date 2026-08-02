@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { createEditTool } from "@harness/tools/edit"
-import type { ToolMetadata } from "@agent-core/types"
+import type { ToolMetadata } from "@agent-core"
 
 import { createWorkspace } from "@harness/workspace"
 

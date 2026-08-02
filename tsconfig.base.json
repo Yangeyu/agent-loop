@@ -18,6 +18,8 @@
       "@agent-core": ["packages/agent-core/src/index.ts"],
       "@agent-core/*": ["packages/agent-core/src/*"],
       "@harness": ["packages/harness/src/index.ts"],
+      "@providers": ["packages/providers/src/index.ts"],
+      "@providers/*": ["packages/providers/src/*"],
       "@harness/*": ["packages/harness/src/*"],
       "@tui": ["packages/tui/src/index.ts"],
       "@tui/*": ["packages/tui/src/*"]

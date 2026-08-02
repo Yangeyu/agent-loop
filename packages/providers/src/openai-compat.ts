@@ -13,10 +13,19 @@
  * nothing about any specific vendor.
  */
 import OpenAI from "openai"
-import { DEFAULT_TEMPERATURE, type LLMChunk, type LLMInput, type Model, type ModelContentBlock, type ModelMessage, type ProviderModelSpec } from "@agent-core/llm/types"
-import { imageSourceToUrl } from "@agent-core/llm/image"
-import { serializeContentBlocks } from "@agent-core/llm/message"
-import { createID, ToolDefinition } from "@agent-core/types"
+import {
+  DEFAULT_TEMPERATURE,
+  createID,
+  serializeContentBlocks,
+  type LLMChunk,
+  type LLMInput,
+  type ImageSource,
+  type Model,
+  type ModelContentBlock,
+  type ModelMessage,
+  type ProviderModelSpec,
+  type ToolDefinition,
+} from "@agent-core"
 import { zodToJsonSchema } from "zod-to-json-schema"
 
 /**
@@ -253,4 +262,13 @@ function mapFinishReason(reason: string): string {
   if (reason === "length") return "length"
   if (reason === "error") return "error"
   return "stop"
+}
+
+// The image_url serialization this protocol expects: a remote URL passes
+// through, base64 becomes a data URL. A local `file` source must have been
+// resolved (read + encoded) by the embedder before it reaches a provider.
+function imageSourceToUrl(source: ImageSource): string {
+  if (source.kind === "url") return source.url
+  if (source.kind === "base64") return `data:${source.mime};base64,${source.data}`
+  throw new Error("Unresolved file image source reached the provider; resolve it to base64 or a URL first")
 }

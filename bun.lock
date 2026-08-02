@@ -17,19 +17,33 @@
         "agent-loop": "src/index.ts",
       },
       "dependencies": {
+        "@agent-loop/agent-core": "workspace:*",
         "@agent-loop/harness": "workspace:*",
         "@agent-loop/tui": "workspace:*",
       },
     },
-    "packages/contracts": {
-      "name": "@agent-loop/contracts",
+    "packages/agent-core": {
+      "name": "@agent-loop/agent-core",
       "version": "0.1.0",
+      "dependencies": {
+        "zod": "^3.25.76",
+      },
     },
     "packages/harness": {
       "name": "@agent-loop/harness",
       "version": "0.1.0",
       "dependencies": {
+        "@agent-loop/agent-core": "workspace:*",
         "officeparser": "^7.2.1",
+        "openai": "^6.42.0",
+        "zod": "^3.25.76",
+        "zod-to-json-schema": "^3.25.1",
+      },
+    },
+    "packages/providers": {
+      "name": "@agent-loop/providers",
+      "version": "0.1.0",
+      "dependencies": {
         "openai": "^6.42.0",
         "zod": "^3.25.76",
         "zod-to-json-schema": "^3.25.1",
@@ -39,7 +53,7 @@
       "name": "@agent-loop/tui",
       "version": "0.1.0",
       "dependencies": {
-        "@agent-loop/contracts": "workspace:*",
+        "@agent-loop/agent-core": "workspace:*",
         "@agent-loop/harness": "workspace:*",
         "@opentui/core": "^0.1.90",
         "@opentui/solid": "^0.1.90",
@@ -48,11 +62,13 @@
     },
   },
   "packages": {
+    "@agent-loop/agent-core": ["@agent-loop/agent-core@workspace:packages/agent-core"],
+
     "@agent-loop/cli": ["@agent-loop/cli@workspace:apps/cli"],
 
-    "@agent-loop/contracts": ["@agent-loop/contracts@workspace:packages/contracts"],
-
     "@agent-loop/harness": ["@agent-loop/harness@workspace:packages/harness"],
+
+    "@agent-loop/providers": ["@agent-loop/providers@workspace:packages/providers"],
 
     "@agent-loop/tui": ["@agent-loop/tui@workspace:packages/tui"],
 

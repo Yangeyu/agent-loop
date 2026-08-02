@@ -2,7 +2,7 @@
  * Normalizing a thrown value: what the loop needs to tell an abort from a
  * failure, and to store either one on a part.
  */
-import type { ErrorInfo } from "@agent-core/types"
+import type { ErrorInfo } from "@agent-core/model"
 
 /**
  * Whether an error is an abort (DOMException/Error named "AbortError").

@@ -14,7 +14,7 @@
  * other copy.
  */
 import type { ActivityHandle } from "@agent-core/hooks"
-import { ToolPartTracker } from "@agent-core/tool-part"
+import { ToolPartTracker } from "@agent-core/engine/tool-part"
 import type { EventChannel } from "@agent-core/events"
 import type { Sessions } from "@agent-core/session"
 import {
@@ -28,7 +28,7 @@ import {
   type ReasoningPart,
   type TextPart,
   type StepPhase,
-} from "@agent-core/types"
+} from "@agent-core/model"
 
 const VALID_PHASE_TRANSITIONS: Record<StepPhase, StepPhase[]> = {
   starting: ["streaming", "finishing"],

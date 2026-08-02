@@ -5,7 +5,7 @@
  * off disk and encoded before it can reach the provider.
  */
 import { readFile } from "node:fs/promises"
-import type { ImageSource } from "@agent-core/types"
+import type { ImageSource } from "@agent-core"
 
 /**
  * Resolves a source into a provider-ready form: a local file is read and base64
@@ -18,17 +18,4 @@ export async function resolveImageSource(source: ImageSource): Promise<ImageSour
   if (source.kind !== "file") return source
   const data = (await readFile(source.path)).toString("base64")
   return { kind: "base64", data, mime: source.mime }
-}
-
-/**
- * Maps a resolved source to the `image_url.url` string the provider expects.
- *
- * @param source - a resolved image source (`url` or `base64`)
- * @returns the URL string (a remote URL, or a base64 data URL)
- * @throws if given an unresolved `file` source — call resolveImageSource first
- */
-export function imageSourceToUrl(source: ImageSource): string {
-  if (source.kind === "url") return source.url
-  if (source.kind === "base64") return `data:${source.mime};base64,${source.data}`
-  throw new Error("Unresolved file image source reached the provider; call resolveImageSource first")
 }

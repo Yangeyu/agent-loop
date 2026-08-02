@@ -4,8 +4,9 @@ A compact TypeScript agent runtime (Bun workspaces) that captures OpenCode's cor
 behavior: an agentic loop with tool execution, subagent delegation, session state,
 provider adaptation, and compaction — not a full product clone.
 
-Two packages: `agent-core` is the general agent loop; `harness` is the coding agent
-built on it. Surfaces (`cli`, `tui`) drive the harness.
+Three packages: `agent-core` is the general agent loop; `providers` binds its Model
+port to vendors; `harness` is the coding agent built on the loop. Surfaces (`cli`,
+`tui`) drive the harness and inject provider models at the composition root.
 
 This file is the entry point: the core constraints below are non-negotiable; the
 **Doc Map** routes you to the right document before you read source.
@@ -13,13 +14,15 @@ This file is the entry point: the core constraints below are non-negotiable; the
 ## Core Constraints
 
 - **Aliases, not relative paths.** Cross-package imports go through a package barrel
-  (`@agent-core`, `@harness`); inside a package, use its own alias (`@harness/*`,
-  `@agent-core/*`, `@tui/*`). All registered in `tsconfig.base.json`. Never reintroduce a
-  shared `@/` alias; never add `.js` suffixes.
-- **One-way dependencies.** `agent-core <- harness <- surfaces` (cli/tui).
-  `agent-core/src/model.ts` is the pure leaf (data model + event vocabulary) and imports
-  nothing; agent-core does not know orchestration exists; the engine never depends on a
-  surface. Enforced by `bun run check:boundaries`.
+  (`@agent-core`, `@providers`, `@harness`); inside a package, use its own alias
+  (`@harness/*`, `@agent-core/*`, `@tui/*`). All registered in `tsconfig.base.json`.
+  Never reintroduce a shared `@/` alias; never add `.js` suffixes.
+- **One-way dependencies.** `agent-core <- harness <- surfaces` (cli/tui), and
+  `agent-core <- providers <- composition root / e2e` beside it — no vendor code in the
+  loop or the orchestration layer. `agent-core/src/model.ts` is the pure leaf (data model
+  + event vocabulary) and imports nothing; agent-core does not know orchestration exists;
+  the engine never depends on a surface; `agent-core/src/engine/` is sealed machinery the
+  barrel never re-exports. Enforced by `bun run check:boundaries`.
 - **agent-core is the general loop.** It drives one agent and knows nothing about skills,
   files, or multiple agents. Behavior enters through middleware and tools, never by
   branching on agent identity. To decide whether something belongs there, ask *"does a
@@ -48,7 +51,8 @@ then confirm details in code.
 | Anything — overall structure & execution path | [`docs/project-map.md`](docs/project-map.md) |
 | Engineering conventions & accumulated principles | [`docs/conventions.md`](docs/conventions.md) |
 | **agent-core** — data model, the loop, step lifecycle, hooks, session state | [`docs/modules/agent-core/loop-and-state.md`](docs/modules/agent-core/loop-and-state.md) |
-| **agent-core** — models, providers, streaming protocol | [`docs/modules/agent-core/llm-and-providers.md`](docs/modules/agent-core/llm-and-providers.md) |
+| **agent-core** — the Model port, streaming protocol | [`docs/modules/agent-core/llm-and-providers.md`](docs/modules/agent-core/llm-and-providers.md) |
+| **providers** — vendor bindings for the Model port | [`docs/modules/providers.md`](docs/modules/providers.md) |
 | **harness** — agents, prompt assembly, tools, skills, delegation, workspace | [`docs/modules/harness/agents-and-tools.md`](docs/modules/harness/agents-and-tools.md) |
 | **harness** — runtime assembly, middleware catalogue, config layering | [`docs/modules/harness/runtime-and-middleware.md`](docs/modules/harness/runtime-and-middleware.md) |
 | **tui** / **cli** — a surface | [`docs/modules/tui.md`](docs/modules/tui.md) · [`cli.md`](docs/modules/cli.md) |

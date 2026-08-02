@@ -64,6 +64,13 @@
 > 在调用点没有名字、无法共享，正是当年 seeding 双实现的来源。错配由 registry 准入兜住：
 > `register` 校验 agent 与 runtime 同店，把远处的「未知会话」变成装配点的即时失败。
 >
+> **原则：布局要能读出架构。** agent-core 的目录不变式：**根 = 门与词汇，子目录 = 端口，
+> `engine/` = 密封机房**（LangGraph 的 graph/pregel 同型）。公共表面与机器内脏不平铺混住——
+> barrel 守 API 边界，位置守认知边界，两者说同一句话。由此推出的两条：厂商绑定不进内核
+> （providers 是独立包，只被组合根与 e2e 消费——LangGraph partner 包 / pi 的 ai 包同型）；
+> 端口 = 契约 + 具名默认/测试替身，完整住在一个目录里（tool 契约曾劈在 types.ts，"types"
+> 这种不说明职责的文件名是杂物抽屉的信号）。
+>
 > 同一条原则决定实现放哪层：**内核只带契约与内存默认，真实后端属于消费方，以实例注入**。
 > `SessionPersistence` 契约 + `MemorySessionPersistence` 在 agent-core，file 后端在 harness
 > （LangGraph 的 checkpointer 契约 + `MemorySaver` 在核心、`PostgresSaver` 在外，同一布局）；

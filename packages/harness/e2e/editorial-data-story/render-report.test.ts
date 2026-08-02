@@ -6,10 +6,8 @@ import {
   loadSkillsFromDir,
   runPrompt,
 } from "@harness"
-import {
-  createDashScopeModel,
-} from "@agent-core"
-import type { ToolPart } from "@agent-core/types"
+import { createDashScopeModel } from "@providers"
+import type { ToolPart } from "@agent-core"
 
 // End-to-end against the real configured model (DashScope). Skipped when no API
 // key is present so the default suite never depends on the network.

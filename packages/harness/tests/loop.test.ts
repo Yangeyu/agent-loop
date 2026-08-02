@@ -8,8 +8,8 @@ import {
 import {
   defineTool,
 } from "@agent-core"
-import type { LLMChunk, LLMInput, Model } from "@agent-core/llm/types"
-import type { AssistantMessage, ToolPart } from "@agent-core/types"
+import type { LLMChunk, LLMInput, Model } from "@agent-core"
+import type { AssistantMessage, ToolPart } from "@agent-core"
 import { z } from "zod"
 
 // A model that replays one scripted chunk list per step, then keeps answering

@@ -8,21 +8,22 @@
  * a clean model finish is not — its finishReason is returned open so the loop
  * can pass it through afterStep and apply the terminal exactly once.
  */
-import type { StepContext } from "@agent-core/context"
-import type { StepRecorder } from "@agent-core/recorder"
-import type { ToolPartTracker } from "@agent-core/tool-part"
+import type { StepContext } from "@agent-core/engine/context"
+import type { StepRecorder } from "@agent-core/engine/recorder"
+import type { ToolPartTracker } from "@agent-core/engine/tool-part"
 import {
   executeToolCall,
   openToolPart,
   prepareToolCall,
   type PreparedToolCall,
   type ToolCallOutcome,
-} from "@agent-core/tool-call"
-import type { MiddlewareStack, ModelCallResult, ToolCall } from "@agent-core/hooks"
+} from "@agent-core/engine/tool-call"
+import type { MiddlewareStack } from "@agent-core/engine/stack"
+import type { ModelCallResult, ToolCall } from "@agent-core/hooks"
 import type { LLMInput, ModelMessage } from "@agent-core/llm/types"
 import { isAbortError, toErrorInfo } from "@agent-core/error"
 import { classifyRetry } from "@agent-core/llm/classify"
-import type { FinishReason } from "@agent-core/types"
+import type { FinishReason } from "@agent-core/model"
 
 /** The assembled model input for one step: system fragments + transformed messages. */
 export type StepInput = {

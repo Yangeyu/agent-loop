@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test"
-import { buildMessageContent, mapMessages } from "@agent-core/llm/providers/openai-compat"
-import { createDashScopeModel } from "@agent-core/llm/providers/dashscope"
-import type { ModelContentBlock, ModelMessage } from "@agent-core/llm/types"
+import { buildMessageContent, mapMessages } from "@providers/openai-compat"
+import { createDashScopeModel } from "@providers/dashscope"
+import type { ModelContentBlock, ModelMessage } from "@agent-core"
 
 describe("openai-compat buildMessageContent", () => {
   it("keeps text-only content as a flattened string", () => {

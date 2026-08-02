@@ -1,5 +1,5 @@
 {
-  "name": "@agent-loop/agent-core",
+  "name": "@agent-loop/providers",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -13,6 +13,8 @@
     "test": "bun test tests"
   },
   "dependencies": {
-    "zod": "^3.25.76"
+    "openai": "^6.42.0",
+    "zod": "^3.25.76",
+    "zod-to-json-schema": "^3.25.1"
   }
 }

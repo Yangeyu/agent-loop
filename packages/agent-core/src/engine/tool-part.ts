@@ -8,7 +8,8 @@
  * (part.created / part.updated) in one step, with no hand-written mirror events.
  */
 import type { Sessions } from "@agent-core/session"
-import type { ErrorInfo, ToolDisplay, ToolDisplayPatch, ToolExecuteResult, ToolMetadata, ToolPart } from "@agent-core/types"
+import type { ErrorInfo, ToolDisplay, ToolDisplayPatch, ToolMetadata, ToolPart } from "@agent-core/model"
+import type { ToolExecuteResult } from "@agent-core/tool/tool"
 
 type ToolPartBase = {
   id: string
