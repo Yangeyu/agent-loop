@@ -41,7 +41,7 @@ const EXTRACTOR_INSTRUCTIONS = [
 
 const ADJUDICATOR_INSTRUCTIONS = [
   "You decide how one candidate memory relates to the existing records and reply with a JSON object only.",
-  'Same fact slot, refined or restated: {"action": "update", "target": name, "revision": {"description", "body"}, "reason"} — fold the candidate into the record, conditionalize instead of forking.',
+  'Same fact slot, refined or restated: {"action": "update", "target": name, "revision": {"description", "body"}, "reason"} — fold the candidate into the record, conditionalize instead of forking. The revision replaces the record wholesale: write one coherent body with a single **Why:** and **How to apply:**, never concatenate the old text after the new.',
   'Contradicts a record: {"action": "supersede", "target": name, "reason"}.',
   'Genuinely new: {"action": "add", "reason"}.',
   'Duplicate, not durable, or you are unsure: {"action": "drop", "reason"}. When unsure, drop — a missed fact returns with the next feedback; a wrongly deleted record has no recovery signal.',
